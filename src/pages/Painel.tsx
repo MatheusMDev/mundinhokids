@@ -1,0 +1,150 @@
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Layout, useCelular } from '../components/Layout';
+import { CalendarioMes, MiniCalendario, type Mes } from '../components/Calendario';
+import { Icone } from '../components/Icone';
+import { useEstado } from '../lib/estado';
+import { chaveDia, dataLonga, dataLongaDaChave, diaCurto, hora, partes } from '../lib/formato';
+import {
+  eventosDoDia, eventosOrdenados, localDe, numerosDaSemana, pendenciasDaSemana, proximosEventos,
+  ROTULO_SITUACAO, veValores, type Pendencia,
+} from '../lib/consultas';
+import type { Evento } from '../lib/tipos';
+
+export function ListaPendencias({ pendencias }: { pendencias: Pendencia[] }) {
+  if (!pendencias.length) return <div className="vazio">Nenhuma pendência nesta semana.</div>;
+  return (
+    <div className="pendencias">
+      {pendencias.map((p, i) => (
+        <Link key={`${p.tipo}-${p.eventoId}-${i}`} to={`/eventos/${p.eventoId}`} className={`pendencia ${p.tipo}`}>
+          <span className="rotulo">{p.rotulo}</span>
+          <strong>{p.titulo}</strong>
+          <p>{p.texto}</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export function LinhaEvento({ evento }: { evento: Evento }) {
+  const { db } = useEstado();
+  return (
+    <Link to={`/eventos/${evento.id}`} className="evento-linha">
+      <span className={`evento-hora ${evento.situacao}`}>{hora(evento.inicio)}</span>
+      <span>
+        <strong>{evento.titulo}</strong>
+        <small>{localDe(db, evento)?.nome}</small>
+        <span className={`selo ${evento.situacao}`}>{ROTULO_SITUACAO[evento.situacao]}</span>
+      </span>
+    </Link>
+  );
+}
+
+export function Painel() {
+  const { db, hoje, perfil, avisar } = useEstado();
+  const celular = useCelular();
+  const p = partes(hoje);
+  const [mes, setMes] = useState<Mes>({ ano: p.ano, mes: p.mes });
+  const [selecionado, setSelecionado] = useState(chaveDia(hoje));
+
+  const eventosPorDia = useMemo(() => {
+    const mapa = new Map<string, Evento[]>();
+    for (const e of eventosOrdenados(db)) {
+      if (e.situacao === 'cancelado') continue;
+      const chave = chaveDia(e.inicio);
+      mapa.set(chave, [...(mapa.get(chave) ?? []), e]);
+    }
+    return mapa;
+  }, [db]);
+
+  const pendencias = useMemo(() => pendenciasDaSemana(db, hoje), [db, hoje]);
+  const numeros = useMemo(() => numerosDaSemana(db, hoje), [db, hoje]);
+  const proximos = proximosEventos(db, hoje, 14).slice(0, 5);
+  const dataHoje = dataLonga(hoje, false);
+
+  if (celular) {
+    const doDia = eventosDoDia(db, selecionado);
+    return (
+      <Layout>
+        <div className="cabecalho">
+          <div>
+            <div className="data">{dataHoje}</div>
+            <h1>Agenda da equipe</h1>
+          </div>
+        </div>
+        <MiniCalendario
+          mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia}
+          selecionado={selecionado} onSelecionar={setSelecionado}
+        />
+        <h2 className="secao-titulo">{dataLongaDaChave(selecionado)}</h2>
+        {doDia.length ? doDia.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento neste dia.</div>}
+        <h2 className="secao-titulo">Pendências da semana</h2>
+        <ListaPendencias pendencias={pendencias} />
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="cabecalho">
+        <div>
+          <div className="data">{dataHoje}</div>
+          <h1>Olá! Esta é a semana da equipe.</h1>
+        </div>
+        <button type="button" className="botao primario" onClick={() => avisar('O cadastro de eventos entra na próxima etapa.')}>
+          <Icone nome="mais" /> Novo evento
+        </button>
+      </div>
+
+      <div className="numeros">
+        <div className="cartao numero">
+          <span>Eventos nesta semana</span>
+          <strong>{numeros.eventosSemana}</strong>
+          <small>{numeros.eventosSabado ? `${numeros.eventosSabado} só no sábado` : 'nenhum no sábado'}</small>
+        </div>
+        <div className="cartao numero">
+          <span>Pendências</span>
+          <strong className="laranja">{numeros.pendencias}</strong>
+          <small>{numeros.tiposPendencia || 'tudo em dia'}</small>
+        </div>
+        <div className="cartao numero">
+          <span>Trocas para aprovar</span>
+          <strong className="marca">{numeros.trocas}</strong>
+          <small>{numeros.trocaDescricao}</small>
+        </div>
+        {veValores(perfil) ? (
+          <div className="cartao numero">
+            <span>Pagamentos pendentes</span>
+            <strong>{numeros.profissionaisAPagar}</strong>
+            <small>profissionais a pagar</small>
+          </div>
+        ) : (
+          <div className="cartao numero oculto">
+            <span>Pagamentos pendentes</span>
+            <p>Valores ocultos para este perfil.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="painel">
+        <CalendarioMes mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia} />
+        <div className="coluna">
+          <section className="cartao">
+            <h2>Pendências da semana</h2>
+            <ListaPendencias pendencias={pendencias} />
+          </section>
+          <section className="cartao">
+            <h2>Próximos eventos</h2>
+            <div className="proximos">
+              {proximos.map((e) => (
+                <Link key={e.id} to={`/eventos/${e.id}`}>
+                  {e.titulo} <small>{diaCurto(e.inicio)} · {hora(e.inicio)}</small>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    </Layout>
+  );
+}
