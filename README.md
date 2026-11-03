@@ -1,4 +1,4 @@
-# Mundinho de Kids — gestão de eventos e equipes
+# Mundinho Kids — gestão de eventos e equipes
 
 Sistema web (computador e celular) em React + Vite, com banco no Supabase.
 
