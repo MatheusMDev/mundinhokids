@@ -1,12 +1,18 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Layout, SeletorPerfil } from '../components/Layout';
+import { Layout } from '../components/Layout';
 import { Icone } from '../components/Icone';
+import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala } from '../components/FormulariosEvento';
+import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
+import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Trocas';
+import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
 import { useEstado } from '../lib/estado';
-import { dataLonga, hora, iniciais, moeda, quando } from '../lib/formato';
+import { marcarRealizado } from '../lib/acoes';
+import { dataLonga, hora, iniciais, quando } from '../lib/formato';
 import {
-  aprovaTrocas, avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
-  financeiroDoEvento, historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
-  transporteDoEvento, trocasPendentes, veValores, type MembroEquipe,
+  avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
+  historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
+  trocasPendentes, veValores, type MembroEquipe,
 } from '../lib/consultas';
 import type { Evento } from '../lib/tipos';
 
@@ -17,6 +23,11 @@ function situacaoMembro(m: MembroEquipe) {
   return <span className="selo ok">Confirmada</span>;
 }
 
+type Janela =
+  | { tipo: 'editar' | 'escalar' | 'remarcar' | 'cancelar' | 'conferir' }
+  | { tipo: 'tirar'; escalaId: string; nome: string }
+  | { tipo: 'trocar'; membro: MembroEquipe };
+
 function personagemDoMembro(db: ReturnType<typeof useEstado>['db'], evento: Evento, m: MembroEquipe) {
   if (m.escala.funcao === 'maquiador') return descricaoMaquiagem(db, evento, m);
   return m.personagem?.nome ?? '—';
@@ -24,7 +35,8 @@ function personagemDoMembro(db: ReturnType<typeof useEstado>['db'], evento: Even
 
 export function DetalheEvento() {
   const { id = '' } = useParams();
-  const { db, hoje, perfil, decidirTroca, avisar } = useEstado();
+  const { db, hoje, perfil, decidirTroca, permissoes, executar, cliente, avisar, usuario } = useEstado();
+  const [janela, setJanela] = useState<Janela | null>(null);
   const evento = eventoPorId(db, id);
 
   if (!evento) {
@@ -40,14 +52,24 @@ export function DetalheEvento() {
   const contratante = contratanteDe(db, evento);
   const equipe = equipeDoEvento(db, evento.id);
   const trocas = trocasPendentes(db, evento.id);
-  const transporte = transporteDoEvento(db, evento);
-  const avisos = avisosDoEvento(db, evento.id);
+  const avisos = avisosDoEvento(db, evento);
   const conferencia = conferenciaDoEvento(db, evento.id);
   const historico = historicoDoEvento(db, evento.id, perfil);
   const orientacoes = (evento.orientacoes ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
   const fantasias = equipe.flatMap((m) => (m.fantasia ? [m.fantasia] : []));
   const linkFeedback = db.configuracoes.link_formulario_produtor;
   const horario = `${hora(evento.inicio)} às ${hora(evento.fim)}`;
+  const cancelado = evento.situacao === 'cancelado';
+  const podeEditar = permissoes.operacao && !cancelado;
+  const podeEscalar = podeEditar && evento.situacao !== 'realizado';
+  const podeTirar = permissoes.alterarEquipe && podeEscalar;
+  const terminou = new Date(evento.fim) < new Date(hoje);
+  const podeConferir = permissoes.conferirFantasias && !cancelado && (terminou || evento.situacao === 'realizado');
+  const fechar = () => setJanela(null);
+  // O artista escalado pode pedir a própria troca até o prazo (padrão 1h30 antes)
+  const podePedirTroca = (m: MembroEquipe) => m.escala.funcao === 'artista' && !m.troca && !cancelado
+    && m.escala.profissional_id === usuario.profissionalId && evento.situacao !== 'realizado'
+    && new Date(hoje) < new Date(prazoDaTroca(evento, db.configuracoes));
 
   return (
     <Layout tituloMobile="Detalhe do evento" comBarra>
@@ -76,18 +98,22 @@ export function DetalheEvento() {
         </div>
         <div className="acoes">
           <Link to={`/eventos/${evento.id}/pdf`} className="botao"><Icone nome="arquivo" /> Gerar PDF da equipe</Link>
-          <button type="button" className="botao primario" onClick={() => avisar('A edição de eventos entra na próxima etapa.')}>
-            <Icone nome="lapis" /> Editar evento
-          </button>
+          {podeEditar && (
+            <button type="button" className="botao primario" onClick={() => setJanela({ tipo: 'editar' })}>
+              <Icone nome="lapis" /> Editar evento
+            </button>
+          )}
         </div>
-      </div>
-
-      <div className="so-mobile" style={{ marginBottom: 14 }}>
-        <SeletorPerfil rotulos={{ gerente: 'Ver como gerente', supervisora: 'Ver como supervisora' }} />
       </div>
 
       <div className="detalhe">
         <div className="coluna">
+          {cancelado && (
+            <section className="cartao oculto">
+              <h3>Evento cancelado</h3>
+              <p>{evento.motivo_cancelamento ? `Motivo: ${evento.motivo_cancelamento.replace(/[.!]?s*$/, '.')}` : 'Sem motivo registrado.'} A equipe, os personagens e o veículo foram liberados.</p>
+            </section>
+          )}
           {trocas.map((t) => (
             <section key={t.troca.id} className="troca-cartao">
               <div>
@@ -101,11 +127,13 @@ export function DetalheEvento() {
                   {t.semConflito ? ' · Sem conflito de horário' : ' · Atenção: conflito de horário'}
                 </p>
               </div>
-              {t.troca.situacao === 'aguardando_aprovacao' && aprovaTrocas(perfil) ? (
+              {t.troca.situacao === 'aguardando_aprovacao' && permissoes.gestao ? (
                 <div className="acoes">
                   <button type="button" className="botao" onClick={() => decidirTroca(t.troca.id, false)}>Recusar</button>
                   <button type="button" className="botao primario" onClick={() => decidirTroca(t.troca.id, true)}>Aprovar troca</button>
                 </div>
+              ) : t.troca.solicitante_id === usuario.profissionalId ? (
+                <div className="acoes"><BotaoDesistir substituicaoId={t.troca.id} /></div>
               ) : (
                 <div className="troca-espera">
                   {t.troca.situacao === 'aguardando_aceite'
@@ -117,20 +145,37 @@ export function DetalheEvento() {
           ))}
 
           <section className="cartao">
-            <h2>{`Equipe${equipe.length ? ' escalada' : ''}`}</h2>
+            <div className="cartao-topo">
+              <h2>{`Equipe${equipe.length ? ' escalada' : ''}`}</h2>
+              {podeEscalar && (
+                <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'escalar' })}>
+                  <Icone nome="mais" tamanho={15} /> Escalar
+                </button>
+              )}
+            </div>
             {equipe.length === 0 ? (
               <div className="vazio">Ninguém escalado ainda.</div>
             ) : (
               <>
                 <table className="tabela so-desktop">
-                  <thead><tr><th>Função</th><th>Personagem</th><th>Profissional</th><th>Situação</th></tr></thead>
+                  <thead><tr><th>Função</th><th>Personagem</th><th>Profissional</th><th>Situação</th>{podeTirar && <th><span className="sr-only">Ações</span></th>}</tr></thead>
                   <tbody>
                     {equipe.map((m) => (
                       <tr key={m.escala.id}>
                         <td>{ROTULO_FUNCAO[m.escala.funcao]}</td>
                         <td className="suave">{personagemDoMembro(db, evento, m)}</td>
                         <td><strong>{m.profissional?.nome}</strong></td>
-                        <td>{situacaoMembro(m)}</td>
+                        <td>
+                          {situacaoMembro(m)}
+                          {podePedirTroca(m) && (
+                            <button type="button" className="botao pequeno" style={{ marginLeft: 8 }} onClick={() => setJanela({ tipo: 'trocar', membro: m })}>Pedir troca</button>
+                          )}
+                        </td>
+                        {podeTirar && (
+                          <td style={{ textAlign: 'right' }}>
+                            <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>Tirar</button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -144,6 +189,13 @@ export function DetalheEvento() {
                         <small>{ROTULO_FUNCAO[m.escala.funcao]}{m.escala.funcao !== 'produtor' ? ` · ${personagemDoMembro(db, evento, m)}` : ''}</small>
                       </span>
                       {situacaoMembro(m)}
+                      {podePedirTroca(m) && (
+                        <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'trocar', membro: m })}>Trocar</button>
+                      )}
+                      {podeTirar && (
+                        <button type="button" className="botao pequeno" aria-label={`Tirar ${m.profissional?.nome ?? ''} da equipe`}
+                          onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>✕</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -164,18 +216,33 @@ export function DetalheEvento() {
             <div className="cartao-topo">
               <h2>Fantasias</h2>
               {conferencia !== 'sem_fantasias' && (
-                <small>Conferência pós-evento: {conferencia === 'concluida' ? 'concluída' : 'pendente'}</small>
+                podeConferir
+                  ? <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'conferir' })}>
+                      {conferencia === 'concluida' ? 'Rever conferência' : 'Conferir fantasias'}
+                    </button>
+                  : <small>Conferência pós-evento: {conferencia === 'concluida' ? 'concluída' : 'pendente'}</small>
               )}
             </div>
+            {podeConferir && conferencia === 'pendente' && (
+              <p className="suave" style={{ margin: '-6px 0 12px', fontSize: 12.5 }}>O evento terminou: confira devolução, limpeza e reparos.</p>
+            )}
             {fantasias.length ? (
               <div className="fantasias">
                 {fantasias.map((f) => {
                   const s = situacaoFantasiaNoEvento(db, f, evento);
+                  const conf = db.conferencias_fantasia.find((c) => c.evento_id === evento.id && c.fantasia_id === f.id);
                   return (
                     <div key={f.id} className="fantasia">
                       <strong>{f.identificacao} · {f.tamanho ?? 'único'}</strong>
                       <span className={s.tom}>{s.texto}</span>
                       {s.detalhe && <small>{s.detalhe}</small>}
+                      {conf && (
+                        <span className={`conferido ${conf.condicao === 'ok' && conf.devolvida ? 'ok-texto' : 'alerta-texto'}`}>
+                          Conferida: {conf.devolvida ? ROTULO_CONDICAO[conf.condicao].toLowerCase() : 'não devolvida'}
+                          {conf.precisa_limpeza && ' · limpeza'}{conf.precisa_reparo && ' · reparo'}
+                          {conf.pendencias && ` · ${conf.pendencias}`}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -203,41 +270,19 @@ export function DetalheEvento() {
             )}
           </section>
 
-          <section className="cartao">
-            <h2>Transporte</h2>
-            {transporte.reserva ? (
-              <>
-                <strong>{transporte.veiculoNome} · reservada por {transporte.responsavel?.nome}</strong>
-                <p className="suave" style={{ margin: '4px 0 0' }}>
-                  Retirada {hora(transporte.reserva.retirada)} · devolução prevista {hora(transporte.reserva.devolucao_prevista)}
-                </p>
-              </>
-            ) : (
-              <div className="vazio">Sem reserva de veículo.</div>
-            )}
-            {transporte.bloqueioAnterior && (
-              <div className="trava">
-                <Icone nome="cadeado" tamanho={15} />
-                <span>
-                  <strong>Bloqueado das {hora(transporte.bloqueioAnterior.reserva.retirada)} às {hora(transporte.bloqueioAnterior.reserva.devolucao_prevista)}</strong>
-                  {transporte.bloqueioAnterior.evento && ` pela ${transporte.bloqueioAnterior.evento.titulo}`}.
-                  {' '}O sistema só liberou a retirada depois da devolução.
-                </span>
-              </div>
-            )}
-          </section>
+          <CartaoTransporte evento={evento} />
 
           <section className="cartao">
             <h2>Avisos e agenda</h2>
             <ul className="avisos">
               {avisos.convite && <li><span className="ponto verde" /> Convite na agenda enviado para os {avisos.equipe} profissionais</li>}
-              {avisos.lembrete && (
+              {avisos.lembreteEm && (
                 <li>
                   <span className="ponto laranja" />
-                  Último aviso programado: {dataLonga(avisos.lembrete.agendada_para, false).split(',')[0].toLowerCase()} às {hora(avisos.lembrete.agendada_para)} ({avisos.antecedencia}h antes)
+                  Último aviso programado: {dataLonga(avisos.lembreteEm, false).split(',')[0].toLowerCase()} às {hora(avisos.lembreteEm)} ({avisos.antecedencia}h antes)
                 </li>
               )}
-              {!avisos.convite && !avisos.lembrete && <li className="suave">Nenhum aviso enviado ainda.</li>}
+              {!avisos.convite && !avisos.lembreteEm && <li className="suave">Nenhum aviso programado.</li>}
             </ul>
             {linkFeedback && (
               <a className="botao" href={linkFeedback} target="_blank" rel="noreferrer" style={{ marginTop: 14, width: '100%' }}>
@@ -246,12 +291,8 @@ export function DetalheEvento() {
             )}
           </section>
 
-          {veValores(perfil) ? <CartaoFinanceiro eventoId={evento.id} /> : (
-            <section className="cartao oculto">
-              <h3>Valores ocultos para este perfil</h3>
-              <p>A supervisora vê e edita o evento, mas não vê o valor da festa nem os pagamentos.</p>
-            </section>
-          )}
+          {veValores(perfil) ? <CartaoFinanceiro evento={evento} /> : <CartaoMeuValor evento={evento} />}
+          <CartaoDespesas evento={evento} />
 
           <section className="cartao">
             <h2>Histórico</h2>
@@ -268,46 +309,44 @@ export function DetalheEvento() {
               <div className="vazio">Sem alterações registradas.</div>
             )}
           </section>
+
+          {podeEscalar && (
+            <section className="cartao">
+              <h2>Mudanças no evento</h2>
+              <div className="acoes-coluna">
+                {terminou && (
+                  <button type="button" className="botao" onClick={() => void executar(() => marcarRealizado(cliente, evento.id), 'Evento marcado como realizado.').then((r) => { if (r !== true) avisar(r); })}>
+                    Marcar como realizado
+                  </button>
+                )}
+                <button type="button" className="botao" onClick={() => setJanela({ tipo: 'remarcar' })}>
+                  <Icone nome="calendario" tamanho={16} /> Remarcar data ou horário
+                </button>
+                {permissoes.cancelarEvento && (
+                  <button type="button" className="botao texto-perigo" onClick={() => setJanela({ tipo: 'cancelar' })}>Cancelar evento</button>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </div>
+
+      {janela?.tipo === 'editar' && <FormEvento item={evento} onFechar={fechar} />}
+      {janela?.tipo === 'escalar' && <FormEscala evento={evento} onFechar={fechar} />}
+      {janela?.tipo === 'remarcar' && <FormRemarcar evento={evento} onFechar={fechar} />}
+      {janela?.tipo === 'cancelar' && <FormCancelar evento={evento} onFechar={fechar} />}
+      {janela?.tipo === 'trocar' && (
+        <FormPedirTroca evento={evento} escala={janela.membro.escala} personagem={janela.membro.personagem?.nome ?? 'personagem'} onFechar={fechar} />
+      )}
+      {janela?.tipo === 'conferir' && <FormConferencia evento={evento} onFechar={fechar} />}
+      {janela?.tipo === 'tirar' && <FormTirarDaEscala escalaId={janela.escalaId} nome={janela.nome} onFechar={fechar} />}
 
       <div className="barra-acoes">
         <Link to={`/eventos/${evento.id}/pdf`} className="botao">Gerar PDF</Link>
-        <button type="button" className="botao primario" onClick={() => avisar('A edição de eventos entra na próxima etapa.')}>Editar evento</button>
+        {podeEditar
+          ? <button type="button" className="botao primario" onClick={() => setJanela({ tipo: 'editar' })}>Editar evento</button>
+          : <Link to="/" className="botao">Voltar</Link>}
       </div>
     </Layout>
-  );
-}
-
-function CartaoFinanceiro({ eventoId }: { eventoId: string }) {
-  const { db } = useEstado();
-  const f = financeiroDoEvento(db, eventoId);
-  const falta = f.contratado - f.recebido;
-  return (
-    <section className="cartao">
-      <div className="cartao-topo"><h2>Financeiro</h2><small>Só direção e gerente</small></div>
-      <div className="valores">
-        <div><span>Valor contratado</span><strong>{moeda(f.contratado)}</strong></div>
-        <div>
-          <span>Recebido</span><strong>{moeda(f.recebido)}</strong>
-          {f.situacao === 'parcial' && <small>Parcial · falta {moeda(falta)}</small>}
-          {f.situacao === 'pendente' && f.contratado > 0 && <small>Pendente</small>}
-        </div>
-      </div>
-      {f.pagamentos.length > 0 && (
-        <>
-          <span className="rotulo">Pagamento da equipe</span>
-          <div className="linhas" style={{ marginTop: 6 }}>
-            {f.pagamentos.map((p) => (
-              <div key={p.id}>
-                <span>{p.profissional?.nome}</span>
-                <span>{moeda(p.valor_combinado)} · <span className={p.situacao}>{p.situacao}</span></span>
-              </div>
-            ))}
-            {f.despesas > 0 && <div className="suave"><span>Despesas</span><span>{moeda(f.despesas)}</span></div>}
-          </div>
-        </>
-      )}
-    </section>
   );
 }

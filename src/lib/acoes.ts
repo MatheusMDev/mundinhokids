@@ -1,0 +1,251 @@
+// Gravações no Supabase. Cada função lança o erro do banco (traduzido em
+// erros.ts por quem chama); as regras e permissões ficam no próprio banco.
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { SemPermissao } from './erros';
+import type {
+  ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, Personagem,
+  Profissional, Recebimento, ReservaVeiculo, Usuario, Veiculo,
+} from './tipos';
+
+type Cliente = SupabaseClient;
+type Resposta<T> = { data: T; error: unknown };
+
+function ok<T>(r: Resposta<T>): T {
+  if (r.error) throw r.error;
+  return r.data;
+}
+
+/** Texto vazio vira nulo, para o banco não guardar "" no lugar de "sem valor" */
+export const vazioParaNulo = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+
+/** Insere e devolve o id; ou atualiza e confere que a linha foi mesmo alterada (RLS não dá erro, só ignora) */
+async function salvar<T extends object>(c: Cliente, tabela: string, id: string | undefined, dados: T): Promise<string> {
+  if (!id) {
+    const linha = ok(await c.from(tabela).insert(dados).select('id').single()) as { id: string };
+    return linha.id;
+  }
+  const linhas = ok(await c.from(tabela).update(dados).eq('id', id).select('id')) as unknown[];
+  if (!linhas.length) throw new SemPermissao();
+  return id;
+}
+
+async function salvarNota(c: Cliente, tabela: string, coluna: string, id: string, texto: string | null) {
+  if (texto) {
+    ok(await c.from(tabela).upsert({ [coluna]: id, observacoes: texto, atualizado_em: new Date().toISOString() }));
+  } else {
+    ok(await c.from(tabela).delete().eq(coluna, id));
+  }
+}
+
+// ---------------------------------------------------------------------
+// Cadastros
+// ---------------------------------------------------------------------
+
+export type DadosProfissional = Pick<Profissional, 'nome' | 'telefone' | 'email' | 'disponibilidade' | 'ativo'> & {
+  funcoes: FuncaoProfissional[];
+};
+
+export async function salvarProfissional(
+  c: Cliente, id: string | undefined, dados: DadosProfissional,
+  personagens: { atuais: string[]; novos: string[] }, nota: string | null,
+): Promise<string> {
+  const profissionalId = await salvar(c, 'profissionais', id, dados);
+
+  const novos = dados.funcoes.includes('artista') ? personagens.novos : [];
+  const sair = personagens.atuais.filter((p) => !novos.includes(p));
+  const entrar = novos.filter((p) => !personagens.atuais.includes(p));
+  if (sair.length) {
+    ok(await c.from('profissional_personagens').delete().eq('profissional_id', profissionalId).in('personagem_id', sair));
+  }
+  if (entrar.length) {
+    ok(await c.from('profissional_personagens').insert(entrar.map((p) => ({ profissional_id: profissionalId, personagem_id: p }))));
+  }
+
+  await salvarNota(c, 'profissionais_notas', 'profissional_id', profissionalId, nota);
+  return profissionalId;
+}
+
+export const salvarPersonagem = (c: Cliente, id: string | undefined, dados: Omit<Personagem, 'id'>) =>
+  salvar(c, 'personagens', id, dados);
+
+export const salvarFantasia = (c: Cliente, id: string | undefined, dados: Omit<Fantasia, 'id'>) =>
+  salvar(c, 'fantasias', id, dados);
+
+export async function salvarContratante(c: Cliente, id: string | undefined, dados: Omit<Contratante, 'id'>, nota: string | null) {
+  const contratanteId = await salvar(c, 'contratantes', id, dados);
+  await salvarNota(c, 'contratantes_notas', 'contratante_id', contratanteId, nota);
+  return contratanteId;
+}
+
+export const salvarLocal = (c: Cliente, id: string | undefined, dados: Omit<Local, 'id'>) =>
+  salvar(c, 'locais', id, dados);
+
+export const salvarVeiculo = (c: Cliente, id: string | undefined, dados: Omit<Veiculo, 'id'>) =>
+  salvar(c, 'veiculos', id, dados);
+
+// ---------------------------------------------------------------------
+// Eventos
+// ---------------------------------------------------------------------
+
+export type DadosEvento = Pick<Evento,
+  'titulo' | 'aniversariante' | 'idade' | 'contratante_id' | 'local_id' | 'inicio' | 'fim' | 'situacao'
+  | 'tem_maquiagem' | 'maquiagem_pessoas' | 'orientacoes'>;
+
+/**
+ * Cria o evento ou atualiza os dados. Data e horário de um evento existente só
+ * mudam pela remarcação (o banco recusa a alteração direta), por isso ficam de fora.
+ */
+export async function salvarEvento(
+  c: Cliente, id: string | undefined, dados: DadosEvento, valorContratado: number | null,
+): Promise<string> {
+  const { inicio, fim, ...semHorario } = dados;
+  const eventoId = await salvar(c, 'eventos', id, id ? semHorario : { ...semHorario, inicio, fim });
+  if (valorContratado !== null) {
+    ok(await c.from('evento_financeiro').upsert({
+      evento_id: eventoId, valor_contratado: valorContratado, atualizado_em: new Date().toISOString(),
+    }));
+  }
+  return eventoId;
+}
+
+export async function remarcarEvento(c: Cliente, id: string, inicio: string, fim: string, motivo: string) {
+  ok(await c.rpc('remarcar_evento', { p_evento_id: id, p_inicio: inicio, p_fim: fim, p_motivo: motivo }));
+}
+
+export async function cancelarEvento(c: Cliente, id: string, motivo: string) {
+  ok(await c.rpc('cancelar_evento', { p_evento_id: id, p_motivo: motivo }));
+}
+
+export type DadosEscala = Pick<EscalaItem,
+  'evento_id' | 'profissional_id' | 'funcao' | 'personagem_id' | 'fantasia_id' | 'maquiar' | 'horario_maquiagem'>;
+
+export async function escalar(c: Cliente, dados: DadosEscala) {
+  ok(await c.from('evento_escala').insert(dados));
+}
+
+/** Ninguém sai da tabela: a vaga fica inativa e o histórico guarda quem estava */
+export async function tirarDaEscala(c: Cliente, escalaId: string) {
+  const linhas = ok(await c.from('evento_escala').update({ ativo: false }).eq('id', escalaId).select('id')) as unknown[];
+  if (!linhas.length) throw new SemPermissao();
+}
+
+// ---------------------------------------------------------------------
+// Veículo
+// ---------------------------------------------------------------------
+
+export type DadosReserva = Pick<ReservaVeiculo,
+  'veiculo_id' | 'evento_id' | 'responsavel_id' | 'retirada' | 'devolucao_prevista' | 'observacoes'>;
+
+export const salvarReserva = (c: Cliente, id: string | undefined, dados: DadosReserva) =>
+  salvar(c, 'reservas_veiculo', id, dados);
+
+/** A reserva não é apagada: fica inativa e libera o horário do veículo */
+export async function cancelarReserva(c: Cliente, id: string) {
+  await salvar(c, 'reservas_veiculo', id, { ativo: false });
+}
+
+export async function registrarDevolucao(c: Cliente, id: string, quando: string) {
+  await salvar(c, 'reservas_veiculo', id, { devolvido_em: quando });
+}
+
+// ---------------------------------------------------------------------
+// Valores (recebimentos e pagamentos: só gestão; despesas: gestão e equipe do evento)
+// ---------------------------------------------------------------------
+
+export const salvarRecebimento = (c: Cliente, id: string | undefined, dados: Omit<Recebimento, 'id'>) =>
+  salvar(c, 'recebimentos', id, dados);
+
+export type DadosPagamento = Pick<PagamentoProfissional, 'profissional_id' | 'valor_combinado' | 'situacao' | 'pago_em'>;
+
+/** Grava o valor combinado de cada profissional do evento (uma linha por pessoa) */
+export async function salvarPagamentos(c: Cliente, eventoId: string, linhas: DadosPagamento[]) {
+  if (!linhas.length) return;
+  ok(await c.from('pagamentos_profissionais')
+    .upsert(linhas.map((l) => ({ ...l, evento_id: eventoId })), { onConflict: 'evento_id,profissional_id' }));
+}
+
+export type DadosDespesa = Pick<Despesa, 'evento_id' | 'tipo' | 'descricao' | 'valor' | 'responsavel_id' | 'comprovante' | 'observacoes'>;
+
+export const salvarDespesa = (c: Cliente, id: string | undefined, dados: DadosDespesa) =>
+  salvar(c, 'despesas', id, dados);
+
+export async function decidirDespesa(c: Cliente, id: string, aprova: boolean) {
+  await salvar(c, 'despesas', id, { aprovacao: aprova ? 'aprovada' : 'recusada' });
+}
+
+// ---------------------------------------------------------------------
+// Conferência das fantasias depois do evento
+// ---------------------------------------------------------------------
+
+export type DadosConferencia = Pick<ConferenciaFantasia,
+  'fantasia_id' | 'devolvida' | 'condicao' | 'precisa_limpeza' | 'precisa_reparo' | 'pendencias'>;
+
+/**
+ * Grava a conferência de cada fantasia do evento. O banco muda a situação da
+ * fantasia sozinho (limpeza ou manutenção); aqui só entra a previsão de volta.
+ */
+export async function salvarConferencias(
+  c: Cliente, eventoId: string, linhas: DadosConferencia[], previsoes: { fantasia_id: string; previsao: string }[],
+) {
+  if (!linhas.length) return;
+  ok(await c.from('conferencias_fantasia').upsert(
+    linhas.map((l) => ({ ...l, evento_id: eventoId, conferido_em: new Date().toISOString() })),
+    { onConflict: 'evento_id,fantasia_id' },
+  ));
+  for (const p of previsoes) {
+    await salvar(c, 'fantasias', p.fantasia_id, { previsao_disponivel: p.previsao });
+  }
+}
+
+export async function marcarRealizado(c: Cliente, eventoId: string) {
+  await salvar(c, 'eventos', eventoId, { situacao: 'realizado' });
+}
+
+// ---------------------------------------------------------------------
+// Troca de artista (pedido, resposta do indicado e desistência)
+// ---------------------------------------------------------------------
+
+/** Artistas que fazem o personagem e estão livres no horário */
+export async function buscarSubstitutos(c: Cliente, escalaId: string): Promise<{ profissional_id: string; nome: string }[]> {
+  return ok(await c.rpc('substitutos_disponiveis', { p_escala_id: escalaId })) as { profissional_id: string; nome: string }[];
+}
+
+export async function pedirTroca(c: Cliente, escalaId: string, substitutoId: string, motivo: string | null) {
+  ok(await c.rpc('solicitar_substituicao', { p_escala_id: escalaId, p_substituto_id: substitutoId, p_motivo: motivo }));
+}
+
+export async function responderTroca(c: Cliente, substituicaoId: string, aceita: boolean) {
+  ok(await c.rpc('responder_substituicao', { p_substituicao_id: substituicaoId, p_aceita: aceita }));
+}
+
+export async function desistirDaTroca(c: Cliente, substituicaoId: string) {
+  ok(await c.rpc('cancelar_substituicao', { p_substituicao_id: substituicaoId }));
+}
+
+// ---------------------------------------------------------------------
+// Configurações e usuários (só a gestão altera)
+// ---------------------------------------------------------------------
+
+/** Grava só as chaves que mudaram. A tabela não tem id: a chave é o nome da configuração. */
+export async function salvarConfiguracoes(c: Cliente, mudancas: Record<string, string>) {
+  for (const [chave, valor] of Object.entries(mudancas)) {
+    const linhas = ok(await c.from('configuracoes').update({ valor }).eq('chave', chave).select('chave')) as unknown[];
+    if (!linhas.length) throw new SemPermissao();
+  }
+}
+
+export type DadosUsuario = Pick<Usuario, 'nome' | 'perfil' | 'ativo'>;
+
+/**
+ * Atualiza o perfil do login e a ligação com o cadastro do profissional.
+ * Primeiro solta o profissional antigo, porque cada profissional tem um login só.
+ */
+export async function salvarUsuario(
+  c: Cliente, id: string, dados: DadosUsuario, profissional: { atual: string | null; novo: string | null },
+) {
+  await salvar(c, 'usuarios', id, dados);
+  if (profissional.atual === profissional.novo) return;
+  if (profissional.atual) await salvar(c, 'profissionais', profissional.atual, { usuario_id: null });
+  if (profissional.novo) await salvar(c, 'profissionais', profissional.novo, { usuario_id: id });
+}

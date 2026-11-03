@@ -1,5 +1,5 @@
 -- =====================================================================
--- Mundinho de Kids — ajustes sobre o schema.sql (V1)
+-- Mundinho Kids — ajustes sobre o schema.sql (V1)
 -- Rodar logo depois do schema.sql, no mesmo banco.
 --
 -- 1. Nome do evento (título, aniversariante e idade)

@@ -100,3 +100,27 @@ export function moeda(valor: number): string {
 }
 
 export const iniciais = (nome: string) => nome.trim().charAt(0).toUpperCase();
+
+/** ISO → valores dos campos de data ("2026-10-24") e hora ("15:00"), no horário de São Paulo */
+export function paraCampos(iso: string): { data: string; hora: string } {
+  const p = partes(iso);
+  return { data: chaveDe(p.ano, p.mes, p.dia), hora: `${doisDigitos(p.hora)}:${doisDigitos(p.minuto)}` };
+}
+
+/** Campos de data e hora → ISO com o fuso de São Paulo (-03:00, sem horário de verão desde 2019) */
+export const deCampos = (data: string, horaCampo: string) => `${data}T${horaCampo}:00-03:00`;
+
+/** "1.200,50", "R$ 45" ou "45.5" → número; vazio ou inválido → null */
+export function lerValor(texto: string): number | null {
+  let s = texto.replace(/[R$\s]/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Data de hoje ("2026-10-20") no horário de São Paulo */
+export const hojeCampo = () => paraCampos(new Date().toISOString()).data;
+
+/** "2026-10-20" → "20/10" */
+export const dataCurta = (data: string) => data.split('-').reverse().slice(0, 2).join('/');

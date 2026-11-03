@@ -1,4 +1,4 @@
-// Tipos que espelham as tabelas do banco (banco/schema.sql + banco/ajustes_v1.sql).
+// Tipos que espelham as tabelas do banco (supabase/migrations).
 // Os nomes dos campos são os mesmos das colunas, para trocar os dados de
 // exemplo pelas consultas do Supabase sem mudar as telas.
 
@@ -121,6 +121,7 @@ export interface ReservaVeiculo {
   retirada: string;
   devolucao_prevista: string;
   devolvido_em: string | null;
+  observacoes: string | null;
   ativo: boolean;
 }
 
@@ -135,6 +136,7 @@ export interface Recebimento {
   valor: number;
   recebido_em: string;
   forma: string | null;
+  observacoes: string | null;
 }
 
 export interface PagamentoProfissional {
@@ -144,6 +146,7 @@ export interface PagamentoProfissional {
   valor_combinado: number;
   situacao: SituacaoPagamento;
   pago_em: string | null;
+  observacoes: string | null;
 }
 
 export interface Despesa {
@@ -155,6 +158,9 @@ export interface Despesa {
   responsavel_id: string | null;
   comprovante: string | null;
   aprovacao: SituacaoAprovacao;
+  observacoes: string | null;
+  criado_por: string | null;
+  criado_em: string;
 }
 
 export interface Substituicao {
@@ -178,6 +184,7 @@ export interface ConferenciaFantasia {
   precisa_limpeza: boolean;
   precisa_reparo: boolean;
   pendencias: string | null;
+  conferido_em: string;
 }
 
 export interface Historico {
@@ -195,6 +202,20 @@ export interface Notificacao {
   tipo: 'escalado' | 'lembrete' | 'alterado' | 'cancelado' | 'removido' | 'substituicao';
   agendada_para: string;
   enviada_em: string | null;
+}
+
+export interface TrocaParaMim {
+  substituicao_id: string;
+  situacao: SituacaoSubstituicao;
+  evento_id: string;
+  titulo: string;
+  inicio: string;
+  fim: string;
+  local_nome: string;
+  personagem: string | null;
+  solicitante: string;
+  motivo: string | null;
+  solicitado_em: string;
 }
 
 /** Tudo o que as telas leem. No Supabase, cada lista é uma tabela já filtrada pelas permissões. */
@@ -219,4 +240,9 @@ export interface BaseDados {
   conferencias_fantasia: ConferenciaFantasia[];
   historico: Historico[];
   notificacoes: Notificacao[];
+  /** Pedidos de troca em que o login é o substituto (função trocas_para_mim) */
+  trocas_para_mim: TrocaParaMim[];
+  /** Observações internas: só a operação recebe linhas */
+  profissionais_notas: { profissional_id: string; observacoes: string }[];
+  contratantes_notas: { contratante_id: string; observacoes: string }[];
 }
