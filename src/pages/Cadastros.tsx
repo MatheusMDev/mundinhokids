@@ -1,8 +1,8 @@
 // Listas dos cadastros com os formulários de criar e editar.
 // Quem não é da operação vê as listas, mas não os botões de cadastrar.
 
-import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Layout, useCelular } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import {
@@ -12,13 +12,70 @@ import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, moeda } from '../lib/formato';
+import { dataLonga, diaCurto, hora, mesAno, moeda, partes } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
 import { LinhaEvento } from './Painel';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
+const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
+
+function semAcentos(texto: string) {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenados> }) {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const mes = parametros.get('mes') ?? '';
+  const situacao = parametros.get('situacao') ?? '';
+  const meses = useMemo(() => {
+    const unicos = new Map<string, string>();
+    eventos.forEach((evento) => {
+      const { ano, mes: numeroMes } = partes(evento.inicio);
+      unicos.set(`${ano}-${String(numeroMes).padStart(2, '0')}`, mesAno(ano, numeroMes));
+    });
+    return [...unicos.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [eventos]);
+
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    setParametros(novos);
+  };
+
+  return (
+    <section className="filtros-eventos" aria-label="Filtros de eventos">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar evento</span>
+        <input
+          type="search"
+          value={busca}
+          onChange={(evento) => alterar('busca', evento.target.value)}
+          placeholder="Buscar por evento ou aniversariante"
+        />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <label className="filtro-select">
+        <span>Mês</span>
+        <select value={mes} onChange={(evento) => alterar('mes', evento.target.value)}>
+          <option value="">Todos os meses</option>
+          {meses.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
+        </select>
+      </label>
+      <label className="filtro-select">
+        <span>Situação</span>
+        <select value={situacao} onChange={(evento) => alterar('situacao', evento.target.value)}>
+          <option value="">Todas as situações</option>
+          {SITUACOES.map((valor) => <option key={valor} value={valor}>{ROTULO_SITUACAO[valor]}</option>)}
+        </select>
+      </label>
+    </section>
+  );
+}
 
 /** Guarda qual formulário está aberto: novo (item indefinido) ou edição */
 function useFormulario<T>() {
@@ -95,16 +152,31 @@ export function Eventos() {
   const { db } = useEstado();
   const celular = useCelular();
   const [novo, setNovo] = useState(false);
-  const eventos = eventosOrdenados(db);
+  const todosEventos = eventosOrdenados(db);
+  const [parametros] = useSearchParams();
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const mes = parametros.get('mes') ?? '';
+  const situacao = parametros.get('situacao') ?? '';
+  const eventos = todosEventos.filter((evento) => {
+    const partesEvento = partes(evento.inicio);
+    const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
+    const mesEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}`;
+    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes) && (!situacao || evento.situacao === situacao);
+  });
+  const vazio = todosEventos.length ? 'Nenhum evento encontrado com esses filtros.' : 'Nenhum evento cadastrado ainda.';
 
   return (
     <Pagina
-      titulo="Eventos" descricao={`${eventos.length} eventos cadastrados`}
+      titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}
       acao={<BotaoNovo texto="Novo evento" onClick={() => setNovo(true)} />}
     >
-      {celular ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : (
+      <FiltrosEventos eventos={todosEventos} />
+      {celular ? (
+        eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">{vazio}</div>
+      ) : (
         <Tabela
           cabecalho={['Data', 'Evento', 'Local', 'Situação']}
+          vazio={vazio}
           linhas={eventos.map((e) => ({
             chave: e.id,
             celulas: [

@@ -25,7 +25,8 @@ const ABAS: { para: string; texto: string; icone: NomeIcone }[] = [
 ];
 
 export function useCelular() {
-  const consulta = '(max-width: 767px)';
+  // Mantém tablet e notebook estreito na mesma navegação compacta do celular.
+  const consulta = '(max-width: 899px)';
   const [celular, setCelular] = useState(() => window.matchMedia(consulta).matches);
   useEffect(() => {
     const mq = window.matchMedia(consulta);
