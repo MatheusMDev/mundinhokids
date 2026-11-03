@@ -9,6 +9,7 @@ import { carregarBase } from './dados';
 import { traduzirErro } from './erros';
 import { supabase } from './supabase';
 import { Login } from '../pages/Login';
+import { SkeletonEventos } from '../components/SkeletonEventos';
 
 interface Estado {
   db: BaseDados;
@@ -176,7 +177,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
       />
     );
   }
-  if (!db) return <TelaSimples titulo="Mundinho Kids" texto="Carregando os eventos…" />;
+  if (!db) return <SkeletonEventos />;
   if (!eu || !valor) {
     return (
       <TelaSimples

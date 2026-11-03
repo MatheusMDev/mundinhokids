@@ -430,6 +430,7 @@ h3 { font-size: 15px; font-weight: 800; }
   .tela-erro-legenda { right: 0; bottom: 2%; font-size: 9px; }
   .tela-erro-acoes { flex-direction: column; }
   .tela-erro-acoes .botao { width: 100%; }
+
 }
 
 @media (min-width: 900px) {
@@ -524,15 +525,92 @@ h3 { font-size: 15px; font-weight: 800; }
 .tela-simples { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
 .tela-simples .cartao { width: 100%; max-width: 380px; }
 .tela-simples h2 { margin-bottom: 6px; }
-.login { display: flex; flex-direction: column; gap: 14px; }
-.login label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13px; }
-.login input {
-  height: 42px; padding: 0 12px; border: 1px solid var(--borda); border-radius: 10px;
-  font: inherit; font-weight: 400; background: var(--cartao); color: var(--texto);
-}
-.login input:focus { outline: 2px solid var(--marca); outline-offset: 1px; border-color: transparent; }
-.login .botao { height: 44px; margin-top: 4px; }
+.tela-login { min-height: 100vh; display: block; background: linear-gradient(145deg, #fff8fc, #fff); }
+.login-painel { display: none; }
+.login-painel::before, .login-painel::after { position: absolute; content: ''; border: 1px solid rgba(255, 255, 255, .18); border-radius: 50%; pointer-events: none; }
+.login-painel::before { width: 520px; height: 520px; right: -230px; bottom: -160px; }
+.login-painel::after { width: 260px; height: 260px; left: -170px; top: 28%; background: rgba(255, 255, 255, .08); }
+.login-painel-brilho { position: absolute; width: 260px; height: 260px; right: 12%; top: 18%; border-radius: 50%; background: rgba(255, 255, 255, .1); filter: blur(2px); }
+.login-marca-painel, .login-boas-vindas, .login-painel-detalhe { position: relative; z-index: 1; }
+.login-marca-painel { width: fit-content; padding: 13px; border: 1px solid rgba(255, 255, 255, .3); border-radius: 18px; background: rgba(255, 255, 255, .13); }
+.login-boas-vindas { max-width: 410px; margin: auto 0; }
+.login-kicker { margin: 0 0 12px; color: var(--marca); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.login-painel .login-kicker { color: #ffd4eb; }
+.login-boas-vindas h1 { font-size: clamp(38px, 4vw, 62px); line-height: .98; letter-spacing: -.045em; }
+.login-boas-vindas > p:last-child { max-width: 330px; margin: 22px 0 0; color: rgba(255, 255, 255, .84); font-size: 15px; line-height: 1.65; }
+.login-painel-detalhe { color: rgba(255, 255, 255, .68); font-size: 11px; }
+.login-formulario { display: flex; flex-direction: column; width: min(100%, 520px); min-height: 100vh; margin: 0 auto; padding: 34px 20px; }
+.login-marca-mobile { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+.login-marca-mobile strong { display: block; font-family: var(--fonte-titulo); font-size: 15px; line-height: 1.1; }
+.login-marca-mobile small { display: block; margin-top: 3px; color: var(--texto-suave); font-size: 11px; }
+.login-cabecalho { margin: clamp(72px, 14vh, 120px) 0 28px; padding-top: 0; }
+.login-cabecalho h2 { margin: 0; font-family: var(--fonte-titulo); font-size: clamp(26px, 3vw, 34px); font-weight: 900; letter-spacing: -.03em; }
+.login-cabecalho > p:last-child { margin: 8px 0 0; color: var(--texto-suave); line-height: 1.5; }
+.login-campos { display: flex; flex-direction: column; gap: 18px; }
+.campo-login { display: flex; flex-direction: column; gap: 7px; color: var(--texto); font-size: 13px; font-weight: 700; }
+.campo-login input { width: 100%; height: 48px; padding: 0 13px; border: 1px solid var(--borda); border-radius: 11px; background: var(--cartao); color: var(--texto); font: inherit; font-weight: 400; transition: border-color .2s, box-shadow .2s; }
+.campo-login input::placeholder { color: var(--texto-fraco); }
+.campo-login input:focus { outline: 0; border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-suave); }
+.campo-login input[aria-invalid='true'] { border-color: #d05959; }
+.senha-wrapper { position: relative; display: block; }
+.senha-wrapper input { padding-right: 82px; }
+.senha-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); padding: 4px 6px; border: 0; background: transparent; color: var(--marca-escura); font-size: 12px; font-weight: 700; }
+.senha-toggle:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 4px; }
+.login-erro { margin: 18px 0 0; padding: 10px 12px; border: 1px solid #f1c4c4; border-radius: 10px; background: #fff4f4; color: #a12a2a; font-size: 13px; line-height: 1.4; }
+.login-submit { width: 100%; height: 48px; margin-top: 24px; border-radius: 11px; box-shadow: 0 8px 18px rgba(200, 23, 126, .18); }
+.login-submit:disabled { cursor: wait; opacity: .78; }
+.login-spinner { width: 15px; height: 15px; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; border-radius: 50%; animation: login-gira .7s linear infinite; }
+@keyframes login-gira { to { transform: rotate(360deg); } }
+.login-rodape { margin: 26px 0 0; color: var(--texto-fraco); font-size: 11px; text-align: center; }
 .erro { margin: 0; color: #a12a2a; font-size: 13px; }
+
+/* ---------- Skeleton de carregamento ---------- */
+.skeleton-tela { min-height: 100vh; padding: 30px clamp(20px, 3vw, 52px) 48px; background: var(--fundo); }
+.skeleton-cabecalho { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.skeleton-linha, .skeleton-botao, .skeleton-dia, .skeleton-evento { display: block; position: relative; overflow: hidden; background: #e8e3eb; }
+.skeleton-linha::after, .skeleton-botao::after, .skeleton-dia::after, .skeleton-evento::after { position: absolute; inset: 0; content: ''; background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, .6) 50%, transparent 80%); transform: translateX(-100%); animation: skeleton-brilho 1.5s ease-in-out infinite; }
+.skeleton-data { width: 170px; height: 11px; border-radius: 5px; margin-bottom: 10px; }
+.skeleton-titulo { width: min(420px, 60vw); height: 31px; border-radius: 8px; }
+.skeleton-botao { width: 145px; height: 40px; border-radius: 11px; }
+.skeleton-numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+.skeleton-bloco { background: var(--cartao); border: 1px solid var(--borda); border-radius: var(--raio); padding: 18px 20px; }
+.skeleton-numero { min-height: 114px; }
+.skeleton-label { width: 55%; height: 13px; border-radius: 5px; }
+.skeleton-valor { width: 35%; height: 30px; border-radius: 7px; margin: 12px 0 9px; }
+.skeleton-legenda { width: 72%; height: 11px; border-radius: 5px; }
+.skeleton-conteudo { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.skeleton-calendario { min-height: 480px; }
+.skeleton-subtitulo { width: 145px; height: 20px; border-radius: 6px; margin-bottom: 22px; }
+.skeleton-grade { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.skeleton-dia { min-height: 76px; border: 1px solid var(--borda); border-radius: 10px; }
+.skeleton-coluna { display: flex; flex-direction: column; gap: 18px; }
+.skeleton-lista { min-height: 230px; }
+.skeleton-evento { height: 54px; border-radius: 10px; margin-top: 10px; }
+.skeleton-proximos { min-height: 160px; }
+@keyframes skeleton-brilho { to { transform: translateX(100%); } }
+@media (max-width: 899px) {
+  .skeleton-tela { padding: 24px 16px; }
+  .skeleton-cabecalho { align-items: flex-start; }
+  .skeleton-botao { display: none; }
+  .skeleton-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .skeleton-numero { min-height: 100px; padding: 14px; }
+  .skeleton-conteudo { display: block; }
+  .skeleton-calendario { min-height: 260px; margin-bottom: 12px; padding: 14px; }
+  .skeleton-dia { min-height: 40px; }
+  .skeleton-lista { min-height: 190px; padding: 14px; }
+  .skeleton-proximos { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-linha::after, .skeleton-botao::after, .skeleton-dia::after, .skeleton-evento::after { animation: none; }
+}
+
+@media (min-width: 900px) {
+  .tela-login { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(460px, 1.15fr); background: #fff; }
+  .login-painel { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: 100vh; overflow: hidden; padding: clamp(30px, 5vw, 70px); color: #fff; background: linear-gradient(145deg, #b70e70, #d72d91 54%, #ef75b0); }
+  .login-formulario { justify-content: center; width: min(100%, 470px); min-height: 100vh; padding: 48px clamp(24px, 6vw, 90px); }
+  .login-marca-mobile { display: none; }
+  .login-cabecalho { margin: 0 0 28px; padding-top: 0; }
+}
 
 /* ---------- Formulários ---------- */
 
