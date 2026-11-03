@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icone, Logo, type NomeIcone } from './Icone';
+import { BotaoMinhaSenha } from './MinhaSenha';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
 import { iniciais } from '../lib/formato';
 
@@ -74,6 +75,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
             <span className="avatar laranja">{inicial}</span>
             <span><strong>{usuario.nome}</strong><small>{NOME_PERFIL[usuario.perfil]}</small></span>
           </div>
+          <BotaoMinhaSenha className="link-botao" estilo={{ fontSize: 13, marginBottom: 8 }} />
           <button type="button" className="botao" onClick={sair}>Sair</button>
         </div>
       </aside>

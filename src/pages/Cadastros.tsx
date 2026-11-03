@@ -11,6 +11,7 @@ import {
 import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
+import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
 import { dataLonga, diaCurto, hora, mesAno, moeda, partes } from '../lib/formato';
 import {
@@ -562,6 +563,7 @@ function ContaUsuario() {
       <span className="rotulo">Conectado como</span>
       <strong style={{ display: 'block', margin: '4px 0 2px' }}>{usuario.nome}</strong>
       <p className="suave" style={{ margin: '0 0 12px' }}>{NOME_PERFIL[usuario.perfil]}</p>
+      <BotaoMinhaSenha estilo={{ width: '100%', marginBottom: 8 }} />
       <button type="button" className="botao" onClick={sair} style={{ width: '100%' }}>Sair</button>
     </section>
   );

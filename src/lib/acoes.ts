@@ -4,8 +4,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
 import type {
-  ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, Personagem,
-  Profissional, Recebimento, ReservaVeiculo, Usuario, Veiculo,
+  ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
+  Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
 } from './tipos';
 
 type Cliente = SupabaseClient;
@@ -235,17 +235,54 @@ export async function salvarConfiguracoes(c: Cliente, mudancas: Record<string, s
   }
 }
 
-export type DadosUsuario = Pick<Usuario, 'nome' | 'perfil' | 'ativo'>;
+// ---------------------------------------------------------------------
+// Logins (Edge Function "usuarios": a chave de administrador fica no servidor)
+// ---------------------------------------------------------------------
 
-/**
- * Atualiza o perfil do login e a ligação com o cadastro do profissional.
- * Primeiro solta o profissional antigo, porque cada profissional tem um login só.
- */
-export async function salvarUsuario(
-  c: Cliente, id: string, dados: DadosUsuario, profissional: { atual: string | null; novo: string | null },
-) {
-  await salvar(c, 'usuarios', id, dados);
-  if (profissional.atual === profissional.novo) return;
-  if (profissional.atual) await salvar(c, 'profissionais', profissional.atual, { usuario_id: null });
-  if (profissional.novo) await salvar(c, 'profissionais', profissional.novo, { usuario_id: id });
+async function chamarUsuarios<T>(c: Cliente, corpo: Record<string, unknown>): Promise<T> {
+  const { data, error } = await c.functions.invoke('usuarios', { body: corpo });
+  if (!error) return data as T;
+  const resposta = (error as { context?: Response }).context;
+  if (resposta instanceof Response) {
+    const json = await resposta.json().catch(() => null) as { erro?: string } | null;
+    if (json?.erro) throw new Error(json.erro);
+    if (resposta.status === 404) throw new Error('O serviço de acessos ainda não está no ar. Fale com quem cuida do sistema.');
+  }
+  throw new Error('Não foi possível falar com o servidor de acessos. Confira a internet e tente de novo.');
+}
+
+export const listarLogins = (c: Cliente) => chamarUsuarios<{ logins: SituacaoLogin[] }>(c, { acao: 'listar' });
+
+export interface NovoAcesso {
+  email: string;
+  nome: string;
+  perfil: PerfilAcesso;
+  profissional_id: string | null;
+  /** senha: provisória definida aqui; convite: e-mail com link */
+  modo: 'senha' | 'convite';
+  senha?: string;
+}
+
+export const criarAcesso = (c: Cliente, novo: NovoAcesso) =>
+  chamarUsuarios(c, { acao: 'criar', ...novo, voltar_para: window.location.origin });
+
+export interface EdicaoAcesso extends Pick<Usuario, 'id' | 'nome' | 'email' | 'perfil' | 'ativo'> {
+  profissional_id: string | null;
+  /** Nova senha provisória; vazio mantém a atual */
+  senha?: string;
+}
+
+/** Nome, e-mail, perfil, profissional, senha e situação: tudo no servidor, com as travas da gestão */
+export const editarAcesso = (c: Cliente, edicao: EdicaoAcesso) => chamarUsuarios(c, { acao: 'editar', ...edicao });
+
+/** A própria pessoa troca a senha (primeiro acesso, link de recuperação ou "Trocar minha senha") */
+export async function trocarMinhaSenha(c: Cliente, senha: string) {
+  const { error } = await c.auth.updateUser({ password: senha, data: { trocar_senha: false } });
+  if (error) throw error;
+}
+
+/** Envia o e-mail de "esqueci minha senha"; o link volta para o site */
+export async function pedirNovaSenha(c: Cliente, email: string) {
+  const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error) throw error;
 }

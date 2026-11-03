@@ -561,6 +561,8 @@ h3 { font-size: 15px; font-weight: 800; }
 .login-submit:disabled { cursor: wait; opacity: .78; }
 .login-spinner { width: 15px; height: 15px; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; border-radius: 50%; animation: login-gira .7s linear infinite; }
 @keyframes login-gira { to { transform: rotate(360deg); } }
+.login-link { align-self: center; margin-top: 16px; font-size: 13px; }
+.login-aviso { margin: 18px 0 0; padding: 10px 12px; border: 1px solid var(--marca-borda); border-radius: 10px; background: var(--marca-suave); color: var(--marca-escura); font-size: 13px; line-height: 1.4; }
 .login-rodape { margin: 26px 0 0; color: var(--texto-fraco); font-size: 11px; text-align: center; }
 .erro { margin: 0; color: #a12a2a; font-size: 13px; }
 

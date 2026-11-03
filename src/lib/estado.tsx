@@ -9,6 +9,7 @@ import { carregarBase } from './dados';
 import { traduzirErro } from './erros';
 import { supabase } from './supabase';
 import { Login } from '../pages/Login';
+import { TrocarSenha } from '../pages/TrocarSenha';
 import { SkeletonEventos } from '../components/SkeletonEventos';
 
 interface Estado {
@@ -101,11 +102,16 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   const [db, setDb] = useState<BaseDados | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [hoje, setHoje] = useState(() => new Date().toISOString());
+  /** Chegou pelo link de "esqueci minha senha": precisa criar a nova senha antes de usar o sistema */
+  const [recuperando, setRecuperando] = useState(false);
   const { aviso, avisar } = useAviso();
 
   useEffect(() => {
     cliente.auth.getSession().then(({ data }) => setSessao(data.session));
-    const { data } = cliente.auth.onAuthStateChange((_evento, nova) => setSessao(nova));
+    const { data } = cliente.auth.onAuthStateChange((evento, nova) => {
+      if (evento === 'PASSWORD_RECOVERY') setRecuperando(true);
+      setSessao(nova);
+    });
     return () => data.subscription.unsubscribe();
   }, [cliente]);
 
@@ -165,6 +171,15 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
 
   if (sessao === undefined) return <TelaSimples titulo="Mundinho Kids" texto="Carregando…" />;
   if (!sessao) return <Login />;
+  // Senha provisória, convite ou link de recuperação: a pessoa cria a própria senha primeiro
+  if (recuperando || sessao.user.user_metadata?.trocar_senha === true) {
+    return (
+      <TrocarSenha
+        cliente={cliente} email={sessao.user.email ?? ''} recuperacao={recuperando}
+        onConcluido={() => setRecuperando(false)} onSair={sair}
+      />
+    );
+  }
   if (erro) {
     return (
       <TelaSimples
@@ -182,7 +197,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     return (
       <TelaSimples
         titulo="Login sem perfil"
-        texto={`O login ${sessao.user.email ?? ''} ainda não tem perfil no sistema. Peça para a gestão rodar supabase/vincular_usuarios.sql com este e-mail.`}
+        texto={`O login ${sessao.user.email ?? ''} ainda não tem perfil no sistema. Peça para a direção ou a gerente dar acesso em Usuários e acessos.`}
         acao={<button type="button" className="botao" style={{ marginTop: 14 }} onClick={sair}>Sair</button>}
       />
     );
