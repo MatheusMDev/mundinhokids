@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Layout, useCelular } from '../components/Layout';
 import { CalendarioMes, MiniCalendario, type Mes } from '../components/Calendario';
 import { Icone } from '../components/Icone';
+import { FormEvento } from '../components/FormulariosEvento';
+import { TrocasParaMim } from '../components/Trocas';
 import { useEstado } from '../lib/estado';
 import { chaveDia, dataLonga, dataLongaDaChave, diaCurto, hora, partes } from '../lib/formato';
 import {
@@ -41,7 +43,8 @@ export function LinhaEvento({ evento }: { evento: Evento }) {
 }
 
 export function Painel() {
-  const { db, hoje, perfil, avisar } = useEstado();
+  const { db, hoje, perfil, permissoes } = useEstado();
+  const [novoEvento, setNovoEvento] = useState(false);
   const celular = useCelular();
   const p = partes(hoje);
   const [mes, setMes] = useState<Mes>({ ano: p.ano, mes: p.mes });
@@ -57,8 +60,8 @@ export function Painel() {
     return mapa;
   }, [db]);
 
-  const pendencias = useMemo(() => pendenciasDaSemana(db, hoje), [db, hoje]);
-  const numeros = useMemo(() => numerosDaSemana(db, hoje), [db, hoje]);
+  const pendencias = useMemo(() => pendenciasDaSemana(db, hoje, permissoes.conferirFantasias), [db, hoje, permissoes.conferirFantasias]);
+  const numeros = useMemo(() => numerosDaSemana(db, hoje, permissoes.conferirFantasias), [db, hoje, permissoes.conferirFantasias]);
   const proximos = proximosEventos(db, hoje, 14).slice(0, 5);
   const dataHoje = dataLonga(hoje, false);
 
@@ -72,6 +75,7 @@ export function Painel() {
             <h1>Agenda da equipe</h1>
           </div>
         </div>
+        <div style={{ marginBottom: 14 }}><TrocasParaMim /></div>
         <MiniCalendario
           mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia}
           selecionado={selecionado} onSelecionar={setSelecionado}
@@ -80,6 +84,12 @@ export function Painel() {
         {doDia.length ? doDia.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento neste dia.</div>}
         <h2 className="secao-titulo">Pendências da semana</h2>
         <ListaPendencias pendencias={pendencias} />
+        {permissoes.operacao && (
+          <button type="button" className="botao primario" style={{ width: '100%', marginTop: 18 }} onClick={() => setNovoEvento(true)}>
+            <Icone nome="mais" /> Novo evento
+          </button>
+        )}
+        {novoEvento && <FormEvento onFechar={() => setNovoEvento(false)} />}
       </Layout>
     );
   }
@@ -91,9 +101,11 @@ export function Painel() {
           <div className="data">{dataHoje}</div>
           <h1>Olá! Esta é a semana da equipe.</h1>
         </div>
-        <button type="button" className="botao primario" onClick={() => avisar('O cadastro de eventos entra na próxima etapa.')}>
-          <Icone nome="mais" /> Novo evento
-        </button>
+        {permissoes.operacao && (
+          <button type="button" className="botao primario" onClick={() => setNovoEvento(true)}>
+            <Icone nome="mais" /> Novo evento
+          </button>
+        )}
       </div>
 
       <div className="numeros">
@@ -129,6 +141,7 @@ export function Painel() {
       <div className="painel">
         <CalendarioMes mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia} />
         <div className="coluna">
+          <TrocasParaMim />
           <section className="cartao">
             <h2>Pendências da semana</h2>
             <ListaPendencias pendencias={pendencias} />
@@ -145,6 +158,7 @@ export function Painel() {
           </section>
         </div>
       </div>
+      {novoEvento && <FormEvento onFechar={() => setNovoEvento(false)} />}
     </Layout>
   );
 }

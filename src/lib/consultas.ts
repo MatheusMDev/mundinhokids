@@ -228,7 +228,7 @@ export function financeiroDoEvento(db: BaseDados, eventoId: string) {
 // Pendências da semana
 // ---------------------------------------------------------------------
 
-export type TipoPendencia = 'troca' | 'veiculo' | 'escala' | 'fantasia';
+export type TipoPendencia = 'troca' | 'veiculo' | 'escala' | 'fantasia' | 'conferencia';
 
 export interface Pendencia {
   tipo: TipoPendencia;
@@ -240,7 +240,24 @@ export interface Pendencia {
 
 const tituloComDia = (e: Evento) => `${e.titulo} · ${diaCurto(e.inicio)}, ${hora(e.inicio)}`;
 
-export function pendenciasDaSemana(db: BaseDados, hojeIso: string): Pendencia[] {
+/**
+ * Eventos que já terminaram (nos últimos dias) com fantasias ainda sem conferência.
+ * Só faz sentido para quem lê as conferências (operação e responsável pelas fantasias).
+ */
+export function conferenciasPendentes(db: BaseDados, hojeIso: string, dias = 30) {
+  const limite = new Date(new Date(hojeIso).getTime() - dias * 86_400_000);
+  return eventosOrdenados(db)
+    .filter((e) => e.situacao !== 'cancelado' && new Date(e.fim) < new Date(hojeIso) && new Date(e.fim) >= limite)
+    .map((evento) => {
+      const fantasias = [...new Set(equipeDoEvento(db, evento.id).flatMap((m) => (m.fantasia ? [m.fantasia.id] : [])))];
+      const conferidas = new Set(db.conferencias_fantasia.filter((c) => c.evento_id === evento.id).map((c) => c.fantasia_id));
+      return { evento, faltam: fantasias.filter((id) => !conferidas.has(id)).length };
+    })
+    .filter((x) => x.faltam > 0)
+    .reverse();
+}
+
+export function pendenciasDaSemana(db: BaseDados, hojeIso: string, verConferencias = false): Pendencia[] {
   const eventos = proximosEventos(db, hojeIso);
   const lista: Pendencia[] = [];
 
@@ -293,6 +310,16 @@ export function pendenciasDaSemana(db: BaseDados, hojeIso: string): Pendencia[] 
     }
   }
 
+  if (verConferencias) {
+    for (const { evento, faltam } of conferenciasPendentes(db, hojeIso, 7)) {
+      lista.push({
+        tipo: 'conferencia', rotulo: 'Conferir fantasias', titulo: tituloComDia(evento),
+        texto: `${faltam === 1 ? '1 fantasia volta' : `${faltam} fantasias voltam`} sem conferência de devolução e limpeza.`,
+        eventoId: evento.id,
+      });
+    }
+  }
+
   return lista;
 }
 
@@ -304,7 +331,7 @@ export function primeiroNome(p: Profissional | undefined) {
 // Números do painel
 // ---------------------------------------------------------------------
 
-export function numerosDaSemana(db: BaseDados, hojeIso: string) {
+export function numerosDaSemana(db: BaseDados, hojeIso: string, verConferencias = false) {
   // semana de domingo a sábado que contém hoje
   const hoje = chaveDia(hojeIso);
   const diaSemana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
@@ -316,12 +343,12 @@ export function numerosDaSemana(db: BaseDados, hojeIso: string) {
   });
   const noSabado = daSemana.filter((e) => chaveDia(e.inicio) === sabado).length;
 
-  const pendencias = pendenciasDaSemana(db, hojeIso);
+  const pendencias = pendenciasDaSemana(db, hojeIso, verConferencias);
   const trocas = trocasPendentes(db).filter((t) => t.troca.situacao === 'aguardando_aprovacao');
   const aPagar = new Set(db.pagamentos_profissionais.filter((p) => p.situacao === 'pendente').map((p) => p.profissional_id));
 
   const tipos = [...new Set(pendencias.map((p) => p.tipo))];
-  const nomesTipo: Record<TipoPendencia, string> = { troca: 'troca', veiculo: 'veículo', escala: 'escala', fantasia: 'fantasia' };
+  const nomesTipo: Record<TipoPendencia, string> = { troca: 'troca', veiculo: 'veículo', escala: 'escala', fantasia: 'fantasia', conferencia: 'conferência' };
 
   return {
     eventosSemana: daSemana.length,
@@ -349,10 +376,13 @@ export function historicoDoEvento(db: BaseDados, eventoId: string, perfil: Perfi
     .sort((a, b) => b.em.localeCompare(a.em));
 }
 
-export function avisosDoEvento(db: BaseDados, eventoId: string) {
-  const equipe = equipeDoEvento(db, eventoId).length;
-  const convite = db.notificacoes.find((n) => n.evento_id === eventoId && n.tipo === 'escalado' && n.enviada_em);
-  const lembrete = db.notificacoes.find((n) => n.evento_id === eventoId && n.tipo === 'lembrete' && !n.enviada_em);
-  const antecedencia = Number(db.configuracoes.lembrete_antecedencia_minutos || 120) / 60;
-  return { equipe, convite, lembrete, antecedencia };
+export function avisosDoEvento(db: BaseDados, evento: Evento) {
+  const equipe = equipeDoEvento(db, evento.id).length;
+  // Cada um só lê as próprias notificações: o convite aparece quando houver registro visível
+  const convite = db.notificacoes.some((n) => n.evento_id === evento.id && n.tipo === 'escalado' && n.enviada_em);
+  // O lembrete é agendado pelo banco com a antecedência das configurações
+  const minutos = Number(db.configuracoes.lembrete_antecedencia_minutos || 120);
+  const ativo = evento.situacao === 'agendado' || evento.situacao === 'confirmado';
+  const lembreteEm = ativo && equipe ? new Date(new Date(evento.inicio).getTime() - minutos * 60_000).toISOString() : null;
+  return { equipe, convite, lembreteEm, antecedencia: minutos / 60 };
 }

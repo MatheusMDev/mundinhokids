@@ -4,6 +4,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Painel } from './pages/Painel';
 import { DetalheEvento } from './pages/DetalheEvento';
 import { PdfEvento } from './pages/PdfEvento';
+import { Configuracoes } from './pages/Configuracoes';
+import { Usuarios } from './pages/Usuarios';
 import {
   CadastrosGerais, Eventos, Fantasias, Financeiro, Mais, Personagens, Profissionais, Veiculos,
 } from './pages/Cadastros';
@@ -26,6 +28,8 @@ export function App() {
             <Route path="/financeiro" element={<Financeiro />} />
             <Route path="/cadastros" element={<CadastrosGerais />} />
             <Route path="/mais" element={<Mais />} />
+            <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<TelaErro paginaNaoEncontrada />} />
           </Routes>
         </ErrorBoundary>
