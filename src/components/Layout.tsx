@@ -24,7 +24,8 @@ const ABAS: { para: string; texto: string; icone: NomeIcone }[] = [
 ];
 
 export function useCelular() {
-  const consulta = '(max-width: 767px)';
+  // Mantém tablet e notebook estreito na mesma navegação compacta do celular.
+  const consulta = '(max-width: 899px)';
   const [celular, setCelular] = useState(() => window.matchMedia(consulta).matches);
   useEffect(() => {
     const mq = window.matchMedia(consulta);
@@ -71,7 +72,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
       <aside className="lateral">
         <Link to="/" className="marca">
           <Logo />
-          <span><strong>Mundinho<br />de Kids</strong><small>Gestão de eventos</small></span>
+          <span><strong>Mundinho<br />Kids</strong><small>Gestão de eventos</small></span>
         </Link>
         <nav className="nav" aria-label="Menu principal">
           {MENU.map((item) => (
@@ -105,7 +106,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         ) : (
           <>
             <Logo tamanho={32} />
-            <strong>Mundinho de Kids</strong>
+            <strong>Mundinho Kids</strong>
             <span className="avatar laranja">{perfil === 'gerente' ? 'G' : 'S'}</span>
           </>
         )}

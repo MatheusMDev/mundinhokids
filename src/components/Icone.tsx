@@ -39,7 +39,7 @@ export function Icone({ nome, tamanho = 18 }: { nome: NomeIcone; tamanho?: numbe
 
 export function Logo({ tamanho = 36 }: { tamanho?: number }) {
   return (
-    <svg width={tamanho} height={tamanho * 0.8} viewBox="0 0 50 40" aria-label="Mundinho de Kids" role="img">
+    <svg width={tamanho} height={tamanho * 0.8} viewBox="0 0 50 40" aria-label="Mundinho Kids" role="img">
       <path d="M4 34V7l10.5 13L25 7v27" fill="none" stroke="var(--marca)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M31 7v27M31 21L45 7M35 18l10 16" fill="none" stroke="var(--marca-clara)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

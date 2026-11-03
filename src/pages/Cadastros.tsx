@@ -1,12 +1,12 @@
 // Listas simples dos cadastros, para o menu não levar a telas vazias.
 // Os formulários de cadastro entram na etapa de cadastros (semanas 2 a 4).
 
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Layout, SeletorPerfil, useCelular } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import { useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, moeda } from '../lib/formato';
+import { dataLonga, diaCurto, hora, mesAno, partes, moeda } from '../lib/formato';
 import {
   eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
@@ -14,6 +14,63 @@ import { LinhaEvento } from './Painel';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
 const ROTULO_FANTASIA = { disponivel: 'Disponível', limpeza: 'Em limpeza', manutencao: 'Em manutenção', inativa: 'Inativa' };
+const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
+
+function semAcentos(texto: string) {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenados> }) {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const mes = parametros.get('mes') ?? '';
+  const situacao = parametros.get('situacao') ?? '';
+  const meses = useMemo(() => {
+    const unicos = new Map<string, string>();
+    eventos.forEach((evento) => {
+      const { ano, mes: numeroMes } = partes(evento.inicio);
+      unicos.set(`${ano}-${String(numeroMes).padStart(2, '0')}`, mesAno(ano, numeroMes));
+    });
+    return [...unicos.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [eventos]);
+
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    setParametros(novos);
+  };
+
+  return (
+    <section className="filtros-eventos" aria-label="Filtros de eventos">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar evento</span>
+        <input
+          type="search"
+          value={busca}
+          onChange={(evento) => alterar('busca', evento.target.value)}
+          placeholder="Buscar por evento ou aniversariante"
+        />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <label className="filtro-select">
+        <span>Mês</span>
+        <select value={mes} onChange={(evento) => alterar('mes', evento.target.value)}>
+          <option value="">Todos os meses</option>
+          {meses.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
+        </select>
+      </label>
+      <label className="filtro-select">
+        <span>Situação</span>
+        <select value={situacao} onChange={(evento) => alterar('situacao', evento.target.value)}>
+          <option value="">Todas as situações</option>
+          {SITUACOES.map((valor) => <option key={valor} value={valor}>{ROTULO_SITUACAO[valor]}</option>)}
+        </select>
+      </label>
+    </section>
+  );
+}
 
 function Pagina({ titulo, descricao, children, tituloMobile }: { titulo: string; descricao: string; children: ReactNode; tituloMobile?: string }) {
   const { avisar } = useEstado();
@@ -44,25 +101,40 @@ function Tabela({ cabecalho, linhas }: { cabecalho: string[]; linhas: ReactNode[
 export function Eventos() {
   const { db } = useEstado();
   const celular = useCelular();
-  const eventos = eventosOrdenados(db);
+  const todosEventos = eventosOrdenados(db);
+  const [parametros] = useSearchParams();
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const mes = parametros.get('mes') ?? '';
+  const situacao = parametros.get('situacao') ?? '';
+  const eventos = todosEventos.filter((evento) => {
+    const partesEvento = partes(evento.inicio);
+    const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
+    const mesEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}`;
+    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes) && (!situacao || evento.situacao === situacao);
+  });
+  const filtros = <FiltrosEventos eventos={todosEventos} />;
   if (celular) {
     return (
-      <Pagina titulo="Eventos" descricao={`${eventos.length} eventos cadastrados`}>
-        {eventos.map((e) => <LinhaEvento key={e.id} evento={e} />)}
+      <Pagina titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}>
+        {filtros}
+        {eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento encontrado com esses filtros.</div>}
       </Pagina>
     );
   }
   return (
-    <Pagina titulo="Eventos" descricao={`${eventos.length} eventos cadastrados`}>
-      <Tabela
-        cabecalho={['Data', 'Evento', 'Local', 'Situação']}
-        linhas={eventos.map((e) => [
-          `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
-          <Link to={`/eventos/${e.id}`} className="link-marca">{e.titulo}</Link>,
-          localDe(db, e)?.nome,
-          <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
-        ])}
-      />
+    <Pagina titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}>
+      {filtros}
+      {eventos.length ? (
+        <Tabela
+          cabecalho={['Data', 'Evento', 'Local', 'Situação']}
+          linhas={eventos.map((e) => [
+            `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
+            <Link to={`/eventos/${e.id}`} className="link-marca">{e.titulo}</Link>,
+            localDe(db, e)?.nome,
+            <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
+          ])}
+        />
+      ) : <div className="vazio">Nenhum evento encontrado com esses filtros.</div>}
     </Pagina>
   );
 }

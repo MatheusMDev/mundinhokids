@@ -87,7 +87,7 @@ export function PdfEvento() {
           <ul className="orientacoes">{orientacoes.map((o) => <li key={o}>{o}</li>)}</ul>
         ) : <p style={{ margin: 0 }}>Sem orientações específicas.</p>}
 
-        <footer className="folha-rodape">Mundinho de Kids · documento para a equipe, sem valores.</footer>
+        <footer className="folha-rodape">Mundinho Kids · documento para a equipe, sem valores.</footer>
       </article>
     </Layout>
   );
