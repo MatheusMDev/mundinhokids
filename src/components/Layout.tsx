@@ -2,10 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icone, Logo, type NomeIcone } from './Icone';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { modoDemo } from '../lib/supabase';
-import type { PerfilTela } from '../lib/consultas';
+import { iniciais } from '../lib/formato';
 
-const MENU: { para: string; texto: string; icone: NomeIcone }[] = [
+const MENU: { para: string; texto: string; icone: NomeIcone; soOperacao?: boolean }[] = [
   { para: '/', texto: 'Calendário e painel', icone: 'calendario' },
   { para: '/eventos', texto: 'Eventos', icone: 'presente' },
   { para: '/profissionais', texto: 'Profissionais', icone: 'pessoas' },
@@ -14,6 +13,8 @@ const MENU: { para: string; texto: string; icone: NomeIcone }[] = [
   { para: '/veiculos', texto: 'Veículos', icone: 'carro' },
   { para: '/financeiro', texto: 'Financeiro', icone: 'dinheiro' },
   { para: '/cadastros', texto: 'Cadastros', icone: 'lista' },
+  { para: '/usuarios', texto: 'Usuários e acessos', icone: 'chave', soOperacao: true },
+  { para: '/configuracoes', texto: 'Configurações', icone: 'engrenagem', soOperacao: true },
 ];
 
 const ABAS: { para: string; texto: string; icone: NomeIcone }[] = [
@@ -37,20 +38,6 @@ export function useCelular() {
   return celular;
 }
 
-export function SeletorPerfil({ rotulos }: { rotulos?: Record<PerfilTela, string> }) {
-  const { perfil, setPerfil } = useEstado();
-  const nomes = rotulos ?? { gerente: 'Gerente', supervisora: 'Supervisora' };
-  return (
-    <div className="segmentado" role="group" aria-label="Ver tela como">
-      {(['gerente', 'supervisora'] as const).map((p) => (
-        <button key={p} type="button" aria-pressed={perfil === p} onClick={() => setPerfil(p)}>
-          {nomes[p]}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 interface Props {
   children: ReactNode;
   /** Título da barra do celular; sem título mostra a marca */
@@ -60,7 +47,8 @@ interface Props {
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
-  const { perfil, aviso } = useEstado();
+  const { usuario, aviso, sair, permissoes } = useEstado();
+  const inicial = iniciais(usuario.nome);
   const navegar = useNavigate();
   const { pathname } = useLocation();
   const ativo = (para: string) => (para === '/' ? pathname === '/' : pathname.startsWith(para));
@@ -75,22 +63,18 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
           <span><strong>Mundinho<br />Kids</strong><small>Gestão de eventos</small></span>
         </Link>
         <nav className="nav" aria-label="Menu principal">
-          {MENU.map((item) => (
+          {MENU.filter((item) => !item.soOperacao || permissoes.operacao).map((item) => (
             <NavLink key={item.para} to={item.para} className={() => (ativo(item.para) ? 'ativo' : '')}>
               <Icone nome={item.icone} /> {item.texto}
             </NavLink>
           ))}
         </nav>
         <div className="lateral-rodape">
-          <div className="ver-como">
-            <span>Ver tela como</span>
-            <SeletorPerfil />
-          </div>
           <div className="usuario-cartao">
-            <span className="avatar laranja">{perfil === 'gerente' ? 'G' : 'S'}</span>
-            <span><strong>[Nome da {perfil === 'gerente' ? 'gerente' : 'supervisora'}]</strong><small>{NOME_PERFIL[perfil]}</small></span>
+            <span className="avatar laranja">{inicial}</span>
+            <span><strong>{usuario.nome}</strong><small>{NOME_PERFIL[usuario.perfil]}</small></span>
           </div>
-          {modoDemo && <div className="demo-selo">Modo demonstração · dados de exemplo</div>}
+          <button type="button" className="botao" onClick={sair}>Sair</button>
         </div>
       </aside>
 
@@ -107,7 +91,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
           <>
             <Logo tamanho={32} />
             <strong>Mundinho Kids</strong>
-            <span className="avatar laranja">{perfil === 'gerente' ? 'G' : 'S'}</span>
+            <span className="avatar laranja">{inicial}</span>
           </>
         )}
       </header>
