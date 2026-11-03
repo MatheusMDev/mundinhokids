@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Layout, SeletorPerfil } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import { useEstado } from '../lib/estado';
@@ -24,13 +24,17 @@ function personagemDoMembro(db: ReturnType<typeof useEstado>['db'], evento: Even
 
 export function DetalheEvento() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { db, hoje, perfil, decidirTroca, avisar } = useEstado();
+  const origem = (location.state as { voltarPara?: string } | null)?.voltarPara;
+  const voltarPara = origem ?? '/';
+  const textoVoltar = origem?.startsWith('/eventos') ? 'Voltar aos eventos' : 'Voltar ao calendário';
   const evento = eventoPorId(db, id);
 
   if (!evento) {
     return (
       <Layout tituloMobile="Evento">
-        <Link to="/" className="voltar"><Icone nome="esquerda" /> Voltar ao calendário</Link>
+        <Link to={voltarPara} className="voltar"><Icone nome="esquerda" /> {textoVoltar}</Link>
         <div className="vazio">Evento não encontrado.</div>
       </Layout>
     );
@@ -51,7 +55,7 @@ export function DetalheEvento() {
 
   return (
     <Layout tituloMobile="Detalhe do evento" comBarra>
-      <Link to="/" className="voltar"><Icone nome="esquerda" /> Voltar ao calendário</Link>
+      <Link to={voltarPara} className="voltar"><Icone nome="esquerda" /> {textoVoltar}</Link>
 
       <div className="detalhe-topo">
         <div>

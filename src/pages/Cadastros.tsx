@@ -2,7 +2,7 @@
 // Os formulários de cadastro entram na etapa de cadastros (semanas 2 a 4).
 
 import { useMemo, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Layout, SeletorPerfil, useCelular } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import { useEstado } from '../lib/estado';
@@ -101,11 +101,13 @@ function Tabela({ cabecalho, linhas }: { cabecalho: string[]; linhas: ReactNode[
 export function Eventos() {
   const { db } = useEstado();
   const celular = useCelular();
+  const location = useLocation();
   const todosEventos = eventosOrdenados(db);
   const [parametros] = useSearchParams();
   const busca = semAcentos(parametros.get('busca') ?? '');
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const voltarPara = `${location.pathname}${location.search}`;
   const eventos = todosEventos.filter((evento) => {
     const partesEvento = partes(evento.inicio);
     const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
@@ -117,7 +119,7 @@ export function Eventos() {
     return (
       <Pagina titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}>
         {filtros}
-        {eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento encontrado com esses filtros.</div>}
+        {eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} voltarPara={voltarPara} />) : <div className="vazio">Nenhum evento encontrado com esses filtros.</div>}
       </Pagina>
     );
   }
@@ -129,7 +131,7 @@ export function Eventos() {
           cabecalho={['Data', 'Evento', 'Local', 'Situação']}
           linhas={eventos.map((e) => [
             `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
-            <Link to={`/eventos/${e.id}`} className="link-marca">{e.titulo}</Link>,
+            <Link to={`/eventos/${e.id}`} state={{ voltarPara }} className="link-marca">{e.titulo}</Link>,
             localDe(db, e)?.nome,
             <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
           ])}
