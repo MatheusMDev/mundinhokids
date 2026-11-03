@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useState } from 'react';
 import { Icone } from '../components/Icone';
 import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala } from '../components/FormulariosEvento';
 import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
@@ -35,14 +35,18 @@ function personagemDoMembro(db: ReturnType<typeof useEstado>['db'], evento: Even
 
 export function DetalheEvento() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { db, hoje, perfil, decidirTroca, permissoes, executar, cliente, avisar, usuario } = useEstado();
+  const origem = (location.state as { voltarPara?: string } | null)?.voltarPara;
+  const voltarPara = origem ?? '/';
+  const textoVoltar = origem?.startsWith('/eventos') ? 'Voltar aos eventos' : 'Voltar ao calendário';
   const [janela, setJanela] = useState<Janela | null>(null);
   const evento = eventoPorId(db, id);
 
   if (!evento) {
     return (
       <Layout tituloMobile="Evento">
-        <Link to="/" className="voltar"><Icone nome="esquerda" /> Voltar ao calendário</Link>
+        <Link to={voltarPara} className="voltar"><Icone nome="esquerda" /> {textoVoltar}</Link>
         <div className="vazio">Evento não encontrado.</div>
       </Layout>
     );
@@ -73,7 +77,7 @@ export function DetalheEvento() {
 
   return (
     <Layout tituloMobile="Detalhe do evento" comBarra>
-      <Link to="/" className="voltar"><Icone nome="esquerda" /> Voltar ao calendário</Link>
+      <Link to={voltarPara} className="voltar"><Icone nome="esquerda" /> {textoVoltar}</Link>
 
       <div className="detalhe-topo">
         <div>

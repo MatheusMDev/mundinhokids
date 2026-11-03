@@ -28,10 +28,10 @@ export function ListaPendencias({ pendencias }: { pendencias: Pendencia[] }) {
   );
 }
 
-export function LinhaEvento({ evento }: { evento: Evento }) {
+export function LinhaEvento({ evento, voltarPara }: { evento: Evento; voltarPara?: string }) {
   const { db } = useEstado();
   return (
-    <Link to={`/eventos/${evento.id}`} className="evento-linha">
+    <Link to={`/eventos/${evento.id}`} state={voltarPara ? { voltarPara } : undefined} className="evento-linha">
       <span className={`evento-hora ${evento.situacao}`}>{hora(evento.inicio)}</span>
       <span>
         <strong>{evento.titulo}</strong>

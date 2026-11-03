@@ -2,7 +2,7 @@
 // Quem não é da operação vê as listas, mas não os botões de cadastrar.
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Layout, useCelular } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import {
@@ -120,7 +120,7 @@ function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
     <section className="cartao tabela-rolagem">
       {(titulo || acao) && <div className="cartao-topo">{titulo && <h2>{titulo}</h2>}{acao}</div>}
       {linhas.length === 0 ? <div className="vazio">{vazio ?? 'Nada cadastrado ainda.'}</div> : (
-        <table className="tabela">
+        <table className="tabela tabela-desktop">
           <thead><tr>{cabecalho.map((c) => <th key={c}>{c}</th>)}</tr></thead>
           <tbody>
             {linhas.map((l) => (
@@ -130,6 +130,30 @@ function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
             ))}
           </tbody>
         </table>
+      )}
+      {linhas.length > 0 && (
+        <div className="tabela-cartoes">
+          {linhas.map((linha) => (
+            <article
+              key={linha.chave}
+              className={`tabela-card${linha.inativo ? ' inativo' : ''}${linha.onAbrir ? ' clicavel' : ''}`}
+              onClick={linha.onAbrir}
+              onKeyDown={(evento) => { if (evento.key === 'Enter') linha.onAbrir?.(); }}
+              role={linha.onAbrir ? 'button' : undefined}
+              tabIndex={linha.onAbrir ? 0 : undefined}
+            >
+              <div className="tabela-card-titulo">{linha.celulas[0]}</div>
+              <dl>
+                {linha.celulas.slice(1).map((valor, j) => (
+                  <div key={cabecalho[j + 1]}>
+                    <dt>{cabecalho[j + 1]}</dt>
+                    <dd>{valor}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+        </div>
       )}
     </section>
   );
@@ -151,12 +175,14 @@ function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: bo
 export function Eventos() {
   const { db } = useEstado();
   const celular = useCelular();
+  const location = useLocation();
   const [novo, setNovo] = useState(false);
   const todosEventos = eventosOrdenados(db);
   const [parametros] = useSearchParams();
   const busca = semAcentos(parametros.get('busca') ?? '');
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const voltarPara = `${location.pathname}${location.search}`;
   const eventos = todosEventos.filter((evento) => {
     const partesEvento = partes(evento.inicio);
     const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
@@ -164,7 +190,6 @@ export function Eventos() {
     return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes) && (!situacao || evento.situacao === situacao);
   });
   const vazio = todosEventos.length ? 'Nenhum evento encontrado com esses filtros.' : 'Nenhum evento cadastrado ainda.';
-
   return (
     <Pagina
       titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}
@@ -181,7 +206,7 @@ export function Eventos() {
             chave: e.id,
             celulas: [
               `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
-              <Link to={`/eventos/${e.id}`} className="link-marca">{e.titulo}</Link>,
+              <Link to={`/eventos/${e.id}`} state={{ voltarPara }} className="link-marca">{e.titulo}</Link>,
               localDe(db, e)?.nome,
               <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
             ],
