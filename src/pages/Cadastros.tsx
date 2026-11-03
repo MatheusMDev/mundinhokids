@@ -1,10 +1,10 @@
 // Listas dos cadastros com os formulários de criar e editar.
 // Quem não é da operação vê as listas, mas não os botões de cadastrar.
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Layout, useCelular } from '../components/Layout';
-import { Icone } from '../components/Icone';
+import { Layout } from '../components/Layout';
+import { Icone, type NomeIcone } from '../components/Icone';
 import {
   FormContratante, FormFantasia, FormLocal, FormPersonagem, FormProfissional, FormVeiculo, ROTULO_FANTASIA,
 } from '../components/FormulariosCadastro';
@@ -12,11 +12,10 @@ import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, mesAno, moeda, partes } from '../lib/formato';
+import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
-import { LinhaEvento } from './Painel';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
 const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
@@ -25,11 +24,65 @@ function semAcentos(texto: string) {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenados> }) {
+function SeletorFiltro({ label, icon, value, options, onChange }: {
+  label: string;
+  icon: NomeIcone;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selecionado = options.find(([valor]) => valor === value)?.[1] ?? options[0]?.[1];
+
+  useEffect(() => {
+    const fechar = (evento: MouseEvent) => {
+      if (!ref.current?.contains(evento.target as Node)) setAberto(false);
+    };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  return (
+    <div ref={ref} className={`filtro-select${value ? ' ativo' : ''}${aberto ? ' aberto' : ''}`}>
+      <button
+        type="button"
+        className="filtro-select-botao"
+        aria-haspopup="listbox"
+        aria-expanded={aberto}
+        onClick={() => setAberto((atual) => !atual)}
+        onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}
+      >
+        <Icone nome={icon} tamanho={16} />
+        <span className="filtro-select-texto"><small>{label}</small><strong>{selecionado}</strong></span>
+        <span className="filtro-seta" aria-hidden="true" />
+      </button>
+      {aberto && (
+        <div className="filtro-menu" role="listbox" aria-label={label}>
+          {options.map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              type="button"
+              role="option"
+              aria-selected={valor === value}
+              className={valor === value ? 'selecionado' : ''}
+              onClick={() => { onChange(valor); setAberto(false); }}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FiltrosEventos({ eventos, db }: { eventos: ReturnType<typeof eventosOrdenados>; db: ReturnType<typeof useEstado>['db'] }) {
   const [parametros, setParametros] = useSearchParams();
   const busca = parametros.get('busca') ?? '';
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const local = parametros.get('local') ?? '';
   const meses = useMemo(() => {
     const unicos = new Map<string, string>();
     eventos.forEach((evento) => {
@@ -38,11 +91,20 @@ function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenad
     });
     return [...unicos.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [eventos]);
+  const locais = useMemo(() => {
+    const unicos = new Map<string, string>();
+    eventos.forEach((evento) => {
+      const nome = localDe(db, evento)?.nome;
+      if (nome) unicos.set(evento.local_id, nome);
+    });
+    return [...unicos.entries()].sort(([, a], [, b]) => a.localeCompare(b));
+  }, [db, eventos]);
 
   const alterar = (nome: string, valor: string) => {
     const novos = new URLSearchParams(parametros);
     if (valor) novos.set(nome, valor);
     else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
     setParametros(novos);
   };
 
@@ -59,20 +121,9 @@ function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenad
         />
         {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
       </label>
-      <label className="filtro-select">
-        <span>Mês</span>
-        <select value={mes} onChange={(evento) => alterar('mes', evento.target.value)}>
-          <option value="">Todos os meses</option>
-          {meses.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
-        </select>
-      </label>
-      <label className="filtro-select">
-        <span>Situação</span>
-        <select value={situacao} onChange={(evento) => alterar('situacao', evento.target.value)}>
-          <option value="">Todas as situações</option>
-          {SITUACOES.map((valor) => <option key={valor} value={valor}>{ROTULO_SITUACAO[valor]}</option>)}
-        </select>
-      </label>
+      <SeletorFiltro label="Mês" icon="calendario" value={mes} options={[[ '', 'Todos os meses' ], ...meses]} onChange={(valor) => alterar('mes', valor)} />
+      <SeletorFiltro label="Situação" icon="lista" value={situacao} options={[[ '', 'Todas as situações' ], ...SITUACOES.map((valor) => [valor, ROTULO_SITUACAO[valor]] as [string, string])]} onChange={(valor) => alterar('situacao', valor)} />
+      <SeletorFiltro label="Buffet ou local" icon="local" value={local} options={[[ '', 'Todos os locais' ], ...locais]} onChange={(valor) => alterar('local', valor)} />
     </section>
   );
 }
@@ -159,6 +210,21 @@ function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
   );
 }
 
+function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
+  if (total <= 1) return null;
+  return (
+    <nav className="paginacao-eventos" aria-label="Paginação dos eventos">
+      <button type="button" className="paginacao-botao" disabled={pagina === 1} onClick={() => onMudar(pagina - 1)}>
+        Anterior
+      </button>
+      <span>Página <strong>{pagina}</strong> de {total}</span>
+      <button type="button" className="paginacao-botao" disabled={pagina === total} onClick={() => onMudar(pagina + 1)}>
+        Próxima
+      </button>
+    </nav>
+  );
+}
+
 /** Nome que abre a edição: um botão de verdade, para funcionar no teclado */
 function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: boolean; onAbrir?: () => void }) {
   if (!onAbrir) return <strong>{texto}</strong>;
@@ -173,46 +239,72 @@ function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: bo
 // ---------------------------------------------------------------------
 
 export function Eventos() {
-  const { db } = useEstado();
-  const celular = useCelular();
+  const { db, hoje } = useEstado();
   const location = useLocation();
   const [novo, setNovo] = useState(false);
   const todosEventos = eventosOrdenados(db);
-  const [parametros] = useSearchParams();
+  const [parametros, setParametros] = useSearchParams();
   const busca = semAcentos(parametros.get('busca') ?? '');
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const local = parametros.get('local') ?? '';
   const voltarPara = `${location.pathname}${location.search}`;
   const eventos = todosEventos.filter((evento) => {
     const partesEvento = partes(evento.inicio);
     const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
     const mesEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}`;
-    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes) && (!situacao || evento.situacao === situacao);
+    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes)
+      && (!situacao || evento.situacao === situacao) && (!local || evento.local_id === local);
+  }).sort((a, b) => {
+    const agora = new Date(hoje).getTime();
+    const inicioA = new Date(a.inicio).getTime();
+    const inicioB = new Date(b.inicio).getTime();
+    const passadoA = inicioA < agora;
+    const passadoB = inicioB < agora;
+    if (passadoA !== passadoB) return passadoA ? 1 : -1;
+    return passadoA ? inicioB - inicioA : inicioA - inicioB;
   });
+  const totalPaginas = Math.max(1, Math.ceil(eventos.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const eventosDaPagina = eventos.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const vazio = todosEventos.length ? 'Nenhum evento encontrado com esses filtros.' : 'Nenhum evento cadastrado ainda.';
   return (
     <Pagina
       titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}
       acao={<BotaoNovo texto="Novo evento" onClick={() => setNovo(true)} />}
     >
-      <FiltrosEventos eventos={todosEventos} />
-      {celular ? (
-        eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">{vazio}</div>
-      ) : (
-        <Tabela
-          cabecalho={['Data', 'Evento', 'Local', 'Situação']}
-          vazio={vazio}
-          linhas={eventos.map((e) => ({
-            chave: e.id,
-            celulas: [
-              `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
-              <Link to={`/eventos/${e.id}`} state={{ voltarPara }} className="link-marca">{e.titulo}</Link>,
-              localDe(db, e)?.nome,
-              <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
-            ],
-          }))}
-        />
-      )}
+      <FiltrosEventos eventos={todosEventos} db={db} />
+      {eventos.length ? (
+        <div className="eventos-grade">
+          {eventosDaPagina.map((e) => (
+            <Link key={e.id} to={`/eventos/${e.id}`} state={{ voltarPara }} className="evento-cartao">
+              <div className={`evento-cartao-data ${e.situacao}`}>
+                <strong>{partes(e.inicio).dia}</strong>
+                <small className="evento-cartao-mes">{MESES[partes(e.inicio).mes - 1]}</small>
+                <small>{diaCurto(e.inicio).split(' ')[0]}</small>
+              </div>
+              <div className="evento-cartao-corpo">
+                <div className="evento-cartao-topo">
+                  <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>
+                  <Icone nome="direita" tamanho={16} />
+                </div>
+                <strong className="evento-cartao-titulo">{e.titulo}</strong>
+                <span className="evento-cartao-info">{hora(e.inicio)} · {localDe(db, e)?.nome ?? 'Local não informado'}</span>
+                {e.aniversariante && <span className="evento-cartao-aniversariante">Aniversariante: {e.aniversariante}</span>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : <div className="vazio">{vazio}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {novo && <FormEvento onFechar={() => setNovo(false)} />}
     </Pagina>
   );
