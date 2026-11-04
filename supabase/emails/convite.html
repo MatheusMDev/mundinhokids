@@ -1,0 +1,34 @@
+<!-- Assunto: Seu acesso ao Mundinho Kids está pronto -->
+<div style="margin:0;padding:24px 12px;background:#fdf2f8;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #f3d3e6;border-radius:16px;overflow:hidden;">
+    <tr>
+      <td style="background:#c8177e;padding:22px 28px;color:#ffffff;">
+        <div style="font-size:21px;font-weight:bold;">Mundinho Kids</div>
+        <div style="font-size:12px;opacity:.85;margin-top:2px;">Gestão de eventos</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px;color:#2b2330;font-size:15px;line-height:1.6;">
+        <p style="margin:0 0 14px;font-size:18px;font-weight:bold;">{{ if .Data.nome }}Olá, {{ .Data.nome }}!{{ else }}Olá!{{ end }}</p>
+        <p style="margin:0 0 14px;">Que bom ter você com a gente! Você recebeu um convite para acessar o sistema do Mundinho Kids, onde a equipe acompanha a agenda das festas, as escalas e tudo o que precisa para cada evento.</p>
+        <p style="margin:0;">Para começar, é só criar a sua senha:</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+          <tr>
+            <td style="border-radius:10px;background:#c8177e;">
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 26px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;">Criar minha senha</a>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:0 0 14px;">Seu login é o e-mail <strong>{{ .Email }}</strong>.</p>
+        <p style="margin:0 0 14px;color:#6b6170;font-size:13px;">Por segurança, o link funciona uma única vez e por tempo limitado. Se ele expirar, é só pedir um novo convite para a gerente ou para a direção.</p>
+        <p style="margin:0;color:#6b6170;font-size:13px;">Se você não esperava este convite, pode ignorar esta mensagem.</p>
+        <p style="margin:22px 0 0;color:#8a7f8f;font-size:12px;">Se o botão não funcionar, copie e cole este endereço no navegador:<br><a href="{{ .ConfirmationURL }}" style="color:#c8177e;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 28px;background:#fbf7fa;color:#8a7f8f;font-size:12px;line-height:1.5;">
+        Este é um e-mail automático do sistema do Mundinho Kids. Não é preciso responder.
+      </td>
+    </tr>
+  </table>
+</div>

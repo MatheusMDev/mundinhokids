@@ -25,13 +25,37 @@ Cada um deve terminar com "Success. No rows returned".
 > O `seed.sql` é só para a base de **teste**. Para rodar de novo do zero, apague o
 > projeto e crie outro, ou recrie o schema `public`.
 
-## 3. Criar os logins de teste
+## 3. Acessos: tudo pelo site
 
-1. **Authentication → Users → Add user → Create new user**.
-2. Crie, por exemplo, `gerente@teste.com` e `supervisora@teste.com`, com senha, e
-   marque **Auto Confirm User**.
-3. No SQL Editor, rode `vincular_usuarios.sql` (troque os e-mails se usou outros).
-   A consulta no fim mostra quem ficou ligado a qual perfil.
+Logins, senhas e perfis são criados e alterados no próprio site, em **Usuários e
+acessos**, por Direção e Gerente. As donas não usam o painel do Supabase.
+
+Quem cuida do sistema faz, uma vez, na implantação:
+
+1. **Publicar a função `usuarios`** (é ela que cria e altera logins com a chave de
+   administrador, que nunca vai para o navegador): **Edge Functions → Deploy a new
+   function → Via Editor**, nome `usuarios`, colar `functions/usuarios/index.ts` e
+   **Deploy function**. Para atualizar: aba **Code** da função → **Deploy updates**.
+   Ou pela CLI: `npx supabase functions deploy usuarios`.
+2. **Authentication → URL Configuration → Site URL**: o endereço do site (em teste,
+   `http://localhost:5173`). É para lá que voltam os links de convite e de
+   "esqueci minha senha".
+3. **O primeiro login da Direção**: **Authentication → Users → Add user**, com senha e
+   **Auto Confirm User**, e depois rodar `vincular_usuarios.sql` no SQL Editor com
+   esse e-mail e o perfil `diretora`. Daí em diante a Direção cria todo o resto pelo site.
+4. **E-mails**: o envio padrão do Supabase só entrega para os membros da conta e poucos
+   por hora. No projeto de teste, o envio sai pela **Brevo** (SMTP `smtp-relay.brevo.com`,
+   porta 587), em **Authentication → Emails → SMTP Settings**. Sem SMTP, use a **senha
+   provisória** ao criar o acesso: funciona sem e-mail.
+5. **Modelos de e-mail em português**: ficam em `emails/` (a primeira linha de cada
+   arquivo é o assunto). Em **Authentication → Emails → Templates**, cole cada um no
+   modelo certo: `convite.html` → *Invite user*, `nova_senha.html` → *Reset password*,
+   `senha_alterada.html` → *Password changed* e `email_alterado.html` → *Email address
+   changed* (estes dois com **Enable notification** ligado).
+
+Regras que a função garante: só Direção e Gerente mexem em acessos; só a Direção cria
+ou altera acessos de Direção; ninguém muda o próprio perfil nem se desativa; o sistema
+nunca fica sem ninguém da gestão ativo; acesso desativado não consegue mais entrar.
 
 ## 4. Ligar o app
 
@@ -74,5 +98,3 @@ O `db push` aplica só as migrações; o `seed.sql` continua sendo rodado à mã
 
 - **Avisos por push**: o agendamento (pg_cron + Edge Function `enviar-notificacoes`)
   está comentado no fim do schema. A fila `notificacoes` já é preenchida pelo banco.
-- **Convite de profissionais**: criar login para artistas e produtores pelo app precisa
-  de uma Edge Function com a chave de administrador. Por enquanto, crie em Authentication.

@@ -127,3 +127,6 @@ export const hojeCampo = () => paraCampos(new Date().toISOString()).data;
 
 /** "2026-10-20" → "20/10" */
 export const dataCurta = (data: string) => data.split('-').reverse().slice(0, 2).join('/');
+
+/** Texto para busca: minúsculo e sem acentos ("Júlia" → "julia") */
+export const semAcentos = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

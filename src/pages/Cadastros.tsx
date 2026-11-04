@@ -1,10 +1,10 @@
 // Listas dos cadastros com os formulários de criar e editar.
 // Quem não é da operação vê as listas, mas não os botões de cadastrar.
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { Icone, type NomeIcone } from '../components/Icone';
+import { Icone } from '../components/Icone';
 import {
   FormContratante, FormFantasia, FormLocal, FormPersonagem, FormProfissional, FormVeiculo, ROTULO_FANTASIA,
 } from '../components/FormulariosCadastro';
@@ -12,71 +12,16 @@ import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { SeletorData } from '../components/Formulario';
+import { BotaoMinhaSenha } from '../components/MinhaSenha';
+import { SeletorFiltro } from '../components/SeletorFiltro';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes } from '../lib/formato';
+import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes, semAcentos } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
 const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
-
-function semAcentos(texto: string) {
-  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-function SeletorFiltro({ label, icon, value, options, onChange }: {
-  label: string;
-  icon: NomeIcone;
-  value: string;
-  options: [string, string][];
-  onChange: (value: string) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selecionado = options.find(([valor]) => valor === value)?.[1] ?? options[0]?.[1];
-
-  useEffect(() => {
-    const fechar = (evento: MouseEvent) => {
-      if (!ref.current?.contains(evento.target as Node)) setAberto(false);
-    };
-    document.addEventListener('mousedown', fechar);
-    return () => document.removeEventListener('mousedown', fechar);
-  }, []);
-
-  return (
-    <div ref={ref} className={`filtro-select${value ? ' ativo' : ''}${aberto ? ' aberto' : ''}`}>
-      <button
-        type="button"
-        className="filtro-select-botao"
-        aria-haspopup="listbox"
-        aria-expanded={aberto}
-        onClick={() => setAberto((atual) => !atual)}
-        onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}
-      >
-        <Icone nome={icon} tamanho={16} />
-        <span className="filtro-select-texto"><small>{label}</small><strong>{selecionado}</strong></span>
-        <span className="filtro-seta" aria-hidden="true" />
-      </button>
-      {aberto && (
-        <div className="filtro-menu" role="listbox" aria-label={label}>
-          {options.map(([valor, rotulo]) => (
-            <button
-              key={valor}
-              type="button"
-              role="option"
-              aria-selected={valor === value}
-              className={valor === value ? 'selecionado' : ''}
-              onClick={() => { onChange(valor); setAberto(false); }}
-            >
-              {rotulo}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function FiltrosEventos({ eventos, db }: { eventos: ReturnType<typeof eventosOrdenados>; db: ReturnType<typeof useEstado>['db'] }) {
   const [parametros, setParametros] = useSearchParams();
@@ -905,6 +850,7 @@ function ContaUsuario() {
       <span className="rotulo">Conectado como</span>
       <strong style={{ display: 'block', margin: '4px 0 2px' }}>{usuario.nome}</strong>
       <p className="suave" style={{ margin: '0 0 12px' }}>{NOME_PERFIL[usuario.perfil]}</p>
+      <BotaoMinhaSenha estilo={{ width: '100%', marginBottom: 8 }} />
       <button type="button" className="botao" onClick={sair} style={{ width: '100%' }}>Sair</button>
     </section>
   );
