@@ -260,6 +260,37 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
   );
 }
 
+function FiltrosPersonagens() {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const status = parametros.get('status') ?? '';
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos);
+  };
+
+  return (
+    <section className="filtros-eventos filtros-personagens" aria-label="Filtros de personagens">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar personagem</span>
+        <input type="search" value={busca} onChange={(evento) => alterar('busca', evento.target.value)} placeholder="Buscar por nome" />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <SeletorFiltro
+        label="Status"
+        icon="lista"
+        value={status}
+        options={[['', 'Todos os status'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]}
+        onChange={(valor) => alterar('status', valor)}
+      />
+    </section>
+  );
+}
+
 function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
   if (total <= 1) return null;
   return (
@@ -444,27 +475,62 @@ export function Personagens() {
   const { db, permissoes } = useEstado();
   const form = useFormulario<(typeof db.personagens)[number]>();
   const lista = [...db.personagens].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  const [parametros, setParametros] = useSearchParams();
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const status = parametros.get('status') ?? '';
+  const filtrados = lista.filter((personagem) => (!busca || semAcentos(personagem.nome).includes(busca))
+    && (!status || (status === 'ativo' ? personagem.ativo : !personagem.ativo)));
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const personagensDaPagina = filtrados.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Personagens" descricao="Perfil, referências e orientações da apresentação"
+      titulo="Personagens" descricao={`${filtrados.length} de ${lista.length} personagens`}
       acao={<BotaoNovo texto="Novo personagem" onClick={form.novo} />}
     >
-      <Tabela
-        cabecalho={['Personagem', 'Descrição', 'Orientações', 'Artistas']}
-        linhas={lista.map((pe) => {
-          const abrir = permissoes.operacao ? () => form.editar(pe) : undefined;
-          return {
-            chave: pe.id, inativo: !pe.ativo, onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={pe.nome} inativo={!pe.ativo} onAbrir={abrir} />,
-              pe.descricao ?? '—',
-              pe.orientacoes ?? '—',
-              db.profissional_personagens.filter((x) => x.personagem_id === pe.id).length,
-            ],
-          };
-        })}
-      />
+      <FiltrosPersonagens />
+      {personagensDaPagina.length ? (
+        <div className="personagens-grade">
+          {personagensDaPagina.map((pe) => {
+            const abrir = permissoes.operacao ? () => form.editar(pe) : undefined;
+            const artistas = db.profissional_personagens.filter((x) => x.personagem_id === pe.id).length;
+            return (
+              <article
+                key={pe.id}
+                className={`personagem-cartao${!pe.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="personagem-cartao-cabecalho">
+                  <div className="personagem-identidade">
+                    <span className="personagem-avatar"><Icone nome="estrela" tamanho={19} /></span>
+                    <div><strong>{pe.nome}</strong><span className={`selo ${pe.ativo ? 'confirmado' : 'realizado'}`}>{pe.ativo ? 'Ativo' : 'Inativo'}</span></div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="personagem-detalhes">
+                  <div><Icone nome="arquivo" tamanho={15} /><span><small>Descrição</small><strong>{pe.descricao ?? 'Não informada'}</strong></span></div>
+                  <div><Icone nome="lista" tamanho={15} /><span><small>Orientações</small><strong>{pe.orientacoes ?? 'Não informadas'}</strong></span></div>
+                  <div><Icone nome="pessoas" tamanho={15} /><span><small>Artistas vinculados</small><strong>{artistas || 'Nenhum artista vinculado'}</strong></span></div>
+                </div>
+                {pe.referencias && <p className="personagem-referencias"><strong>Referências:</strong> {pe.referencias}</p>}
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhum personagem encontrado com esses filtros.' : 'Nenhum personagem cadastrado ainda.'}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {form.aberto && <FormPersonagem item={form.aberto.item} onFechar={form.fechar} />}
     </Pagina>
   );
