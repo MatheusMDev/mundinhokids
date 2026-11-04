@@ -114,6 +114,47 @@ export function Marcadores({ rotulo, opcoes, marcados, onMudar, vazio }: {
   );
 }
 
+export function SeletorMultiplo({ rotulo, opcoes, marcados, onMudar, vazio }: {
+  rotulo: string; opcoes: Opcao[]; marcados: string[]; onMudar: (v: string[]) => void; vazio?: string;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLFieldSetElement>(null);
+  const selecionados = opcoes.filter((opcao) => marcados.includes(opcao.valor)).map((opcao) => opcao.texto);
+
+  useEffect(() => {
+    const fechar = (evento: MouseEvent) => {
+      if (!ref.current?.contains(evento.target as Node)) setAberto(false);
+    };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  return (
+    <fieldset ref={ref} className={`campo largo seletor-multiplo${aberto ? ' aberto' : ''}`}>
+      <legend>{rotulo}</legend>
+      <button type="button" className="seletor-multiplo-botao" aria-haspopup="listbox" aria-expanded={aberto} onClick={() => setAberto((atual) => !atual)} onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}>
+        <span>{selecionados.length ? selecionados.join(', ') : opcoes.length ? `Selecione ${rotulo.toLowerCase()}` : (vazio ?? 'Nenhuma opção.')}</span>
+        <i aria-hidden="true" />
+      </button>
+      {aberto && opcoes.length > 0 && (
+        <div className="seletor-multiplo-menu" role="listbox" aria-label={rotulo}>
+          {opcoes.map((opcao) => (
+            <label key={opcao.valor} className={opcao.desativada ? 'desativada' : ''}>
+              <input
+                type="checkbox"
+                checked={marcados.includes(opcao.valor)}
+                disabled={opcao.desativada}
+                onChange={(evento) => onMudar(evento.target.checked ? [...marcados, opcao.valor] : marcados.filter((marcado) => marcado !== opcao.valor))}
+              />
+              <span>{opcao.texto}{opcao.detalhe && <small> · {opcao.detalhe}</small>}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
 /** Uma caixa de marcar com texto ao lado */
 export function Marcador({ texto, marcado, onMudar, dica, desativado }: {
   texto: string; marcado: boolean; onMudar: (v: boolean) => void; dica?: string; desativado?: boolean;

@@ -210,6 +210,56 @@ function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
   );
 }
 
+function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }) {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const personagem = parametros.get('personagem') ?? '';
+  const funcao = parametros.get('funcao') ?? '';
+  const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos);
+  };
+  const personagens = [...db.personagens].sort((a, b) => a.nome.localeCompare(b.nome));
+  const disponibilidades = [...new Set(db.profissionais.map((item) => item.disponibilidade).filter(Boolean) as string[])]
+    .sort((a, b) => a.localeCompare(b));
+
+  return (
+    <section className="filtros-eventos filtros-profissionais" aria-label="Filtros de profissionais">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar profissional</span>
+        <input type="search" value={busca} onChange={(evento) => alterar('busca', evento.target.value)} placeholder="Buscar por nome" />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <SeletorFiltro
+        label="Personagem"
+        icon="pessoas"
+        value={personagem}
+        options={[['', 'Todos os personagens'], ...personagens.map((item) => [item.id, item.nome] as [string, string])]}
+        onChange={(valor) => alterar('personagem', valor)}
+      />
+      <SeletorFiltro
+        label="Função"
+        icon="lista"
+        value={funcao}
+        options={[['', 'Todas as funções'], ...Object.entries(ROTULO_FUNCAO_PROF)]}
+        onChange={(valor) => alterar('funcao', valor)}
+      />
+      <SeletorFiltro
+        label="Disponibilidade"
+        icon="relogio"
+        value={disponibilidade}
+        options={[['', 'Todas as disponibilidades'], ...disponibilidades.map((item) => [item, item] as [string, string])]}
+        onChange={(valor) => alterar('disponibilidade', valor)}
+      />
+    </section>
+  );
+}
+
 function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
   if (total <= 1) return null;
   return (
@@ -313,30 +363,78 @@ export function Eventos() {
 export function Profissionais() {
   const { db, permissoes } = useEstado();
   const form = useFormulario<(typeof db.profissionais)[number]>();
-  const lista = [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  const [parametros, setParametros] = useSearchParams();
+  const lista = useMemo(() => [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)), [db.profissionais]);
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const personagem = parametros.get('personagem') ?? '';
+  const funcao = parametros.get('funcao') ?? '';
+  const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const filtrados = lista.filter((profissional) => {
+    const personagens = db.profissional_personagens.filter((item) => item.profissional_id === profissional.id);
+    return (!busca || semAcentos(profissional.nome).includes(busca))
+      && (!personagem || personagens.some((item) => item.personagem_id === personagem))
+      && (!funcao || profissional.funcoes.includes(funcao as keyof typeof ROTULO_FUNCAO_PROF))
+      && (!disponibilidade || profissional.disponibilidade === disponibilidade);
+  });
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const listaDaPagina = filtrados.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Profissionais" descricao="Artistas, produção, maquiagem e responsáveis pelas fantasias"
+      titulo="Profissionais" descricao={`${filtrados.length} de ${lista.length} profissionais`}
       acao={<BotaoNovo texto="Novo profissional" onClick={form.novo} />}
     >
-      <Tabela
-        cabecalho={['Nome', 'Funções', 'Personagens', 'Contato', 'Disponibilidade']}
-        linhas={lista.map((p) => {
-          const abrir = permissoes.operacao ? () => form.editar(p) : undefined;
-          return {
-            chave: p.id, inativo: !p.ativo, onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={p.nome} inativo={!p.ativo} onAbrir={abrir} />,
-              p.funcoes.map((f) => ROTULO_FUNCAO_PROF[f]).join(', '),
-              db.profissional_personagens.filter((x) => x.profissional_id === p.id)
-                .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome).join(', ') || '—',
-              p.telefone ?? '—',
-              p.disponibilidade ?? '—',
-            ],
-          };
-        })}
-      />
+      <FiltrosProfissionais db={db} />
+      {listaDaPagina.length ? (
+        <div className="profissionais-grade">
+          {listaDaPagina.map((p) => {
+            const abrir = permissoes.operacao ? () => form.editar(p) : undefined;
+            const personagens = db.profissional_personagens.filter((x) => x.profissional_id === p.id)
+              .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome)
+              .filter(Boolean) as string[];
+            return (
+              <article
+                key={p.id}
+                className={`profissional-cartao${!p.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="profissional-cartao-cabecalho">
+                  <div className="profissional-identidade">
+                    <span className="profissional-avatar"><Icone nome="usuario" tamanho={19} /></span>
+                    <div>
+                      <strong>{p.nome}</strong>
+                      <span className={`selo ${p.ativo ? 'confirmado' : 'realizado'}`}>{p.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="profissional-funcoes">
+                  <small>Função</small>
+                  {p.funcoes.length ? p.funcoes.map((funcao) => <span key={funcao}>{ROTULO_FUNCAO_PROF[funcao]}</span>) : <span>Sem função definida</span>}
+                </div>
+                <div className="profissional-detalhes">
+                  <div><Icone nome="pessoas" tamanho={15} /><span><small>Personagens</small><strong>{personagens.length ? personagens.join(', ') : 'Nenhum vinculado'}</strong></span></div>
+                  <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{p.telefone ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="relogio" tamanho={15} /><span><small>Disponibilidade</small><strong>{p.disponibilidade ?? 'Não informada'}</strong></span></div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhum profissional encontrado com esses filtros.' : 'Nenhum profissional cadastrado ainda.'}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {form.aberto && <FormProfissional item={form.aberto.item} onFechar={form.fechar} />}
     </Pagina>
   );
