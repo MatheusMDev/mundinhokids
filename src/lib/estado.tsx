@@ -169,7 +169,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     aviso, avisar, sair,
   } : null), [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
 
-  if (sessao === undefined) return <TelaSimples titulo="Mundinho Kids" texto="Carregando…" />;
+  if (sessao === undefined) return <SkeletonEventos />;
   if (!sessao) return <Login />;
   // Senha provisória, convite ou link de recuperação: a pessoa cria a própria senha primeiro
   if (recuperando || sessao.user.user_metadata?.trocar_senha === true) {

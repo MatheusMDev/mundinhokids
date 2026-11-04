@@ -158,8 +158,8 @@ export function SeletorMultiplo({ rotulo, opcoes, marcados, onMudar, vazio }: {
   );
 }
 
-export function SeletorOpcao({ rotulo, valor, opcoes, onMudar }: {
-  rotulo: string; valor: string; opcoes: [string, string][]; onMudar: (valor: string) => void;
+export function SeletorOpcao({ rotulo, valor, opcoes, onMudar, disabled }: {
+  rotulo: string; valor: string; opcoes: [string, string][]; onMudar: (valor: string) => void; disabled?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -174,7 +174,7 @@ export function SeletorOpcao({ rotulo, valor, opcoes, onMudar }: {
   return (
     <div ref={ref} className={`seletor-opcao${aberto ? ' aberto' : ''}`}>
       <span className="seletor-opcao-rotulo">{rotulo}</span>
-      <button type="button" className="seletor-opcao-botao" aria-haspopup="listbox" aria-expanded={aberto} onClick={() => setAberto((atual) => !atual)} onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}>
+      <button type="button" className="seletor-opcao-botao" aria-haspopup="listbox" aria-expanded={aberto} disabled={disabled} onClick={() => setAberto((atual) => !atual)} onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}>
         <span>{selecionado}</span><i aria-hidden="true" />
       </button>
       {aberto && <div className="seletor-opcao-menu" role="listbox" aria-label={rotulo}>

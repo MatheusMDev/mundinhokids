@@ -1,7 +1,7 @@
 // Reserva do veículo, recebimentos, pagamento da equipe e despesas.
 
 import { useMemo, useState } from 'react';
-import { Campo, Dialogo, Linha, Marcador } from './Formulario';
+import { Campo, Dialogo, Linha, Marcador, SeletorData, SeletorOpcao } from './Formulario';
 import { useEstado } from '../lib/estado';
 import {
   cancelarReserva, registrarDevolucao, salvarDespesa, salvarPagamentos, salvarRecebimento, salvarReserva, vazioParaNulo,
@@ -21,6 +21,7 @@ const somarHoras = (iso: string, horas: number) => new Date(new Date(iso).getTim
 export function FormReserva({ evento, reserva, onFechar }: { evento?: Evento; reserva?: ReservaVeiculo; onFechar: () => void }) {
   const { db, cliente, executar, permissoes, usuario } = useEstado();
   const veiculos = db.veiculos.filter((v) => v.ativo || v.id === reserva?.veiculo_id);
+  const eventoExibido = evento ?? (reserva?.evento_id ? db.eventos.find((item) => item.id === reserva.evento_id) : undefined);
 
   // Quem pode ser responsável: o próprio produtor; para a operação, os produtores do evento (ou todos, sem evento)
   const produtoresDoEvento = evento ? equipeDoEvento(db, evento.id).filter((m) => m.escala.funcao === 'produtor').map((m) => m.escala.profissional_id) : [];
@@ -71,33 +72,17 @@ export function FormReserva({ evento, reserva, onFechar }: { evento?: Evento; re
         retirada, devolucao_prevista: devolucao, observacoes: vazioParaNulo(observacoes),
       }), reserva ? 'Reserva atualizada.' : 'Veículo reservado.')}
     >
-      {evento && <p className="suave" style={{ margin: 0 }}>{evento.titulo}: {dataLonga(evento.inicio, false)}, {hora(evento.inicio)} às {hora(evento.fim)}.</p>}
+      {eventoExibido && <div className="reserva-evento-contexto"><span>Evento da reserva</span><strong>{eventoExibido.titulo}</strong><small>{dataLonga(eventoExibido.inicio, false)} · {hora(eventoExibido.inicio)} às {hora(eventoExibido.fim)}</small></div>}
       <Linha>
-        <Campo rotulo="Veículo" obrigatorio>
-          {(id) => (
-            <select id={id} value={veiculo} onChange={(e) => setVeiculo(e.target.value)} required>
-              {veiculos.length === 0 && <option value="">Nenhum veículo cadastrado</option>}
-              {veiculos.map((v) => <option key={v.id} value={v.id}>{v.nome}{v.placa ? ` · ${v.placa}` : ''}</option>)}
-            </select>
-          )}
-        </Campo>
-        <Campo rotulo="Responsável" obrigatorio>
-          {(id) => (
-            <select id={id} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} required disabled={!permissoes.operacao}>
-              <option value="">Escolha…</option>
-              {responsaveis.map((p) => (
-                <option key={p.id} value={p.id}>{p.nome}{produtoresDoEvento.includes(p.id) ? ' (produz o evento)' : ''}</option>
-              ))}
-            </select>
-          )}
-        </Campo>
+        <SeletorOpcao rotulo="Veículo *" valor={veiculo} opcoes={veiculos.length ? veiculos.map((v) => [v.id, `${v.nome}${v.placa ? ` · ${v.placa}` : ''}`] as [string, string]) : [['', 'Nenhum veículo cadastrado']]} onMudar={setVeiculo} />
+        <SeletorOpcao rotulo="Responsável *" valor={responsavel} opcoes={[['', 'Escolha…'], ...responsaveis.map((p) => [p.id, `${p.nome}${produtoresDoEvento.includes(p.id) ? ' (produz o evento)' : ''}`] as [string, string])]} onMudar={setResponsavel} disabled={!permissoes.operacao} />
       </Linha>
       <Linha>
-        <Campo rotulo="Retirada" obrigatorio>{(id) => <input id={id} type="date" value={dataRetirada} onChange={(e) => setDataRetirada(e.target.value)} required />}</Campo>
+        <SeletorData rotulo="Retirada *" valor={dataRetirada} onMudar={setDataRetirada} />
         <Campo rotulo="Horário">{(id) => <input id={id} type="time" value={horaRetirada} onChange={(e) => setHoraRetirada(e.target.value)} required />}</Campo>
       </Linha>
       <Linha>
-        <Campo rotulo="Devolução prevista" obrigatorio>{(id) => <input id={id} type="date" value={dataDevolucao} onChange={(e) => setDataDevolucao(e.target.value)} required />}</Campo>
+        <SeletorData rotulo="Devolução prevista *" valor={dataDevolucao} onMudar={setDataDevolucao} />
         <Campo rotulo="Horário">{(id) => <input id={id} type="time" value={horaDevolucao} onChange={(e) => setHoraDevolucao(e.target.value)} required />}</Campo>
       </Linha>
       {vizinhas.length > 0 && (

@@ -628,9 +628,65 @@ export function Veiculos() {
   const { db, permissoes, usuario } = useEstado();
   const form = useFormulario<(typeof db.veiculos)[number]>();
   const [reserva, setReserva] = useState<{ item?: (typeof db.reservas_veiculo)[number] } | null>(null);
+  const veiculos = [...db.veiculos].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
   const reservas = [...db.reservas_veiculo].filter((r) => r.ativo).sort((a, b) => b.retirada.localeCompare(a.retirada));
   const podeReservar = permissoes.operacao || usuario.perfil === 'produtor';
   const nomeVeiculo = (id: string) => db.veiculos.find((v) => v.id === id)?.nome ?? '';
+  const [parametros, setParametros] = useSearchParams();
+  const buscaReserva = semAcentos(parametros.get('buscaReserva') ?? '');
+  const veiculoReserva = parametros.get('veiculoReserva') ?? '';
+  const situacaoReserva = parametros.get('situacaoReserva') ?? '';
+  const dataReserva = parametros.get('dataReserva') ?? '';
+  const buscaVeiculo = semAcentos(parametros.get('buscaVeiculo') ?? '');
+  const statusVeiculo = parametros.get('statusVeiculo') ?? '';
+  const veiculosFiltrados = veiculos.filter((veiculo) => (!buscaVeiculo || semAcentos(`${veiculo.nome} ${veiculo.placa ?? ''}`).includes(buscaVeiculo))
+    && (!statusVeiculo || (statusVeiculo === 'ativo' ? veiculo.ativo : !veiculo.ativo)));
+  const totalPaginasVeiculos = Math.max(1, Math.ceil(veiculosFiltrados.length / 10));
+  const paginaVeiculosSolicitada = Number(parametros.get('paginaVeiculos') ?? '1');
+  const paginaVeiculos = Math.min(totalPaginasVeiculos, Math.max(1, Number.isFinite(paginaVeiculosSolicitada) ? paginaVeiculosSolicitada : 1));
+  const veiculosDaPagina = veiculosFiltrados.slice((paginaVeiculos - 1) * 10, paginaVeiculos * 10);
+  const reservasFiltradas = reservas.filter((reserva) => {
+    const evento = reserva.evento_id ? db.eventos.find((item) => item.id === reserva.evento_id)?.titulo ?? '' : reserva.observacoes ?? '';
+    const responsavel = db.profissionais.find((item) => item.id === reserva.responsavel_id)?.nome ?? '';
+    const dataRetirada = partes(reserva.retirada);
+    const chaveData = `${dataRetirada.ano}-${String(dataRetirada.mes).padStart(2, '0')}-${String(dataRetirada.dia).padStart(2, '0')}`;
+    return (!buscaReserva || semAcentos(`${evento} ${responsavel}`).includes(buscaReserva))
+      && (!veiculoReserva || reserva.veiculo_id === veiculoReserva)
+      && (!situacaoReserva || (situacaoReserva === 'devolvida' ? Boolean(reserva.devolvido_em) : !reserva.devolvido_em))
+      && (!dataReserva || chaveData === dataReserva);
+  });
+  const totalPaginasReservas = Math.max(1, Math.ceil(reservasFiltradas.length / 10));
+  const paginaReservasSolicitada = Number(parametros.get('paginaReservas') ?? '1');
+  const paginaReservas = Math.min(totalPaginasReservas, Math.max(1, Number.isFinite(paginaReservasSolicitada) ? paginaReservasSolicitada : 1));
+  const reservasDaPagina = reservasFiltradas.slice((paginaReservas - 1) * 10, paginaReservas * 10);
+  const alterarReserva = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaReservas');
+    setParametros(novos);
+  };
+  const alterarVeiculo = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaVeiculos');
+    setParametros(novos);
+  };
+  const mudarPaginaVeiculos = (pagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (pagina === 1) novos.delete('paginaVeiculos');
+    else novos.set('paginaVeiculos', String(pagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const mudarPaginaReservas = (pagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (pagina === 1) novos.delete('paginaReservas');
+    else novos.set('paginaReservas', String(pagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
@@ -638,44 +694,68 @@ export function Veiculos() {
       acao={<BotaoNovo texto="Novo veículo" onClick={form.novo} />}
     >
       <div className="coluna">
-        <Tabela
-          titulo="Veículos"
-          cabecalho={['Veículo', 'Placa', 'Observações']}
-          linhas={db.veiculos.map((v) => {
-            const abrir = permissoes.operacao ? () => form.editar(v) : undefined;
-            return {
-              chave: v.id, inativo: !v.ativo, onAbrir: abrir,
-              celulas: [<NomeEditavel texto={v.nome} inativo={!v.ativo} onAbrir={abrir} />, v.placa ?? '—', v.observacoes ?? '—'],
-            };
-          })}
-        />
-        <Tabela
-          titulo="Reservas"
-          acao={podeReservar && db.veiculos.some((v) => v.ativo)
-            ? <button type="button" className="botao pequeno" onClick={() => setReserva({})}><Icone nome="mais" tamanho={14} /> Reserva sem evento</button>
-            : undefined}
-          cabecalho={['Dia', 'Veículo', 'Retirada', 'Devolução', 'Evento', 'Responsável']}
-          vazio="Nenhuma reserva."
-          linhas={reservas.map((r) => {
-            const pode = permissoes.operacao || r.responsavel_id === usuario.profissionalId;
-            const abrir = pode ? () => setReserva({ item: r }) : undefined;
-            return {
-              chave: r.id, onAbrir: abrir,
-              celulas: [
-                <NomeEditavel texto={dataLonga(r.retirada, false)} onAbrir={abrir} />,
-                nomeVeiculo(r.veiculo_id),
-                hora(r.retirada),
-                r.devolvido_em
-                  ? <span>{hora(r.devolucao_prevista)} <span className="selo ok">devolvido {hora(r.devolvido_em)}</span></span>
-                  : hora(r.devolucao_prevista),
-                r.evento_id
-                  ? <Link to={`/eventos/${r.evento_id}`} className="link-marca" onClick={(e) => e.stopPropagation()}>{db.eventos.find((e) => e.id === r.evento_id)?.titulo}</Link>
-                  : (r.observacoes ?? 'Sem evento'),
-                db.profissionais.find((p) => p.id === r.responsavel_id)?.nome,
-              ],
-            };
-          })}
-        />
+        <div className="veiculos-topo"><div><h2>Veículos</h2><p>{veiculosFiltrados.length} de {veiculos.length} veículos</p></div></div>
+        <div className="filtros-veiculos">
+          <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">Buscar veículo</span><input type="search" value={parametros.get('buscaVeiculo') ?? ''} onChange={(evento) => alterarVeiculo('buscaVeiculo', evento.target.value)} placeholder="Buscar por nome ou placa" />{buscaVeiculo && <button type="button" className="limpar-busca" onClick={() => alterarVeiculo('buscaVeiculo', '')} aria-label="Limpar busca">×</button>}</label>
+          <SeletorFiltro label="Status" icon="lista" value={statusVeiculo} options={[['', 'Todos os status'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]} onChange={(valor) => alterarVeiculo('statusVeiculo', valor)} />
+        </div>
+        {veiculosDaPagina.length ? (
+          <div className="veiculos-grade">
+            {veiculosDaPagina.map((v) => {
+              const abrir = permissoes.operacao ? () => form.editar(v) : undefined;
+              return (
+                <article
+                  key={v.id}
+                  className={`veiculo-cartao${!v.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                  onClick={abrir}
+                  onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                  role={abrir ? 'button' : undefined}
+                  tabIndex={abrir ? 0 : undefined}
+                >
+                  <div className="veiculo-cartao-cabecalho">
+                    <div className="veiculo-identidade">
+                      <span className="veiculo-avatar"><Icone nome="carro" tamanho={19} /></span>
+                      <div><strong>{v.nome}</strong><span className={`selo ${v.ativo ? 'confirmado' : 'realizado'}`}>{v.ativo ? 'Ativo' : 'Inativo'}</span></div>
+                    </div>
+                    {abrir && <Icone nome="lapis" tamanho={16} />}
+                  </div>
+                  <div className="veiculo-detalhes">
+                    <div><Icone nome="carro" tamanho={15} /><span><small>Placa</small><strong>{v.placa ?? 'Não informada'}</strong></span></div>
+                    <div><Icone nome="arquivo" tamanho={15} /><span><small>Observações</small><strong>{v.observacoes ?? 'Nenhuma observação'}</strong></span></div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : <div className="vazio">{veiculos.length ? 'Nenhum veículo encontrado com esses filtros.' : 'Nenhum veículo cadastrado ainda.'}</div>}
+        <PaginacaoEventos pagina={paginaVeiculos} total={totalPaginasVeiculos} onMudar={mudarPaginaVeiculos} />
+        <section className="reservas-bloco cartao">
+          <div className="reservas-topo">
+            <div><h2>Reservas</h2><p>{reservasFiltradas.length} de {reservas.length} reservas</p></div>
+            {podeReservar && db.veiculos.some((v) => v.ativo) && <button type="button" className="botao pequeno" onClick={() => setReserva({})}><Icone nome="mais" tamanho={14} /> Reserva sem evento</button>}
+          </div>
+          <div className="filtros-reservas">
+            <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">Buscar reserva</span><input type="search" value={parametros.get('buscaReserva') ?? ''} onChange={(evento) => alterarReserva('buscaReserva', evento.target.value)} placeholder="Buscar evento ou responsável" />{buscaReserva && <button type="button" className="limpar-busca" onClick={() => alterarReserva('buscaReserva', '')} aria-label="Limpar busca">×</button>}</label>
+            <SeletorFiltro label="Veículo" icon="carro" value={veiculoReserva} options={[['', 'Todos os veículos'], ...db.veiculos.map((v) => [v.id, v.nome] as [string, string])]} onChange={(valor) => alterarReserva('veiculoReserva', valor)} />
+            <SeletorFiltro label="Situação" icon="lista" value={situacaoReserva} options={[['', 'Todas'], ['aberta', 'Em aberto'], ['devolvida', 'Devolvidas']]} onChange={(valor) => alterarReserva('situacaoReserva', valor)} />
+            <SeletorData rotulo="Retirada" valor={dataReserva} onMudar={(valor) => alterarReserva('dataReserva', valor)} />
+          </div>
+          {reservasDaPagina.length ? <div className="reservas-grade">
+            {reservasDaPagina.map((r) => {
+              const pode = permissoes.operacao || r.responsavel_id === usuario.profissionalId;
+              const abrir = pode ? () => setReserva({ item: r }) : undefined;
+              const evento = r.evento_id ? db.eventos.find((e) => e.id === r.evento_id) : undefined;
+              const responsavel = db.profissionais.find((p) => p.id === r.responsavel_id)?.nome ?? 'Responsável não informado';
+              return <article key={r.id} className={`reserva-cartao${abrir ? ' clicavel' : ''}`} onClick={abrir} onKeyDown={(e) => { if (e.key === 'Enter') abrir?.(); }} role={abrir ? 'button' : undefined} tabIndex={abrir ? 0 : undefined}>
+                <div className="reserva-cartao-topo"><span className="reserva-data"><Icone nome="calendario" tamanho={15} /> {dataLonga(r.retirada, false)}</span><span className={`selo ${r.devolvido_em ? 'ok' : 'alerta'}`}>{r.devolvido_em ? 'Devolvida' : 'Em aberto'}</span></div>
+                <strong className="reserva-veiculo"><Icone nome="carro" tamanho={16} /> {nomeVeiculo(r.veiculo_id)}</strong>
+                <div className="reserva-horarios"><span>Retirada <strong>{hora(r.retirada)}</strong></span><span>Devolução <strong>{hora(r.devolucao_prevista)}</strong></span></div>
+                <div className="reserva-cartao-rodape"><span>{evento ? <Link to={`/eventos/${evento.id}`} className="link-marca" onClick={(e) => e.stopPropagation()}>{evento.titulo}</Link> : (r.observacoes ?? 'Sem evento')}</span><small>{responsavel}</small></div>
+              </article>;
+            })}
+          </div> : <div className="vazio">{reservas.length ? 'Nenhuma reserva encontrada com esses filtros.' : 'Nenhuma reserva.'}</div>}
+          <PaginacaoEventos pagina={paginaReservas} total={totalPaginasReservas} onMudar={mudarPaginaReservas} />
+        </section>
       </div>
       {form.aberto && <FormVeiculo item={form.aberto.item} onFechar={form.fechar} />}
       {reserva && (
