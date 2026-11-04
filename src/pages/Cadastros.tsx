@@ -22,6 +22,7 @@ import {
 } from '../lib/consultas';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
+const ROTULO_TIPO_LOCAL = { buffet: 'Buffet', casa: 'Casa ou condomínio', escola: 'Escola', outro: 'Outro' };
 const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
 
 function FiltrosEventos({ eventos, db }: { eventos: ReturnType<typeof eventosOrdenados>; db: ReturnType<typeof useEstado>['db'] }) {
@@ -862,34 +863,106 @@ export function CadastrosGerais() {
   const { db, permissoes } = useEstado();
   const formContratante = useFormulario<(typeof db.contratantes)[number]>();
   const formLocal = useFormulario<(typeof db.locais)[number]>();
+  const [parametros, setParametros] = useSearchParams();
+  const buscaContratante = semAcentos(parametros.get('buscaContratante') ?? '');
+  const buscaLocal = semAcentos(parametros.get('buscaLocal') ?? '');
+  const tipoLocal = parametros.get('tipoLocal') ?? '';
+  const statusLocal = parametros.get('statusLocal') ?? '';
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete(nome === 'buscaContratante' ? 'paginaContratantes' : 'paginaLocais');
+    setParametros(novos);
+  };
+  const mudarPagina = (parametro: string, pagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (pagina === 1) novos.delete(parametro);
+    else novos.set(parametro, String(pagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const contratantes = [...db.contratantes]
+    .filter((contratante) => !buscaContratante || semAcentos(`${contratante.nome} ${contratante.telefone ?? ''} ${contratante.email ?? ''}`).includes(buscaContratante))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const locais = [...db.locais]
+    .filter((local) => (!buscaLocal || semAcentos(`${local.nome} ${local.endereco ?? ''} ${local.contato ?? ''}`).includes(buscaLocal))
+      && (!tipoLocal || local.tipo === tipoLocal)
+      && (!statusLocal || (statusLocal === 'ativo' ? local.ativo : !local.ativo)))
+    .sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  const totalPaginasContratantes = Math.max(1, Math.ceil(contratantes.length / 10));
+  const paginaContratantesSolicitada = Number(parametros.get('paginaContratantes') ?? '1');
+  const paginaContratantes = Math.min(totalPaginasContratantes, Math.max(1, Number.isFinite(paginaContratantesSolicitada) ? paginaContratantesSolicitada : 1));
+  const contratantesDaPagina = contratantes.slice((paginaContratantes - 1) * 10, paginaContratantes * 10);
+  const totalPaginasLocais = Math.max(1, Math.ceil(locais.length / 10));
+  const paginaLocaisSolicitada = Number(parametros.get('paginaLocais') ?? '1');
+  const paginaLocais = Math.min(totalPaginasLocais, Math.max(1, Number.isFinite(paginaLocaisSolicitada) ? paginaLocaisSolicitada : 1));
+  const locaisDaPagina = locais.slice((paginaLocais - 1) * 10, paginaLocais * 10);
 
   return (
-    <Pagina titulo="Cadastros" descricao="Contratantes e locais">
+    <Pagina titulo="Cadastros" descricao={`${contratantes.length} contratantes · ${locais.length} locais encontrados`}>
       <div className="coluna">
-        <Tabela
-          titulo="Contratantes"
-          acao={<BotaoNovo texto="Novo contratante" onClick={formContratante.novo} />}
-          cabecalho={['Contratante', 'Telefone', 'Eventos']}
-          linhas={[...db.contratantes].sort((a, b) => a.nome.localeCompare(b.nome)).map((c) => {
-            const abrir = permissoes.operacao ? () => formContratante.editar(c) : undefined;
-            return {
-              chave: c.id, onAbrir: abrir,
-              celulas: [<NomeEditavel texto={c.nome} onAbrir={abrir} />, c.telefone ?? '—', db.eventos.filter((e) => e.contratante_id === c.id).length],
-            };
-          })}
-        />
-        <Tabela
-          titulo="Buffets e locais"
-          acao={<BotaoNovo texto="Novo local" onClick={formLocal.novo} />}
-          cabecalho={['Local', 'Endereço', 'Orientações de acesso']}
-          linhas={[...db.locais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)).map((l) => {
-            const abrir = permissoes.operacao ? () => formLocal.editar(l) : undefined;
-            return {
-              chave: l.id, inativo: !l.ativo, onAbrir: abrir,
-              celulas: [<NomeEditavel texto={l.nome} inativo={!l.ativo} onAbrir={abrir} />, l.endereco ?? '—', l.orientacoes_acesso ?? '—'],
-            };
-          })}
-        />
+        <section className="cadastros-secao">
+          <div className="cadastros-secao-topo">
+            <div><h2>Contratantes</h2><p>{contratantes.length} de {db.contratantes.length} cadastrados</p></div>
+            <BotaoNovo texto="Novo contratante" onClick={formContratante.novo} />
+          </div>
+          <div className="filtros-cadastros">
+            <label className="busca-eventos">
+              <span className="busca-icone" aria-hidden="true">⌕</span>
+              <span className="sr-only">Buscar contratante</span>
+              <input type="search" value={parametros.get('buscaContratante') ?? ''} onChange={(evento) => alterar('buscaContratante', evento.target.value)} placeholder="Buscar por nome, telefone ou e-mail" />
+              {buscaContratante && <button type="button" className="limpar-busca" onClick={() => alterar('buscaContratante', '')} aria-label="Limpar busca">×</button>}
+            </label>
+          </div>
+          {contratantesDaPagina.length ? <div className="cadastros-grade contratantes-grade">
+            {contratantesDaPagina.map((contratante) => {
+              const abrir = permissoes.operacao ? () => formContratante.editar(contratante) : undefined;
+              const eventos = db.eventos.filter((evento) => evento.contratante_id === contratante.id).length;
+              return <article key={contratante.id} className={`cadastro-cartao contratante-cartao${abrir ? ' clicavel' : ''}`} onClick={abrir} onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }} role={abrir ? 'button' : undefined} tabIndex={abrir ? 0 : undefined}>
+                <div className="cadastro-cartao-cabecalho"><div className="cadastro-identidade"><span className="cadastro-avatar"><Icone nome="pessoas" tamanho={19} /></span><strong>{contratante.nome}</strong></div>{abrir && <Icone nome="lapis" tamanho={16} />}</div>
+                <div className="cadastro-detalhes">
+                  <div><Icone nome="telefone" tamanho={15} /><span><small>Telefone</small><strong>{contratante.telefone ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="email" tamanho={15} /><span><small>E-mail</small><strong>{contratante.email ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="calendario" tamanho={15} /><span><small>Eventos</small><strong>{eventos || 'Nenhum evento vinculado'}</strong></span></div>
+                </div>
+              </article>;
+            })}
+          </div> : <div className="vazio">{db.contratantes.length ? 'Nenhum contratante encontrado com esses filtros.' : 'Nenhum contratante cadastrado ainda.'}</div>}
+          <Paginacao pagina={paginaContratantes} total={totalPaginasContratantes} onMudar={(pagina) => mudarPagina('paginaContratantes', pagina)} rotulo="Paginação dos contratantes" />
+        </section>
+        <section className="cadastros-secao">
+          <div className="cadastros-secao-topo">
+            <div><h2>Buffets e locais</h2><p>{locais.length} de {db.locais.length} cadastrados</p></div>
+            <BotaoNovo texto="Novo local" onClick={formLocal.novo} />
+          </div>
+          <div className="filtros-cadastros filtros-locais">
+            <label className="busca-eventos">
+              <span className="busca-icone" aria-hidden="true">⌕</span>
+              <span className="sr-only">Buscar local</span>
+              <input type="search" value={parametros.get('buscaLocal') ?? ''} onChange={(evento) => alterar('buscaLocal', evento.target.value)} placeholder="Buscar por nome, endereço ou contato" />
+              {buscaLocal && <button type="button" className="limpar-busca" onClick={() => alterar('buscaLocal', '')} aria-label="Limpar busca">×</button>}
+            </label>
+            <SeletorFiltro label="Tipo" icon="local" value={tipoLocal} options={[['', 'Todos os tipos'], ...Object.entries(ROTULO_TIPO_LOCAL)]} onChange={(valor) => alterar('tipoLocal', valor)} />
+            <SeletorFiltro label="Situação" icon="lista" value={statusLocal} options={[['', 'Todos'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]} onChange={(valor) => alterar('statusLocal', valor)} />
+          </div>
+          {locaisDaPagina.length ? <div className="cadastros-grade locais-grade">
+            {locaisDaPagina.map((local) => {
+              const abrir = permissoes.operacao ? () => formLocal.editar(local) : undefined;
+              return <article key={local.id} className={`cadastro-cartao local-cartao${!local.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`} onClick={abrir} onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }} role={abrir ? 'button' : undefined} tabIndex={abrir ? 0 : undefined}>
+                <div className="cadastro-cartao-cabecalho"><div className="cadastro-identidade"><span className="cadastro-avatar"><Icone nome="local" tamanho={19} /></span><div><strong>{local.nome}</strong><span className={`selo ${local.ativo ? 'confirmado' : 'realizado'}`}>{local.ativo ? 'Ativo' : 'Inativo'}</span></div></div>{abrir && <Icone nome="lapis" tamanho={16} />}</div>
+                <div className="cadastro-detalhes">
+                  <div><Icone nome="lista" tamanho={15} /><span><small>Tipo</small><strong>{ROTULO_TIPO_LOCAL[local.tipo as keyof typeof ROTULO_TIPO_LOCAL] ?? local.tipo}</strong></span></div>
+                  <div><Icone nome="local" tamanho={15} /><span><small>Endereço</small><strong>{local.endereco ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{local.contato ?? 'Não informado'}</strong></span></div>
+                </div>
+                <div className="local-cartao-acesso"><Icone nome="arquivo" tamanho={15} /><span><small>Orientações de acesso</small><strong>{local.orientacoes_acesso ?? 'Nenhuma orientação cadastrada'}</strong></span></div>
+                {local.link_localizacao && <a href={local.link_localizacao} target="_blank" rel="noreferrer" className="link-marca local-cartao-link" onClick={(evento) => evento.stopPropagation()}>Abrir localização <Icone nome="direita" tamanho={13} /></a>}
+              </article>;
+            })}
+          </div> : <div className="vazio">{db.locais.length ? 'Nenhum local encontrado com esses filtros.' : 'Nenhum local cadastrado ainda.'}</div>}
+          <Paginacao pagina={paginaLocais} total={totalPaginasLocais} onMudar={(pagina) => mudarPagina('paginaLocais', pagina)} rotulo="Paginação dos locais" />
+        </section>
       </div>
       {formContratante.aberto && <FormContratante item={formContratante.aberto.item} onFechar={formContratante.fechar} />}
       {formLocal.aberto && <FormLocal item={formLocal.aberto.item} onFechar={formLocal.fechar} />}
