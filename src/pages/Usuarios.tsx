@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Layout, useCelular } from '../components/Layout';
 import { Paginacao, paginar } from '../components/Paginacao';
+import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Campo, Dialogo, Linha, Marcador } from '../components/Formulario';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
 import { criarAcesso, editarAcesso, excluirAcesso, listarLogins, type NovoAcesso } from '../lib/acoes';
@@ -394,21 +395,15 @@ export function Usuarios() {
               />
               {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
             </label>
-            <label className="filtro-select">
-              <span>Perfil</span>
-              <select value={perfilFiltro} onChange={(e) => alterar('perfil', e.target.value)}>
-                <option value="">Todos os perfis</option>
-                {PERFIS.map((p) => <option key={p.valor} value={p.valor}>{p.texto}</option>)}
-              </select>
-            </label>
-            <label className="filtro-select">
-              <span>Situação</span>
-              <select value={situacaoFiltro} onChange={(e) => alterar('situacao', e.target.value)}>
-                {SITUACOES_FILTRO.filter((f) => permissoes.gestao || !f.precisaLogins).map((f) => (
-                  <option key={f.valor || 'todos'} value={f.valor}>{f.valor ? f.texto : 'Todas as situações'}</option>
-                ))}
-              </select>
-            </label>
+            <SeletorFiltro
+              label="Perfil" icon="chave" value={perfilFiltro} onChange={(valor) => alterar('perfil', valor)}
+              options={[['', 'Todos os perfis'], ...PERFIS.map((p) => [p.valor, p.texto] as [string, string])]}
+            />
+            <SeletorFiltro
+              label="Situação" icon="lista" value={situacaoFiltro} onChange={(valor) => alterar('situacao', valor)}
+              options={SITUACOES_FILTRO.filter((f) => permissoes.gestao || !f.precisaLogins)
+                .map((f) => [f.valor, f.valor ? f.texto : 'Todas as situações'] as [string, string])}
+            />
           </section>
 
           {filtrados.length === 0 ? (

@@ -3,7 +3,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Layout, useCelular } from '../components/Layout';
+import { Layout } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import {
   FormContratante, FormFantasia, FormLocal, FormPersonagem, FormProfissional, FormVeiculo, ROTULO_FANTASIA,
@@ -12,21 +12,22 @@ import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
+import { SeletorFiltro } from '../components/SeletorFiltro';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, mesAno, moeda, partes, semAcentos } from '../lib/formato';
+import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes, semAcentos } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
-import { LinhaEvento } from './Painel';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
 const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
 
-function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenados> }) {
+function FiltrosEventos({ eventos, db }: { eventos: ReturnType<typeof eventosOrdenados>; db: ReturnType<typeof useEstado>['db'] }) {
   const [parametros, setParametros] = useSearchParams();
   const busca = parametros.get('busca') ?? '';
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const local = parametros.get('local') ?? '';
   const meses = useMemo(() => {
     const unicos = new Map<string, string>();
     eventos.forEach((evento) => {
@@ -35,11 +36,20 @@ function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenad
     });
     return [...unicos.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [eventos]);
+  const locais = useMemo(() => {
+    const unicos = new Map<string, string>();
+    eventos.forEach((evento) => {
+      const nome = localDe(db, evento)?.nome;
+      if (nome) unicos.set(evento.local_id, nome);
+    });
+    return [...unicos.entries()].sort(([, a], [, b]) => a.localeCompare(b));
+  }, [db, eventos]);
 
   const alterar = (nome: string, valor: string) => {
     const novos = new URLSearchParams(parametros);
     if (valor) novos.set(nome, valor);
     else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
     setParametros(novos);
   };
 
@@ -56,20 +66,9 @@ function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenad
         />
         {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
       </label>
-      <label className="filtro-select">
-        <span>Mês</span>
-        <select value={mes} onChange={(evento) => alterar('mes', evento.target.value)}>
-          <option value="">Todos os meses</option>
-          {meses.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
-        </select>
-      </label>
-      <label className="filtro-select">
-        <span>Situação</span>
-        <select value={situacao} onChange={(evento) => alterar('situacao', evento.target.value)}>
-          <option value="">Todas as situações</option>
-          {SITUACOES.map((valor) => <option key={valor} value={valor}>{ROTULO_SITUACAO[valor]}</option>)}
-        </select>
-      </label>
+      <SeletorFiltro label="Mês" icon="calendario" value={mes} options={[[ '', 'Todos os meses' ], ...meses]} onChange={(valor) => alterar('mes', valor)} />
+      <SeletorFiltro label="Situação" icon="lista" value={situacao} options={[[ '', 'Todas as situações' ], ...SITUACOES.map((valor) => [valor, ROTULO_SITUACAO[valor]] as [string, string])]} onChange={(valor) => alterar('situacao', valor)} />
+      <SeletorFiltro label="Buffet ou local" icon="local" value={local} options={[[ '', 'Todos os locais' ], ...locais]} onChange={(valor) => alterar('local', valor)} />
     </section>
   );
 }
@@ -156,6 +155,71 @@ function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
   );
 }
 
+function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }) {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const personagem = parametros.get('personagem') ?? '';
+  const funcao = parametros.get('funcao') ?? '';
+  const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos);
+  };
+  const personagens = [...db.personagens].sort((a, b) => a.nome.localeCompare(b.nome));
+  const disponibilidades = [...new Set(db.profissionais.map((item) => item.disponibilidade).filter(Boolean) as string[])]
+    .sort((a, b) => a.localeCompare(b));
+
+  return (
+    <section className="filtros-eventos filtros-profissionais" aria-label="Filtros de profissionais">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar profissional</span>
+        <input type="search" value={busca} onChange={(evento) => alterar('busca', evento.target.value)} placeholder="Buscar por nome" />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <SeletorFiltro
+        label="Personagem"
+        icon="pessoas"
+        value={personagem}
+        options={[['', 'Todos os personagens'], ...personagens.map((item) => [item.id, item.nome] as [string, string])]}
+        onChange={(valor) => alterar('personagem', valor)}
+      />
+      <SeletorFiltro
+        label="Função"
+        icon="lista"
+        value={funcao}
+        options={[['', 'Todas as funções'], ...Object.entries(ROTULO_FUNCAO_PROF)]}
+        onChange={(valor) => alterar('funcao', valor)}
+      />
+      <SeletorFiltro
+        label="Disponibilidade"
+        icon="relogio"
+        value={disponibilidade}
+        options={[['', 'Todas as disponibilidades'], ...disponibilidades.map((item) => [item, item] as [string, string])]}
+        onChange={(valor) => alterar('disponibilidade', valor)}
+      />
+    </section>
+  );
+}
+
+function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
+  if (total <= 1) return null;
+  return (
+    <nav className="paginacao-eventos" aria-label="Paginação dos eventos">
+      <button type="button" className="paginacao-botao" disabled={pagina === 1} onClick={() => onMudar(pagina - 1)}>
+        Anterior
+      </button>
+      <span>Página <strong>{pagina}</strong> de {total}</span>
+      <button type="button" className="paginacao-botao" disabled={pagina === total} onClick={() => onMudar(pagina + 1)}>
+        Próxima
+      </button>
+    </nav>
+  );
+}
+
 /** Nome que abre a edição: um botão de verdade, para funcionar no teclado */
 function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: boolean; onAbrir?: () => void }) {
   if (!onAbrir) return <strong>{texto}</strong>;
@@ -170,46 +234,72 @@ function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: bo
 // ---------------------------------------------------------------------
 
 export function Eventos() {
-  const { db } = useEstado();
-  const celular = useCelular();
+  const { db, hoje } = useEstado();
   const location = useLocation();
   const [novo, setNovo] = useState(false);
   const todosEventos = eventosOrdenados(db);
-  const [parametros] = useSearchParams();
+  const [parametros, setParametros] = useSearchParams();
   const busca = semAcentos(parametros.get('busca') ?? '');
   const mes = parametros.get('mes') ?? '';
   const situacao = parametros.get('situacao') ?? '';
+  const local = parametros.get('local') ?? '';
   const voltarPara = `${location.pathname}${location.search}`;
   const eventos = todosEventos.filter((evento) => {
     const partesEvento = partes(evento.inicio);
     const nome = semAcentos(`${evento.titulo} ${evento.aniversariante ?? ''}`);
     const mesEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}`;
-    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes) && (!situacao || evento.situacao === situacao);
+    return (!busca || nome.includes(busca)) && (!mes || mesEvento === mes)
+      && (!situacao || evento.situacao === situacao) && (!local || evento.local_id === local);
+  }).sort((a, b) => {
+    const agora = new Date(hoje).getTime();
+    const inicioA = new Date(a.inicio).getTime();
+    const inicioB = new Date(b.inicio).getTime();
+    const passadoA = inicioA < agora;
+    const passadoB = inicioB < agora;
+    if (passadoA !== passadoB) return passadoA ? 1 : -1;
+    return passadoA ? inicioB - inicioA : inicioA - inicioB;
   });
+  const totalPaginas = Math.max(1, Math.ceil(eventos.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const eventosDaPagina = eventos.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const vazio = todosEventos.length ? 'Nenhum evento encontrado com esses filtros.' : 'Nenhum evento cadastrado ainda.';
   return (
     <Pagina
       titulo="Eventos" descricao={`${eventos.length} de ${todosEventos.length} eventos`}
       acao={<BotaoNovo texto="Novo evento" onClick={() => setNovo(true)} />}
     >
-      <FiltrosEventos eventos={todosEventos} />
-      {celular ? (
-        eventos.length ? eventos.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">{vazio}</div>
-      ) : (
-        <Tabela
-          cabecalho={['Data', 'Evento', 'Local', 'Situação']}
-          vazio={vazio}
-          linhas={eventos.map((e) => ({
-            chave: e.id,
-            celulas: [
-              `${diaCurto(e.inicio)} · ${hora(e.inicio)}`,
-              <Link to={`/eventos/${e.id}`} state={{ voltarPara }} className="link-marca">{e.titulo}</Link>,
-              localDe(db, e)?.nome,
-              <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>,
-            ],
-          }))}
-        />
-      )}
+      <FiltrosEventos eventos={todosEventos} db={db} />
+      {eventos.length ? (
+        <div className="eventos-grade">
+          {eventosDaPagina.map((e) => (
+            <Link key={e.id} to={`/eventos/${e.id}`} state={{ voltarPara }} className="evento-cartao">
+              <div className={`evento-cartao-data ${e.situacao}`}>
+                <strong>{partes(e.inicio).dia}</strong>
+                <small className="evento-cartao-mes">{MESES[partes(e.inicio).mes - 1]}</small>
+                <small>{diaCurto(e.inicio).split(' ')[0]}</small>
+              </div>
+              <div className="evento-cartao-corpo">
+                <div className="evento-cartao-topo">
+                  <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>
+                  <Icone nome="direita" tamanho={16} />
+                </div>
+                <strong className="evento-cartao-titulo">{e.titulo}</strong>
+                <span className="evento-cartao-info">{hora(e.inicio)} · {localDe(db, e)?.nome ?? 'Local não informado'}</span>
+                {e.aniversariante && <span className="evento-cartao-aniversariante">Aniversariante: {e.aniversariante}</span>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : <div className="vazio">{vazio}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {novo && <FormEvento onFechar={() => setNovo(false)} />}
     </Pagina>
   );
@@ -218,30 +308,78 @@ export function Eventos() {
 export function Profissionais() {
   const { db, permissoes } = useEstado();
   const form = useFormulario<(typeof db.profissionais)[number]>();
-  const lista = [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  const [parametros, setParametros] = useSearchParams();
+  const lista = useMemo(() => [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)), [db.profissionais]);
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const personagem = parametros.get('personagem') ?? '';
+  const funcao = parametros.get('funcao') ?? '';
+  const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const filtrados = lista.filter((profissional) => {
+    const personagens = db.profissional_personagens.filter((item) => item.profissional_id === profissional.id);
+    return (!busca || semAcentos(profissional.nome).includes(busca))
+      && (!personagem || personagens.some((item) => item.personagem_id === personagem))
+      && (!funcao || profissional.funcoes.includes(funcao as keyof typeof ROTULO_FUNCAO_PROF))
+      && (!disponibilidade || profissional.disponibilidade === disponibilidade);
+  });
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const listaDaPagina = filtrados.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Profissionais" descricao="Artistas, produção, maquiagem e responsáveis pelas fantasias"
+      titulo="Profissionais" descricao={`${filtrados.length} de ${lista.length} profissionais`}
       acao={<BotaoNovo texto="Novo profissional" onClick={form.novo} />}
     >
-      <Tabela
-        cabecalho={['Nome', 'Funções', 'Personagens', 'Contato', 'Disponibilidade']}
-        linhas={lista.map((p) => {
-          const abrir = permissoes.operacao ? () => form.editar(p) : undefined;
-          return {
-            chave: p.id, inativo: !p.ativo, onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={p.nome} inativo={!p.ativo} onAbrir={abrir} />,
-              p.funcoes.map((f) => ROTULO_FUNCAO_PROF[f]).join(', '),
-              db.profissional_personagens.filter((x) => x.profissional_id === p.id)
-                .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome).join(', ') || '—',
-              p.telefone ?? '—',
-              p.disponibilidade ?? '—',
-            ],
-          };
-        })}
-      />
+      <FiltrosProfissionais db={db} />
+      {listaDaPagina.length ? (
+        <div className="profissionais-grade">
+          {listaDaPagina.map((p) => {
+            const abrir = permissoes.operacao ? () => form.editar(p) : undefined;
+            const personagens = db.profissional_personagens.filter((x) => x.profissional_id === p.id)
+              .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome)
+              .filter(Boolean) as string[];
+            return (
+              <article
+                key={p.id}
+                className={`profissional-cartao${!p.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="profissional-cartao-cabecalho">
+                  <div className="profissional-identidade">
+                    <span className="profissional-avatar"><Icone nome="usuario" tamanho={19} /></span>
+                    <div>
+                      <strong>{p.nome}</strong>
+                      <span className={`selo ${p.ativo ? 'confirmado' : 'realizado'}`}>{p.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="profissional-funcoes">
+                  <small>Função</small>
+                  {p.funcoes.length ? p.funcoes.map((funcao) => <span key={funcao}>{ROTULO_FUNCAO_PROF[funcao]}</span>) : <span>Sem função definida</span>}
+                </div>
+                <div className="profissional-detalhes">
+                  <div><Icone nome="pessoas" tamanho={15} /><span><small>Personagens</small><strong>{personagens.length ? personagens.join(', ') : 'Nenhum vinculado'}</strong></span></div>
+                  <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{p.telefone ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="relogio" tamanho={15} /><span><small>Disponibilidade</small><strong>{p.disponibilidade ?? 'Não informada'}</strong></span></div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhum profissional encontrado com esses filtros.' : 'Nenhum profissional cadastrado ainda.'}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {form.aberto && <FormProfissional item={form.aberto.item} onFechar={form.fechar} />}
     </Pagina>
   );

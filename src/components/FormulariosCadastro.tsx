@@ -2,7 +2,7 @@
 // contratantes, locais e veículos. Ninguém é apagado: quem sai fica inativo.
 
 import { useState } from 'react';
-import { Campo, Dialogo, Linha, Marcador, Marcadores } from './Formulario';
+import { Campo, Dialogo, Linha, Marcador, SeletorMultiplo } from './Formulario';
 import { useEstado } from '../lib/estado';
 import {
   salvarContratante, salvarFantasia, salvarLocal, salvarPersonagem, salvarProfissional, salvarVeiculo, vazioParaNulo,
@@ -24,6 +24,16 @@ const FUNCOES: { valor: FuncaoProfissional; texto: string }[] = [
   { valor: 'fantasias', texto: 'Responsável pelas fantasias' },
 ];
 
+function mascaraTelefone(valor: string) {
+  const numeros = valor.replace(/\D/g, '').slice(0, 11);
+  if (!numeros) return '';
+  if (numeros.length <= 2) return `(${numeros}`;
+  if (numeros.length <= 6) return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+  const prefixo = numeros.length === 11 ? numeros.slice(2, 7) : numeros.slice(2, 6);
+  const final = numeros.length === 11 ? numeros.slice(7) : numeros.slice(6);
+  return `(${numeros.slice(0, 2)}) ${prefixo}-${final}`;
+}
+
 export const ROTULO_FANTASIA: Record<SituacaoFantasia, string> = {
   disponivel: 'Disponível', limpeza: 'Em limpeza', manutencao: 'Em manutenção', inativa: 'Inativa',
 };
@@ -43,7 +53,7 @@ export function FormProfissional({ item, onFechar }: Props<Profissional>) {
   const notaAtual = item ? db.profissionais_notas.find((n) => n.profissional_id === item.id)?.observacoes ?? '' : '';
 
   const [nome, setNome] = useState(item?.nome ?? '');
-  const [telefone, setTelefone] = useState(item?.telefone ?? '');
+  const [telefone, setTelefone] = useState(mascaraTelefone(item?.telefone ?? ''));
   const [email, setEmail] = useState(item?.email ?? '');
   const [funcoes, setFuncoes] = useState<string[]>(item?.funcoes ?? ['artista']);
   const [personagens, setPersonagens] = useState<string[]>(atuais);
@@ -68,12 +78,12 @@ export function FormProfissional({ item, onFechar }: Props<Profissional>) {
     >
       <Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required autoFocus />}</Campo>
       <Linha>
-        <Campo rotulo="Telefone">{(id) => <input id={id} type="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />}</Campo>
+        <Campo rotulo="Telefone">{(id) => <input id={id} type="tel" inputMode="numeric" value={telefone} onChange={(e) => setTelefone(mascaraTelefone(e.target.value))} placeholder="(11) 90000-0000" />}</Campo>
         <Campo rotulo="E-mail">{(id) => <input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</Campo>
       </Linha>
-      <Marcadores rotulo="Funções" opcoes={FUNCOES} marcados={funcoes} onMudar={setFuncoes} />
+      <SeletorMultiplo rotulo="Funções" opcoes={FUNCOES} marcados={funcoes} onMudar={setFuncoes} />
       {ehArtista && (
-        <Marcadores
+        <SeletorMultiplo
           rotulo="Personagens que pode fazer"
           opcoes={db.personagens.filter((p) => p.ativo || personagens.includes(p.id)).map((p) => ({ valor: p.id, texto: p.nome }))}
           marcados={personagens} onMudar={setPersonagens}

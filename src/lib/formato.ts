@@ -24,7 +24,10 @@ interface Partes {
 }
 
 export function partes(iso: string): Partes {
-  const p = Object.fromEntries(fmtPartes.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  // Date-only ISO strings are parsed as UTC by browsers; noon keeps the calendar day
+  // stable when it is formatted in Sao Paulo.
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00Z`) : new Date(iso);
+  const p = Object.fromEntries(fmtPartes.formatToParts(data).map((x) => [x.type, x.value]));
   return {
     ano: Number(p.year), mes: Number(p.month), dia: Number(p.day),
     hora: Number(p.hour), minuto: Number(p.minute),
