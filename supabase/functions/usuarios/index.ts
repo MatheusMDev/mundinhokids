@@ -10,7 +10,7 @@
 //   listar  situação de cada login (último acesso, convite, bloqueio)
 //   criar   cria o login (senha provisória ou convite por e-mail),
 //           ou dá perfil a um login que já existe sem perfil
-//   editar  nome, e-mail, perfil, profissional, nova senha e ativo/inativo
+//   editar  nome, e-mail, perfil, profissional, nova senha, telas e ativo/inativo
 //   excluir apaga o login de quem não tem histórico (com histórico: desativar)
 
 import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supabase-js@2';
@@ -25,6 +25,28 @@ const PERFIS = ['diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'ma
 type Perfil = (typeof PERFIS)[number];
 const PERFIS_EQUIPE: Perfil[] = ['produtor', 'artista', 'maquiador', 'fantasias'];
 const PERFIS_GESTAO: Perfil[] = ['diretora', 'gerente'];
+const PERFIS_OPERACAO: Perfil[] = ['diretora', 'gerente', 'supervisora'];
+
+const TELAS = ['painel', 'eventos', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes'];
+
+/**
+ * Telas escolhidas para o login (null = padrão do perfil). Liberar a tela não
+ * libera os dados: por isso Financeiro só vale para a gestão, e Usuários e
+ * Configurações só para a operação. A gestão nunca perde a tela de Usuários.
+ */
+function validarTelas(valor: unknown, perfil: Perfil): string[] | null | undefined {
+  if (valor === undefined) return undefined;
+  if (valor === null) return null;
+  if (!Array.isArray(valor) || valor.some((t) => typeof t !== 'string' || !TELAS.includes(t))) throw new Recusa('Telas inválidas.');
+  const telas = [...new Set(valor as string[])];
+  if (!telas.length) throw new Recusa('Marque pelo menos uma tela.');
+  if (telas.includes('financeiro') && !PERFIS_GESTAO.includes(perfil)) throw new Recusa('Financeiro só pode ser liberado para Direção e Gerente.');
+  if (telas.some((t) => t === 'usuarios' || t === 'configuracoes') && !PERFIS_OPERACAO.includes(perfil)) {
+    throw new Recusa('Usuários e Configurações só podem ser liberados para Direção, Gerente e Supervisora.');
+  }
+  if (PERFIS_GESTAO.includes(perfil) && !telas.includes('usuarios')) throw new Recusa('Direção e Gerente precisam da tela de Usuários.');
+  return telas;
+}
 
 interface Chamador { id: string; perfil: Perfil }
 
@@ -109,10 +131,12 @@ async function criar(admin: SupabaseClient, corpo: Record<string, unknown>, quem
   const modo = texto(corpo.modo);
   const senha = texto(corpo.senha);
   const voltarPara = texto(corpo.voltar_para) || undefined;
+  const novoProfissional = lerNovoProfissional(corpo.profissional_novo, perfil);
 
   validarEmail(email);
   if (!nome) throw new Recusa('Informe o nome.');
-  validarPerfil(perfil, profissionalId, quem);
+  if (profissionalId && novoProfissional) throw new Recusa('Escolha um profissional já cadastrado ou cadastre um novo, não os dois.');
+  validarPerfil(perfil, profissionalId ?? (novoProfissional ? 'novo' : null), quem);
   if (modo === 'senha') validarSenha(senha);
   else if (modo !== 'convite' && modo !== 'manter') {
     throw new Recusa('Escolha como a pessoa vai entrar: senha provisória ou convite por e-mail.');
@@ -151,21 +175,58 @@ async function criar(admin: SupabaseClient, corpo: Record<string, unknown>, quem
     criadoAgora = true;
   }
 
-  // Perfil e ligação com o profissional; se falhar, desfaz o login recém-criado
-  const { error: erroPerfil } = await admin.from('usuarios').insert({ id: login.id, nome, email, perfil, ativo: true });
-  if (!erroPerfil && profissionalId) {
-    const { error } = await admin.from('profissionais').update({ usuario_id: login.id }).eq('id', profissionalId).is('usuario_id', null);
-    if (error) {
-      await admin.from('usuarios').delete().eq('id', login.id);
-      if (criadoAgora) await admin.auth.admin.deleteUser(login.id);
-      throw error;
+  // Perfil, profissional (novo ou já cadastrado) e ligação entre eles.
+  // Se qualquer passo falhar, desfaz o que foi criado agora.
+  const loginId = login.id;
+  let profissionalCriado: string | null = null;
+  const desfazer = async () => {
+    if (profissionalCriado) {
+      await admin.from('profissional_personagens').delete().eq('profissional_id', profissionalCriado);
+      await admin.from('profissionais').delete().eq('id', profissionalCriado);
     }
+    await admin.from('usuarios').delete().eq('id', loginId);
+    if (criadoAgora) await admin.auth.admin.deleteUser(loginId);
+  };
+  try {
+    const { error: erroPerfil } = await admin.from('usuarios').insert({ id: loginId, nome, email, perfil, ativo: true });
+    if (erroPerfil) throw erroPerfil;
+    if (novoProfissional) {
+      const { data: prof, error } = await admin.from('profissionais').insert({
+        nome, email, usuario_id: loginId, telefone: novoProfissional.telefone, funcoes: novoProfissional.funcoes,
+        disponibilidade: novoProfissional.disponibilidade,
+      }).select('id').single();
+      if (error) throw error;
+      profissionalCriado = prof.id;
+      if (novoProfissional.personagens.length) {
+        const { error: erroPers } = await admin.from('profissional_personagens')
+          .insert(novoProfissional.personagens.map((p) => ({ profissional_id: prof.id, personagem_id: p })));
+        if (erroPers) throw erroPers;
+      }
+    } else if (profissionalId) {
+      const { error } = await admin.from('profissionais').update({ usuario_id: loginId }).eq('id', profissionalId).is('usuario_id', null);
+      if (error) throw error;
+    }
+  } catch (e) {
+    await desfazer();
+    throw e;
   }
-  if (erroPerfil) {
-    if (criadoAgora) await admin.auth.admin.deleteUser(login.id);
-    throw erroPerfil;
-  }
-  return { id: login.id };
+  return { id: loginId };
+}
+
+const FUNCOES = ['artista', 'produtor', 'maquiador', 'fantasias'];
+
+interface NovoProfissional { telefone: string | null; funcoes: string[]; personagens: string[]; disponibilidade: string | null }
+
+/** Dados do profissional cadastrado junto com o acesso (só para quem é da equipe) */
+function lerNovoProfissional(valor: unknown, perfil: Perfil): NovoProfissional | null {
+  if (!valor) return null;
+  const v = valor as Record<string, unknown>;
+  const funcoes = Array.isArray(v.funcoes) ? [...new Set(v.funcoes.filter((f): f is string => typeof f === 'string'))] : [];
+  if (!funcoes.length || funcoes.some((f) => !FUNCOES.includes(f))) throw new Recusa('Marque o que a pessoa vai ser: artista, produção, maquiagem ou fantasias.');
+  if (PERFIS_EQUIPE.includes(perfil) && !funcoes.includes(perfil)) throw new Recusa('O perfil precisa ser uma das funções marcadas.');
+  const personagens = funcoes.includes('artista') && Array.isArray(v.personagens)
+    ? v.personagens.filter((p): p is string => typeof p === 'string') : [];
+  return { telefone: texto(v.telefone) || null, funcoes, personagens, disponibilidade: texto(v.disponibilidade) || null };
 }
 
 async function editar(admin: SupabaseClient, corpo: Record<string, unknown>, quem: Chamador) {
@@ -177,6 +238,7 @@ async function editar(admin: SupabaseClient, corpo: Record<string, unknown>, que
   const ativo = corpo.ativo !== false;
   const senha = texto(corpo.senha);
   const ehVoce = id === quem.id;
+  const telas = validarTelas(corpo.telas, perfil);
 
   const { data: atual } = await admin.from('usuarios').select('id, email, perfil, ativo').eq('id', id).maybeSingle();
   if (!atual) throw new Recusa('Acesso não encontrado.');
@@ -221,7 +283,8 @@ async function editar(admin: SupabaseClient, corpo: Record<string, unknown>, que
   }
 
   // Perfil no sistema e ligação com o cadastro do profissional
-  const { error: erroPerfil } = await admin.from('usuarios').update({ nome, email, perfil, ativo }).eq('id', id);
+  const { error: erroPerfil } = await admin.from('usuarios')
+    .update({ nome, email, perfil, ativo, ...(telas !== undefined ? { telas } : {}) }).eq('id', id);
   if (erroPerfil) throw erroPerfil;
   if (profissionalId !== (ligado?.id ?? null)) {
     if (ligado) {

@@ -13,6 +13,8 @@ const MIGRACOES = [
   'migrations/20261020000001_schema_v1.sql',
   'migrations/20261020000002_ajustes_v1.sql',
   'migrations/20261021000001_trocas_para_mim.sql',
+  'migrations/20261104000001_funcoes_do_login.sql',
+  'migrations/20261104000002_telas_do_usuario.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -275,6 +277,30 @@ await teste('remarcação continua funcionando', async () => {
     if (n !== 1) throw new Error('remarcação não registrada');
     await tx.rollback();
   }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+});
+
+// Um login com duas funções: perfil Artista, mas o cadastro também tem Produção
+const reservaDaAna = (tx) => tx.exec(`insert into reservas_veiculo (veiculo_id, evento_id, responsavel_id, retirada, devolucao_prevista)
+  values ('70000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001',
+          '10000000-0000-0000-0000-000000000011', '2030-01-10 13:00-03', '2030-01-10 20:00-03')`);
+await db.exec(`insert into veiculos (id, nome) values ('70000000-0000-0000-0000-000000000001', 'Doblò')`);
+
+await teste('artista que só é artista não reserva veículo', () =>
+  como(ID.ana, (tx) => esperaErro(reservaDaAna(tx), 'row-level security')));
+
+await teste('artista que também é produção reserva veículo no próprio evento', async () => {
+  await db.exec(`update profissionais set funcoes = '{artista,produtor}' where id = '10000000-0000-0000-0000-000000000011'`);
+  try {
+    await como(ID.ana, (tx) => reservaDaAna(tx));
+  } finally {
+    await db.exec(`update profissionais set funcoes = '{artista}' where id = '10000000-0000-0000-0000-000000000011'`);
+  }
+});
+
+await teste('telas do login só aceitam telas que existem', async () => {
+  await db.exec(`update usuarios set telas = '{painel,eventos}' where id = '${ID.ana}'`);
+  await esperaErro(db.exec(`update usuarios set telas = '{painel,qualquer}' where id = '${ID.ana}'`), 'usuarios_telas_validas');
+  await db.exec(`update usuarios set telas = null where id = '${ID.ana}'`);
 });
 
 // ---------------------------------------------------------------------

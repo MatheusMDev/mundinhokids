@@ -10,6 +10,7 @@ import {
   CadastrosGerais, Eventos, Fantasias, Financeiro, Mais, Personagens, Profissionais, Veiculos,
 } from './pages/Cadastros';
 import { TelaErro } from './pages/Erro';
+import { Restrita } from './components/Restrita';
 
 export function App() {
   return (
@@ -17,19 +18,19 @@ export function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Painel />} />
-            <Route path="/eventos" element={<Eventos />} />
-            <Route path="/eventos/:id" element={<DetalheEvento />} />
-            <Route path="/eventos/:id/pdf" element={<PdfEvento />} />
-            <Route path="/profissionais" element={<Profissionais />} />
-            <Route path="/personagens" element={<Personagens />} />
-            <Route path="/fantasias" element={<Fantasias />} />
-            <Route path="/veiculos" element={<Veiculos />} />
-            <Route path="/financeiro" element={<Financeiro />} />
-            <Route path="/cadastros" element={<CadastrosGerais />} />
+            <Route path="/" element={<Restrita tela="painel"><Painel /></Restrita>} />
+            <Route path="/eventos" element={<Restrita tela="eventos"><Eventos /></Restrita>} />
+            <Route path="/eventos/:id" element={<Restrita tela="eventos"><DetalheEvento /></Restrita>} />
+            <Route path="/eventos/:id/pdf" element={<Restrita tela="eventos"><PdfEvento /></Restrita>} />
+            <Route path="/profissionais" element={<Restrita tela="profissionais"><Profissionais /></Restrita>} />
+            <Route path="/personagens" element={<Restrita tela="personagens"><Personagens /></Restrita>} />
+            <Route path="/fantasias" element={<Restrita tela="fantasias"><Fantasias /></Restrita>} />
+            <Route path="/veiculos" element={<Restrita tela="veiculos"><Veiculos /></Restrita>} />
+            <Route path="/financeiro" element={<Restrita tela="financeiro"><Financeiro /></Restrita>} />
+            <Route path="/cadastros" element={<Restrita tela="cadastros"><CadastrosGerais /></Restrita>} />
             <Route path="/mais" element={<Mais />} />
-            <Route path="/usuarios" element={<Usuarios />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/usuarios" element={<Restrita tela="usuarios"><Usuarios /></Restrita>} />
+            <Route path="/configuracoes" element={<Restrita tela="configuracoes"><Configuracoes /></Restrita>} />
             <Route path="*" element={<TelaErro paginaNaoEncontrada />} />
           </Routes>
         </ErrorBoundary>

@@ -21,6 +21,15 @@ interface Estado {
   decidirTroca: (substituicaoId: string, aprova: boolean) => void;
   /** O que o perfil do login pode fazer (as mesmas regras do banco, para a tela não oferecer o que vai ser recusado) */
   permissoes: Permissoes;
+  /**
+   * Papéis do login: o perfil mais as funções do profissional ligado a ele
+   * (ex.: perfil Artista com a função Produção no cadastro = artista e produtor)
+   */
+  papeis: ReadonlySet<PerfilAcesso>;
+  /** Telas que o login enxerga, somando todos os papéis (menu, abas e acesso pelo endereço) */
+  telas: ReadonlySet<Tela>;
+  /** Primeira tela do perfil: o calendário, ou Fantasias para quem só cuida delas */
+  inicio: string;
   cliente: SupabaseClient;
   /** Roda uma gravação: se der certo recarrega os dados, avisa e devolve true; se não, devolve o erro em português */
   executar: (acao: () => Promise<unknown>, sucesso: string) => Promise<true | string>;
@@ -43,7 +52,7 @@ export interface Permissoes {
 
 const Contexto = createContext<Estado | null>(null);
 
-function calcularPermissoes(perfil: PerfilAcesso, config: Record<string, string>): Permissoes {
+function calcularPermissoes(perfil: PerfilAcesso, papeis: ReadonlySet<PerfilAcesso>, config: Record<string, string>): Permissoes {
   const gestao = perfil === 'diretora' || perfil === 'gerente';
   const supervisora = perfil === 'supervisora';
   return {
@@ -51,9 +60,48 @@ function calcularPermissoes(perfil: PerfilAcesso, config: Record<string, string>
     gestao,
     alterarEquipe: gestao || (supervisora && config.supervisora_pode_alterar_equipe === 'true'),
     cancelarEvento: gestao || (supervisora && config.supervisora_pode_cancelar === 'true'),
-    conferirFantasias: gestao || supervisora || perfil === 'fantasias',
+    conferirFantasias: gestao || supervisora || papeis.has('fantasias'),
   };
 }
+
+export type Tela =
+  | 'painel' | 'eventos' | 'profissionais' | 'personagens' | 'fantasias' | 'veiculos'
+  | 'financeiro' | 'cadastros' | 'usuarios' | 'configuracoes';
+
+export const TODAS: Tela[] = [
+  'painel', 'eventos', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes',
+];
+
+const GESTAO: PerfilAcesso[] = ['diretora', 'gerente'];
+const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora'];
+
+/**
+ * Telas que podem ser liberadas para o perfil (as mesmas travas da função do
+ * servidor): Financeiro só gestão; Usuários e Configurações só operação.
+ */
+export function telaPermitida(tela: Tela, perfil: PerfilAcesso) {
+  if (tela === 'financeiro') return GESTAO.includes(perfil);
+  if (tela === 'usuarios' || tela === 'configuracoes') return OPERACAO.includes(perfil);
+  return true;
+}
+
+/** Padrão do perfil, somando as funções do profissional ligado ao login */
+export const telasPadrao = (perfil: PerfilAcesso, funcoes: readonly string[]) =>
+  new Set([perfil, ...funcoes].flatMap((p) => TELAS_DO_PERFIL[p as PerfilAcesso] ?? []));
+
+/**
+ * Telas de cada perfil. Os dados já vêm filtrados pelo banco (cada um só recebe
+ * os próprios eventos, e valores só a gestão); aqui fica o que aparece no menu.
+ */
+const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
+  diretora: TODAS,
+  gerente: TODAS,
+  supervisora: TODAS.filter((t) => t !== 'financeiro'),
+  produtor: ['painel', 'eventos', 'veiculos'],
+  artista: ['painel', 'eventos'],
+  maquiador: ['painel', 'eventos'],
+  fantasias: ['fantasias'],
+};
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {
   diretora: 'Direção', gerente: 'Gerente geral', supervisora: 'Supervisora', produtor: 'Produção',
@@ -156,18 +204,26 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     return true as const;
   }, [recarregar, avisar]);
 
-  const valor = useMemo<Estado | null>(() => (db && eu ? {
-    db, hoje,
-    perfil: perfilDaTela(eu.perfil),
-    usuario: {
-      id: eu.id, nome: eu.nome, perfil: eu.perfil,
-      profissionalId: db.profissionais.find((p) => p.usuario_id === eu.id)?.id ?? null,
-    },
-    decidirTroca: (id, aprova) => { void decidirTroca(id, aprova); },
-    permissoes: calcularPermissoes(eu.perfil, db.configuracoes),
-    cliente, executar,
-    aviso, avisar, sair,
-  } : null), [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
+  const valor = useMemo<Estado | null>(() => {
+    if (!db || !eu) return null;
+    const profissional = db.profissionais.find((p) => p.usuario_id === eu.id);
+    const papeis = new Set<PerfilAcesso>([eu.perfil, ...(profissional?.funcoes ?? [])]);
+    // Telas escolhidas pela gestão na edição do acesso; sem escolha, o padrão do perfil
+    const telas = eu.telas
+      ? new Set((eu.telas as Tela[]).filter((t) => TODAS.includes(t) && telaPermitida(t, eu.perfil)))
+      : telasPadrao(eu.perfil, profissional?.funcoes ?? []);
+    return {
+      db, hoje,
+      perfil: perfilDaTela(eu.perfil),
+      usuario: { id: eu.id, nome: eu.nome, perfil: eu.perfil, profissionalId: profissional?.id ?? null },
+      decidirTroca: (id, aprova) => { void decidirTroca(id, aprova); },
+      permissoes: calcularPermissoes(eu.perfil, papeis, db.configuracoes),
+      papeis, telas,
+      inicio: telas.has('painel') ? '/' : '/fantasias',
+      cliente, executar,
+      aviso, avisar, sair,
+    };
+  }, [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
 
   if (sessao === undefined) return <TelaSimples titulo="Mundinho Kids" texto="Carregando…" />;
   if (!sessao) return <Login />;
