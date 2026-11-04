@@ -3,7 +3,7 @@
 // Ninguém é apagado: quem sai fica inativo.
 
 import { useState } from 'react';
-import { Campo, Dialogo, Linha, Marcador } from './Formulario';
+import { Campo, Dialogo, Linha, Marcador, SeletorData, SeletorOpcao } from './Formulario';
 import { useEstado } from '../lib/estado';
 import {
   salvarContratante, salvarFantasia, salvarLocal, salvarPersonagem, salvarVeiculo, vazioParaNulo,
@@ -115,35 +115,22 @@ export function FormFantasia({ item, onFechar }: Props<Fantasia>) {
         item ? 'Fantasia atualizada.' : 'Fantasia cadastrada.',
       )}
     >
-      <Campo rotulo="Personagem" obrigatorio>
-        {(id) => (
-          <select id={id} value={personagem} onChange={(e) => {
-            setPersonagem(e.target.value);
-            if (!identificacao) setIdentificacao(db.personagens.find((p) => p.id === e.target.value)?.nome ?? '');
-          }} required>
-            <option value="">Escolha…</option>
-            {db.personagens.filter((p) => p.ativo || p.id === personagem).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-          </select>
-        )}
-      </Campo>
+      <SeletorOpcao
+        rotulo="Personagem *"
+        valor={personagem}
+        opcoes={[['', 'Escolha…'], ...db.personagens.filter((p) => p.ativo || p.id === personagem).map((p) => [p.id, p.nome] as [string, string])]}
+        onMudar={(valor) => { setPersonagem(valor); if (!identificacao) setIdentificacao(db.personagens.find((p) => p.id === valor)?.nome ?? ''); }}
+      />
       <Linha>
         <Campo rotulo="Identificação" obrigatorio dica="Ex.: Princesa do Gelo 1">
           {(id) => <input id={id} value={identificacao} onChange={(e) => setIdentificacao(e.target.value)} required />}
         </Campo>
         <Campo rotulo="Tamanho">{(id) => <input id={id} value={tamanho} onChange={(e) => setTamanho(e.target.value)} placeholder="P, M, G…" />}</Campo>
       </Linha>
-      <Campo rotulo="Situação">
-        {(id) => (
-          <select id={id} value={situacao} onChange={(e) => setSituacao(e.target.value as SituacaoFantasia)}>
-            {Object.entries(ROTULO_FANTASIA).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
-          </select>
-        )}
-      </Campo>
+      <SeletorOpcao rotulo="Situação" valor={situacao} opcoes={Object.entries(ROTULO_FANTASIA)} onMudar={(valor) => setSituacao(valor as SituacaoFantasia)} />
       {foraDeUso && (
         <Linha>
-          <Campo rotulo="Previsão de volta" dica="Pode ser escalada para eventos depois dessa data.">
-            {(id) => <input id={id} type="date" value={dataVolta} onChange={(e) => setDataVolta(e.target.value)} />}
-          </Campo>
+          <SeletorData rotulo="Previsão de volta" valor={dataVolta} onMudar={setDataVolta} />
           <Campo rotulo="Horário">{(id) => <input id={id} type="time" value={horaVolta} onChange={(e) => setHoraVolta(e.target.value)} />}</Campo>
         </Linha>
       )}

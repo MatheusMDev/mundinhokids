@@ -11,6 +11,7 @@ import {
 import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
+import { SeletorData } from '../components/Formulario';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Paginacao } from '../components/Paginacao';
@@ -206,6 +207,51 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
   );
 }
 
+function FiltrosPersonagens() {
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const status = parametros.get('status') ?? '';
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos);
+  };
+
+  return (
+    <section className="filtros-eventos filtros-personagens" aria-label="Filtros de personagens">
+      <label className="busca-eventos">
+        <span className="busca-icone" aria-hidden="true">⌕</span>
+        <span className="sr-only">Buscar personagem</span>
+        <input type="search" value={busca} onChange={(evento) => alterar('busca', evento.target.value)} placeholder="Buscar por nome" />
+        {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+      </label>
+      <SeletorFiltro
+        label="Status"
+        icon="lista"
+        value={status}
+        options={[['', 'Todos os status'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]}
+        onChange={(valor) => alterar('status', valor)}
+      />
+    </section>
+  );
+}
+
+function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
+  if (total <= 1) return null;
+  return (
+    <nav className="paginacao-eventos" aria-label="Paginação dos eventos">
+      <button type="button" className="paginacao-botao" disabled={pagina === 1} onClick={() => onMudar(pagina - 1)}>
+        Anterior
+      </button>
+      <span>Página <strong>{pagina}</strong> de {total}</span>
+      <button type="button" className="paginacao-botao" disabled={pagina === total} onClick={() => onMudar(pagina + 1)}>
+        Próxima
+      </button>
+    </nav>
+  );
+}
 /** Nome que abre a edição: um botão de verdade, para funcionar no teclado */
 function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: boolean; onAbrir?: () => void }) {
   if (!onAbrir) return <strong>{texto}</strong>;
@@ -372,84 +418,204 @@ export function Personagens() {
   const { db, permissoes } = useEstado();
   const form = useFormulario<(typeof db.personagens)[number]>();
   const lista = [...db.personagens].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
+  const [parametros, setParametros] = useSearchParams();
+  const busca = semAcentos(parametros.get('busca') ?? '');
+  const status = parametros.get('status') ?? '';
+  const filtrados = lista.filter((personagem) => (!busca || semAcentos(personagem.nome).includes(busca))
+    && (!status || (status === 'ativo' ? personagem.ativo : !personagem.ativo)));
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
+  const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
+  const pagina = Math.min(totalPaginas, Math.max(1, Number.isFinite(paginaSolicitada) ? paginaSolicitada : 1));
+  const personagensDaPagina = filtrados.slice((pagina - 1) * 10, pagina * 10);
+  const mudarPagina = (novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete('pagina');
+    else novos.set('pagina', String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Personagens" descricao="Perfil, referências e orientações da apresentação"
+      titulo="Personagens" descricao={`${filtrados.length} de ${lista.length} personagens`}
       acao={<BotaoNovo texto="Novo personagem" onClick={form.novo} />}
     >
-      <Tabela
-        cabecalho={['Personagem', 'Descrição', 'Orientações', 'Artistas']}
-        linhas={lista.map((pe) => {
-          const abrir = permissoes.operacao ? () => form.editar(pe) : undefined;
-          return {
-            chave: pe.id, inativo: !pe.ativo, onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={pe.nome} inativo={!pe.ativo} onAbrir={abrir} />,
-              pe.descricao ?? '—',
-              pe.orientacoes ?? '—',
-              db.profissional_personagens.filter((x) => x.personagem_id === pe.id).length,
-            ],
-          };
-        })}
-      />
+      <FiltrosPersonagens />
+      {personagensDaPagina.length ? (
+        <div className="personagens-grade">
+          {personagensDaPagina.map((pe) => {
+            const abrir = permissoes.operacao ? () => form.editar(pe) : undefined;
+            const artistas = db.profissional_personagens.filter((x) => x.personagem_id === pe.id).length;
+            return (
+              <article
+                key={pe.id}
+                className={`personagem-cartao${!pe.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="personagem-cartao-cabecalho">
+                  <div className="personagem-identidade">
+                    <span className="personagem-avatar"><Icone nome="estrela" tamanho={19} /></span>
+                    <div><strong>{pe.nome}</strong><span className={`selo ${pe.ativo ? 'confirmado' : 'realizado'}`}>{pe.ativo ? 'Ativo' : 'Inativo'}</span></div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="personagem-detalhes">
+                  <div><Icone nome="arquivo" tamanho={15} /><span><small>Descrição</small><strong>{pe.descricao ?? 'Não informada'}</strong></span></div>
+                  <div><Icone nome="lista" tamanho={15} /><span><small>Orientações</small><strong>{pe.orientacoes ?? 'Não informadas'}</strong></span></div>
+                  <div><Icone nome="pessoas" tamanho={15} /><span><small>Artistas vinculados</small><strong>{artistas || 'Nenhum artista vinculado'}</strong></span></div>
+                </div>
+                {pe.referencias && <p className="personagem-referencias"><strong>Referências:</strong> {pe.referencias}</p>}
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhum personagem encontrado com esses filtros.' : 'Nenhum personagem cadastrado ainda.'}</div>}
+      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {form.aberto && <FormPersonagem item={form.aberto.item} onFechar={form.fechar} />}
     </Pagina>
   );
 }
 
 export function Fantasias() {
-  const { db, permissoes, hoje, telas, papeis } = useEstado();
+  const { db, permissoes, hoje, papeis } = useEstado();
   const form = useFormulario<(typeof db.fantasias)[number]>();
   const [conferir, setConferir] = useState<(typeof db.eventos)[number] | null>(null);
+  const [conferenciasAberto, setConferenciasAberto] = useState(true);
   const pendentes = permissoes.conferirFantasias ? conferenciasPendentes(db, hoje) : [];
   const nomePersonagem = (id: string) => db.personagens.find((p) => p.id === id)?.nome ?? '';
   const lista = [...db.fantasias].sort((a, b) =>
     nomePersonagem(a.personagem_id).localeCompare(nomePersonagem(b.personagem_id)) || a.identificacao.localeCompare(b.identificacao));
+  const [parametros, setParametros] = useSearchParams();
+  const situacaoFiltro = parametros.get('situacao') ?? '';
+  const buscaConferencia = semAcentos(parametros.get('buscaConferencia') ?? '');
+  const dataConferencia = parametros.get('dataConferencia') ?? '';
+  const listaFiltrada = lista.filter((fantasia) => !situacaoFiltro || fantasia.situacao === situacaoFiltro);
+  const totalPaginasFantasias = Math.max(1, Math.ceil(listaFiltrada.length / 10));
+  const paginaFantasiasSolicitada = Number(parametros.get('paginaFantasias') ?? '1');
+  const paginaFantasias = Math.min(totalPaginasFantasias, Math.max(1, Number.isFinite(paginaFantasiasSolicitada) ? paginaFantasiasSolicitada : 1));
+  const fantasiasDaPagina = listaFiltrada.slice((paginaFantasias - 1) * 10, paginaFantasias * 10);
+  const pendentesFiltradas = pendentes.filter(({ evento }) => {
+    const partesEvento = partes(evento.inicio);
+    const dataEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}-${String(partesEvento.dia).padStart(2, '0')}`;
+    return (!buscaConferencia || semAcentos(evento.titulo).includes(buscaConferencia))
+      && (!dataConferencia || dataEvento === dataConferencia);
+  });
+  const totalPaginasConferencias = Math.max(1, Math.ceil(pendentesFiltradas.length / 10));
+  const paginaConferenciasSolicitada = Number(parametros.get('paginaConferencias') ?? '1');
+  const paginaConferencias = Math.min(totalPaginasConferencias, Math.max(1, Number.isFinite(paginaConferenciasSolicitada) ? paginaConferenciasSolicitada : 1));
+  const conferenciasDaPagina = pendentesFiltradas.slice((paginaConferencias - 1) * 10, paginaConferencias * 10);
   // A responsável pelas fantasias também atualiza a situação (limpeza, manutenção)
   const podeEditar = permissoes.operacao || papeis.has('fantasias');
+  const filtrarSituacao = (situacao: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (situacao === situacaoFiltro) novos.delete('situacao');
+    else novos.set('situacao', situacao);
+    novos.delete('paginaFantasias');
+    setParametros(novos);
+  };
+  const filtrarConferencias = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaConferencias');
+    setParametros(novos);
+  };
+  const mudarPagina = (parametro: string, novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete(parametro);
+    else novos.set(parametro, String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Fantasias" descricao="Situação de cada peça e previsão de volta da limpeza"
+      titulo="Fantasias" descricao={`${listaFiltrada.length} de ${lista.length} fantasias · situação e previsão de volta da limpeza`}
       acao={<BotaoNovo texto="Nova fantasia" onClick={form.novo} />}
     >
+      <div className="fantasias-resumo" aria-label="Resumo das fantasias">
+        {(['disponivel', 'limpeza', 'manutencao', 'inativa'] as const).map((situacao) => (
+          <button key={situacao} type="button" className={`fantasia-resumo-item ${situacao}${situacaoFiltro === situacao ? ' ativo' : ''}`} aria-pressed={situacaoFiltro === situacao} onClick={() => filtrarSituacao(situacao)}>
+            <span>{ROTULO_FANTASIA[situacao]}</span>
+            <strong>{lista.filter((fantasia) => fantasia.situacao === situacao).length}</strong>
+          </button>
+        ))}
+      </div>
       {pendentes.length > 0 && (
-        <div style={{ marginBottom: 18 }}>
-          <Tabela
-            titulo="Conferências pendentes"
-            cabecalho={['Evento', 'Quando', 'Fantasias sem conferência', '']}
-            linhas={pendentes.map(({ evento, faltam }) => ({
-              chave: evento.id,
-              celulas: [
-                telas.has('eventos')
-                  ? <Link to={`/eventos/${evento.id}`} className="link-marca">{evento.titulo}</Link>
-                  : <strong>{evento.titulo}</strong>,
-                `${diaCurto(evento.inicio)} · ${hora(evento.inicio)}`,
-                faltam,
-                <button type="button" className="botao pequeno primario" onClick={() => setConferir(evento)}>Conferir</button>,
-              ],
-            }))}
-          />
-        </div>
+        <section className="conferencias-pendentes" aria-labelledby="titulo-conferencias-pendentes">
+          <div className="conferencias-pendentes-topo">
+            <div><span className="etiqueta-alerta">Ação necessária</span><h2 id="titulo-conferencias-pendentes">Conferências pendentes</h2></div>
+            <div className="conferencias-pendentes-acoes">
+              <span>{pendentesFiltradas.length} {pendentesFiltradas.length === 1 ? 'evento' : 'eventos'}</span>
+              <button type="button" className="conferencias-toggle" aria-expanded={conferenciasAberto} aria-controls="conteudo-conferencias-pendentes" onClick={() => setConferenciasAberto((atual) => !atual)}>
+                {conferenciasAberto ? 'Ocultar' : 'Mostrar'} <Icone nome="direita" tamanho={14} />
+              </button>
+            </div>
+          </div>
+          {conferenciasAberto && <div id="conteudo-conferencias-pendentes">
+            <div className="filtros-conferencias">
+              <label className="busca-eventos">
+                <span className="filtro-campo-rotulo">Evento</span>
+                <span className="busca-icone" aria-hidden="true">⌕</span>
+                <span className="sr-only">Buscar evento pendente</span>
+                <input type="search" value={parametros.get('buscaConferencia') ?? ''} onChange={(evento) => filtrarConferencias('buscaConferencia', evento.target.value)} placeholder="Buscar evento" />
+                {buscaConferencia && <button type="button" className="limpar-busca" onClick={() => filtrarConferencias('buscaConferencia', '')} aria-label="Limpar busca">×</button>}
+              </label>
+              <SeletorData rotulo="Data" valor={dataConferencia} onMudar={(valor) => filtrarConferencias('dataConferencia', valor)} />
+            </div>
+            <div className="conferencias-grade">
+              {conferenciasDaPagina.length ? conferenciasDaPagina.map(({ evento, faltam }) => (
+                <article key={evento.id} className="conferencia-cartao">
+                  <div className="conferencia-cartao-icone"><Icone nome="camiseta" tamanho={20} /></div>
+                  <div className="conferencia-cartao-corpo">
+                    <Link to={`/eventos/${evento.id}`} className="conferencia-evento">{evento.titulo}</Link>
+                    <span className="conferencia-data"><Icone nome="calendario" tamanho={14} /> {diaCurto(evento.inicio)} · {hora(evento.inicio)}</span>
+                    <strong>{faltam} {faltam === 1 ? 'fantasia aguarda' : 'fantasias aguardam'} conferência</strong>
+                  </div>
+                  <button type="button" className="botao pequeno primario" onClick={() => setConferir(evento)}>Conferir</button>
+                </article>
+              )) : <div className="vazio">Nenhuma conferência encontrada com esses filtros.</div>}
+            </div>
+            <PaginacaoEventos pagina={paginaConferencias} total={totalPaginasConferencias} onMudar={(pagina) => mudarPagina('paginaConferencias', pagina)} />
+          </div>}
+        </section>
       )}
-      <Tabela
-        cabecalho={['Fantasia', 'Personagem', 'Tamanho', 'Situação', 'Previsão de volta', 'Observações']}
-        linhas={lista.map((f) => {
-          const abrir = podeEditar ? () => form.editar(f) : undefined;
-          return {
-            chave: f.id, inativo: f.situacao === 'inativa', onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={f.identificacao} onAbrir={abrir} />,
-              nomePersonagem(f.personagem_id),
-              f.tamanho ?? '—',
-              <span className={`selo ${f.situacao === 'disponivel' ? 'ok' : f.situacao === 'inativa' ? 'neutro' : 'alerta'}`}>{ROTULO_FANTASIA[f.situacao]}</span>,
-              f.previsao_disponivel ? `${diaCurto(f.previsao_disponivel)} · ${hora(f.previsao_disponivel)}` : '—',
-              f.observacoes ?? '—',
-            ],
-          };
-        })}
-      />
+      {fantasiasDaPagina.length ? (
+        <div className="fantasias-grade">
+          {fantasiasDaPagina.map((f) => {
+            const abrir = podeEditar ? () => form.editar(f) : undefined;
+            const situacao = f.situacao === 'disponivel' ? 'ok' : f.situacao === 'inativa' ? 'neutro' : 'alerta';
+            return (
+              <article
+                key={f.id}
+                className={`fantasia-cartao ${f.situacao}${f.situacao === 'inativa' ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="fantasia-cartao-cabecalho">
+                  <div className="fantasia-identidade">
+                    <span className="fantasia-avatar"><Icone nome="camiseta" tamanho={19} /></span>
+                    <div><strong>{f.identificacao}</strong><span className={`selo ${situacao} ${f.situacao}`}>{ROTULO_FANTASIA[f.situacao]}</span></div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="fantasia-detalhes">
+                  <div><Icone nome="estrela" tamanho={15} /><span><small>Personagem</small><strong>{nomePersonagem(f.personagem_id) || 'Não informado'}</strong></span></div>
+                  <div><Icone nome="lista" tamanho={15} /><span><small>Tamanho</small><strong>{f.tamanho ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="calendario" tamanho={15} /><span><small>Previsão de volta</small><strong>{f.previsao_disponivel ? `${diaCurto(f.previsao_disponivel)} · ${hora(f.previsao_disponivel)}` : 'Sem previsão'}</strong></span></div>
+                  <div><Icone nome="arquivo" tamanho={15} /><span><small>Observações</small><strong>{f.observacoes ?? 'Nenhuma observação'}</strong></span></div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhuma fantasia encontrada nessa situação.' : 'Nenhuma fantasia cadastrada ainda.'}</div>}
+      <PaginacaoEventos pagina={paginaFantasias} total={totalPaginasFantasias} onMudar={(pagina) => mudarPagina('paginaFantasias', pagina)} />
       {form.aberto && <FormFantasia item={form.aberto.item} onFechar={form.fechar} />}
       {conferir && <FormConferencia evento={conferir} onFechar={() => setConferir(null)} />}
     </Pagina>
@@ -460,9 +626,65 @@ export function Veiculos() {
   const { db, permissoes, usuario, papeis } = useEstado();
   const form = useFormulario<(typeof db.veiculos)[number]>();
   const [reserva, setReserva] = useState<{ item?: (typeof db.reservas_veiculo)[number] } | null>(null);
+  const veiculos = [...db.veiculos].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome));
   const reservas = [...db.reservas_veiculo].filter((r) => r.ativo).sort((a, b) => b.retirada.localeCompare(a.retirada));
   const podeReservar = permissoes.operacao || papeis.has('produtor');
   const nomeVeiculo = (id: string) => db.veiculos.find((v) => v.id === id)?.nome ?? '';
+  const [parametros, setParametros] = useSearchParams();
+  const buscaReserva = semAcentos(parametros.get('buscaReserva') ?? '');
+  const veiculoReserva = parametros.get('veiculoReserva') ?? '';
+  const situacaoReserva = parametros.get('situacaoReserva') ?? '';
+  const dataReserva = parametros.get('dataReserva') ?? '';
+  const buscaVeiculo = semAcentos(parametros.get('buscaVeiculo') ?? '');
+  const statusVeiculo = parametros.get('statusVeiculo') ?? '';
+  const veiculosFiltrados = veiculos.filter((veiculo) => (!buscaVeiculo || semAcentos(`${veiculo.nome} ${veiculo.placa ?? ''}`).includes(buscaVeiculo))
+    && (!statusVeiculo || (statusVeiculo === 'ativo' ? veiculo.ativo : !veiculo.ativo)));
+  const totalPaginasVeiculos = Math.max(1, Math.ceil(veiculosFiltrados.length / 10));
+  const paginaVeiculosSolicitada = Number(parametros.get('paginaVeiculos') ?? '1');
+  const paginaVeiculos = Math.min(totalPaginasVeiculos, Math.max(1, Number.isFinite(paginaVeiculosSolicitada) ? paginaVeiculosSolicitada : 1));
+  const veiculosDaPagina = veiculosFiltrados.slice((paginaVeiculos - 1) * 10, paginaVeiculos * 10);
+  const reservasFiltradas = reservas.filter((reserva) => {
+    const evento = reserva.evento_id ? db.eventos.find((item) => item.id === reserva.evento_id)?.titulo ?? '' : reserva.observacoes ?? '';
+    const responsavel = db.profissionais.find((item) => item.id === reserva.responsavel_id)?.nome ?? '';
+    const dataRetirada = partes(reserva.retirada);
+    const chaveData = `${dataRetirada.ano}-${String(dataRetirada.mes).padStart(2, '0')}-${String(dataRetirada.dia).padStart(2, '0')}`;
+    return (!buscaReserva || semAcentos(`${evento} ${responsavel}`).includes(buscaReserva))
+      && (!veiculoReserva || reserva.veiculo_id === veiculoReserva)
+      && (!situacaoReserva || (situacaoReserva === 'devolvida' ? Boolean(reserva.devolvido_em) : !reserva.devolvido_em))
+      && (!dataReserva || chaveData === dataReserva);
+  });
+  const totalPaginasReservas = Math.max(1, Math.ceil(reservasFiltradas.length / 10));
+  const paginaReservasSolicitada = Number(parametros.get('paginaReservas') ?? '1');
+  const paginaReservas = Math.min(totalPaginasReservas, Math.max(1, Number.isFinite(paginaReservasSolicitada) ? paginaReservasSolicitada : 1));
+  const reservasDaPagina = reservasFiltradas.slice((paginaReservas - 1) * 10, paginaReservas * 10);
+  const alterarReserva = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaReservas');
+    setParametros(novos);
+  };
+  const alterarVeiculo = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaVeiculos');
+    setParametros(novos);
+  };
+  const mudarPaginaVeiculos = (pagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (pagina === 1) novos.delete('paginaVeiculos');
+    else novos.set('paginaVeiculos', String(pagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const mudarPaginaReservas = (pagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (pagina === 1) novos.delete('paginaReservas');
+    else novos.set('paginaReservas', String(pagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
@@ -470,44 +692,68 @@ export function Veiculos() {
       acao={<BotaoNovo texto="Novo veículo" onClick={form.novo} />}
     >
       <div className="coluna">
-        <Tabela
-          titulo="Veículos"
-          cabecalho={['Veículo', 'Placa', 'Observações']}
-          linhas={db.veiculos.map((v) => {
-            const abrir = permissoes.operacao ? () => form.editar(v) : undefined;
-            return {
-              chave: v.id, inativo: !v.ativo, onAbrir: abrir,
-              celulas: [<NomeEditavel texto={v.nome} inativo={!v.ativo} onAbrir={abrir} />, v.placa ?? '—', v.observacoes ?? '—'],
-            };
-          })}
-        />
-        <Tabela
-          titulo="Reservas"
-          acao={podeReservar && db.veiculos.some((v) => v.ativo)
-            ? <button type="button" className="botao pequeno" onClick={() => setReserva({})}><Icone nome="mais" tamanho={14} /> Reserva sem evento</button>
-            : undefined}
-          cabecalho={['Dia', 'Veículo', 'Retirada', 'Devolução', 'Evento', 'Responsável']}
-          vazio="Nenhuma reserva."
-          linhas={reservas.map((r) => {
-            const pode = permissoes.operacao || r.responsavel_id === usuario.profissionalId;
-            const abrir = pode ? () => setReserva({ item: r }) : undefined;
-            return {
-              chave: r.id, onAbrir: abrir,
-              celulas: [
-                <NomeEditavel texto={dataLonga(r.retirada, false)} onAbrir={abrir} />,
-                nomeVeiculo(r.veiculo_id),
-                hora(r.retirada),
-                r.devolvido_em
-                  ? <span>{hora(r.devolucao_prevista)} <span className="selo ok">devolvido {hora(r.devolvido_em)}</span></span>
-                  : hora(r.devolucao_prevista),
-                r.evento_id
-                  ? <Link to={`/eventos/${r.evento_id}`} className="link-marca" onClick={(e) => e.stopPropagation()}>{db.eventos.find((e) => e.id === r.evento_id)?.titulo}</Link>
-                  : (r.observacoes ?? 'Sem evento'),
-                db.profissionais.find((p) => p.id === r.responsavel_id)?.nome,
-              ],
-            };
-          })}
-        />
+        <div className="veiculos-topo"><div><h2>Veículos</h2><p>{veiculosFiltrados.length} de {veiculos.length} veículos</p></div></div>
+        <div className="filtros-veiculos">
+          <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">Buscar veículo</span><input type="search" value={parametros.get('buscaVeiculo') ?? ''} onChange={(evento) => alterarVeiculo('buscaVeiculo', evento.target.value)} placeholder="Buscar por nome ou placa" />{buscaVeiculo && <button type="button" className="limpar-busca" onClick={() => alterarVeiculo('buscaVeiculo', '')} aria-label="Limpar busca">×</button>}</label>
+          <SeletorFiltro label="Status" icon="lista" value={statusVeiculo} options={[['', 'Todos os status'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]} onChange={(valor) => alterarVeiculo('statusVeiculo', valor)} />
+        </div>
+        {veiculosDaPagina.length ? (
+          <div className="veiculos-grade">
+            {veiculosDaPagina.map((v) => {
+              const abrir = permissoes.operacao ? () => form.editar(v) : undefined;
+              return (
+                <article
+                  key={v.id}
+                  className={`veiculo-cartao${!v.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                  onClick={abrir}
+                  onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                  role={abrir ? 'button' : undefined}
+                  tabIndex={abrir ? 0 : undefined}
+                >
+                  <div className="veiculo-cartao-cabecalho">
+                    <div className="veiculo-identidade">
+                      <span className="veiculo-avatar"><Icone nome="carro" tamanho={19} /></span>
+                      <div><strong>{v.nome}</strong><span className={`selo ${v.ativo ? 'confirmado' : 'realizado'}`}>{v.ativo ? 'Ativo' : 'Inativo'}</span></div>
+                    </div>
+                    {abrir && <Icone nome="lapis" tamanho={16} />}
+                  </div>
+                  <div className="veiculo-detalhes">
+                    <div><Icone nome="carro" tamanho={15} /><span><small>Placa</small><strong>{v.placa ?? 'Não informada'}</strong></span></div>
+                    <div><Icone nome="arquivo" tamanho={15} /><span><small>Observações</small><strong>{v.observacoes ?? 'Nenhuma observação'}</strong></span></div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : <div className="vazio">{veiculos.length ? 'Nenhum veículo encontrado com esses filtros.' : 'Nenhum veículo cadastrado ainda.'}</div>}
+        <PaginacaoEventos pagina={paginaVeiculos} total={totalPaginasVeiculos} onMudar={mudarPaginaVeiculos} />
+        <section className="reservas-bloco cartao">
+          <div className="reservas-topo">
+            <div><h2>Reservas</h2><p>{reservasFiltradas.length} de {reservas.length} reservas</p></div>
+            {podeReservar && db.veiculos.some((v) => v.ativo) && <button type="button" className="botao pequeno" onClick={() => setReserva({})}><Icone nome="mais" tamanho={14} /> Reserva sem evento</button>}
+          </div>
+          <div className="filtros-reservas">
+            <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">Buscar reserva</span><input type="search" value={parametros.get('buscaReserva') ?? ''} onChange={(evento) => alterarReserva('buscaReserva', evento.target.value)} placeholder="Buscar evento ou responsável" />{buscaReserva && <button type="button" className="limpar-busca" onClick={() => alterarReserva('buscaReserva', '')} aria-label="Limpar busca">×</button>}</label>
+            <SeletorFiltro label="Veículo" icon="carro" value={veiculoReserva} options={[['', 'Todos os veículos'], ...db.veiculos.map((v) => [v.id, v.nome] as [string, string])]} onChange={(valor) => alterarReserva('veiculoReserva', valor)} />
+            <SeletorFiltro label="Situação" icon="lista" value={situacaoReserva} options={[['', 'Todas'], ['aberta', 'Em aberto'], ['devolvida', 'Devolvidas']]} onChange={(valor) => alterarReserva('situacaoReserva', valor)} />
+            <SeletorData rotulo="Retirada" valor={dataReserva} onMudar={(valor) => alterarReserva('dataReserva', valor)} />
+          </div>
+          {reservasDaPagina.length ? <div className="reservas-grade">
+            {reservasDaPagina.map((r) => {
+              const pode = permissoes.operacao || r.responsavel_id === usuario.profissionalId;
+              const abrir = pode ? () => setReserva({ item: r }) : undefined;
+              const evento = r.evento_id ? db.eventos.find((e) => e.id === r.evento_id) : undefined;
+              const responsavel = db.profissionais.find((p) => p.id === r.responsavel_id)?.nome ?? 'Responsável não informado';
+              return <article key={r.id} className={`reserva-cartao${abrir ? ' clicavel' : ''}`} onClick={abrir} onKeyDown={(e) => { if (e.key === 'Enter') abrir?.(); }} role={abrir ? 'button' : undefined} tabIndex={abrir ? 0 : undefined}>
+                <div className="reserva-cartao-topo"><span className="reserva-data"><Icone nome="calendario" tamanho={15} /> {dataLonga(r.retirada, false)}</span><span className={`selo ${r.devolvido_em ? 'ok' : 'alerta'}`}>{r.devolvido_em ? 'Devolvida' : 'Em aberto'}</span></div>
+                <strong className="reserva-veiculo"><Icone nome="carro" tamanho={16} /> {nomeVeiculo(r.veiculo_id)}</strong>
+                <div className="reserva-horarios"><span>Retirada <strong>{hora(r.retirada)}</strong></span><span>Devolução <strong>{hora(r.devolucao_prevista)}</strong></span></div>
+                <div className="reserva-cartao-rodape"><span>{evento ? <Link to={`/eventos/${evento.id}`} className="link-marca" onClick={(e) => e.stopPropagation()}>{evento.titulo}</Link> : (r.observacoes ?? 'Sem evento')}</span><small>{responsavel}</small></div>
+              </article>;
+            })}
+          </div> : <div className="vazio">{reservas.length ? 'Nenhuma reserva encontrada com esses filtros.' : 'Nenhuma reserva.'}</div>}
+          <PaginacaoEventos pagina={paginaReservas} total={totalPaginasReservas} onMudar={mudarPaginaReservas} />
+        </section>
       </div>
       {form.aberto && <FormVeiculo item={form.aberto.item} onFechar={form.fechar} />}
       {reserva && (

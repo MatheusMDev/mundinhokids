@@ -1,6 +1,9 @@
 // Janela de formulário (diálogo nativo: Esc fecha e o foco fica dentro) e campos.
 
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { diasDoMes, mesSeguinte, type Mes } from './Calendario';
+import { Icone } from './Icone';
+import { mesAno } from '../lib/formato';
 
 interface PropsDialogo {
   titulo: string;
@@ -152,6 +155,69 @@ export function SeletorMultiplo({ rotulo, opcoes, marcados, onMudar, vazio }: {
         </div>
       )}
     </fieldset>
+  );
+}
+
+export function SeletorOpcao({ rotulo, valor, opcoes, onMudar, disabled }: {
+  rotulo: string; valor: string; opcoes: [string, string][]; onMudar: (valor: string) => void; disabled?: boolean;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selecionado = opcoes.find(([opcao]) => opcao === valor)?.[1] ?? opcoes[0]?.[1];
+
+  useEffect(() => {
+    const fechar = (evento: MouseEvent) => { if (!ref.current?.contains(evento.target as Node)) setAberto(false); };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  return (
+    <div ref={ref} className={`seletor-opcao${aberto ? ' aberto' : ''}`}>
+      <span className="seletor-opcao-rotulo">{rotulo}</span>
+      <button type="button" className="seletor-opcao-botao" aria-haspopup="listbox" aria-expanded={aberto} disabled={disabled} onClick={() => setAberto((atual) => !atual)} onKeyDown={(evento) => { if (evento.key === 'Escape') setAberto(false); }}>
+        <span>{selecionado}</span><i aria-hidden="true" />
+      </button>
+      {aberto && <div className="seletor-opcao-menu" role="listbox" aria-label={rotulo}>
+        {opcoes.map(([opcao, texto]) => <button key={opcao} type="button" role="option" aria-selected={opcao === valor} className={opcao === valor ? 'selecionado' : ''} onClick={() => { onMudar(opcao); setAberto(false); }}>{texto}</button>)}
+      </div>}
+    </div>
+  );
+}
+
+export function SeletorData({ rotulo, valor, onMudar }: { rotulo: string; valor: string; onMudar: (valor: string) => void }) {
+  const hoje = new Date();
+  const [aberto, setAberto] = useState(false);
+  const [mes, setMes] = useState<Mes>(() => {
+    const [ano, numeroMes] = valor ? valor.split('-').map(Number) : [hoje.getFullYear(), hoje.getMonth() + 1];
+    return { ano, mes: numeroMes };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fechar = (evento: MouseEvent) => { if (!ref.current?.contains(evento.target as Node)) setAberto(false); };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+  const texto = valor ? valor.split('-').reverse().join('/') : 'Escolha uma data';
+
+  return (
+    <div ref={ref} className={`seletor-data${aberto ? ' aberto' : ''}`}>
+      <span className="seletor-opcao-rotulo">{rotulo}</span>
+      <button type="button" className="seletor-opcao-botao" aria-haspopup="dialog" aria-expanded={aberto} onClick={() => setAberto((atual) => !atual)}>
+        <Icone nome="calendario" tamanho={16} /><span>{texto}</span><i aria-hidden="true" />
+      </button>
+      {aberto && <div className="seletor-data-menu" role="dialog" aria-label={rotulo}>
+        <div className="seletor-data-topo">
+          <button type="button" className="icone-botao" onClick={() => setMes(mesSeguinte(mes, -1))} aria-label="Mês anterior">‹</button>
+          <strong>{mesAno(mes.ano, mes.mes)}</strong>
+          <button type="button" className="icone-botao" onClick={() => setMes(mesSeguinte(mes, 1))} aria-label="Próximo mês">›</button>
+        </div>
+        <div className="seletor-data-semana">{['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((dia, indice) => <span key={`${dia}-${indice}`}>{dia}</span>)}</div>
+        <div className="seletor-data-grade">
+          {diasDoMes(mes).map((dia) => <button key={dia.chave} type="button" className={`${dia.doMes ? '' : 'fora '}${dia.chave === valor ? 'selecionado' : ''}`} onClick={() => { if (dia.doMes) { onMudar(dia.chave); setAberto(false); } }}>{dia.dia}</button>)}
+        </div>
+        {valor && <button type="button" className="seletor-data-limpar" onClick={() => { onMudar(''); setAberto(false); }}>Limpar data</button>}
+      </div>}
+    </div>
   );
 }
 
