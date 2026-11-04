@@ -3,16 +3,17 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Layout } from '../components/Layout';
+import { abasDoPerfil, Layout, MENU } from '../components/Layout';
 import { Icone } from '../components/Icone';
 import {
-  FormContratante, FormFantasia, FormLocal, FormPersonagem, FormProfissional, FormVeiculo, ROTULO_FANTASIA,
+  FormContratante, FormFantasia, FormLocal, FormPersonagem, FormVeiculo, ROTULO_FANTASIA,
 } from '../components/FormulariosCadastro';
 import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { SeletorFiltro } from '../components/SeletorFiltro';
+import { Paginacao } from '../components/Paginacao';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
 import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes, semAcentos } from '../lib/formato';
 import {
@@ -205,21 +206,6 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
   );
 }
 
-function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: number; onMudar: (pagina: number) => void }) {
-  if (total <= 1) return null;
-  return (
-    <nav className="paginacao-eventos" aria-label="Paginação dos eventos">
-      <button type="button" className="paginacao-botao" disabled={pagina === 1} onClick={() => onMudar(pagina - 1)}>
-        Anterior
-      </button>
-      <span>Página <strong>{pagina}</strong> de {total}</span>
-      <button type="button" className="paginacao-botao" disabled={pagina === total} onClick={() => onMudar(pagina + 1)}>
-        Próxima
-      </button>
-    </nav>
-  );
-}
-
 /** Nome que abre a edição: um botão de verdade, para funcionar no teclado */
 function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: boolean; onAbrir?: () => void }) {
   if (!onAbrir) return <strong>{texto}</strong>;
@@ -299,15 +285,15 @@ export function Eventos() {
           ))}
         </div>
       ) : <div className="vazio">{vazio}</div>}
-      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
+      <Paginacao pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
       {novo && <FormEvento onFechar={() => setNovo(false)} />}
     </Pagina>
   );
 }
 
+// Só visualização: o profissional é cadastrado e alterado junto com o acesso, em Usuários e acessos
 export function Profissionais() {
   const { db, permissoes } = useEstado();
-  const form = useFormulario<(typeof db.profissionais)[number]>();
   const [parametros, setParametros] = useSearchParams();
   const lista = useMemo(() => [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)), [db.profissionais]);
   const busca = semAcentos(parametros.get('busca') ?? '');
@@ -336,25 +322,23 @@ export function Profissionais() {
   return (
     <Pagina
       titulo="Profissionais" descricao={`${filtrados.length} de ${lista.length} profissionais`}
-      acao={<BotaoNovo texto="Novo profissional" onClick={form.novo} />}
+      acao={permissoes.gestao ? <Link to="/usuarios" className="botao"><Icone nome="acessos" /> Cadastrar em Usuários e acessos</Link> : undefined}
     >
+      {permissoes.gestao && (
+        <p className="suave" style={{ margin: '-6px 0 14px' }}>
+          Para cadastrar alguém da equipe ou mudar o que a pessoa faz, use <Link to="/usuarios" className="link-marca">Usuários e acessos</Link>:
+          o profissional é criado junto com o acesso.
+        </p>
+      )}
       <FiltrosProfissionais db={db} />
       {listaDaPagina.length ? (
         <div className="profissionais-grade">
           {listaDaPagina.map((p) => {
-            const abrir = permissoes.operacao ? () => form.editar(p) : undefined;
             const personagens = db.profissional_personagens.filter((x) => x.profissional_id === p.id)
               .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome)
               .filter(Boolean) as string[];
             return (
-              <article
-                key={p.id}
-                className={`profissional-cartao${!p.ativo ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
-                onClick={abrir}
-                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
-                role={abrir ? 'button' : undefined}
-                tabIndex={abrir ? 0 : undefined}
-              >
+              <article key={p.id} className={`profissional-cartao${!p.ativo ? ' inativo' : ''}`}>
                 <div className="profissional-cartao-cabecalho">
                   <div className="profissional-identidade">
                     <span className="profissional-avatar"><Icone nome="usuario" tamanho={19} /></span>
@@ -363,7 +347,7 @@ export function Profissionais() {
                       <span className={`selo ${p.ativo ? 'confirmado' : 'realizado'}`}>{p.ativo ? 'Ativo' : 'Inativo'}</span>
                     </div>
                   </div>
-                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                  {!p.usuario_id && <span className="selo neutro" title="Ainda não tem acesso ao sistema">Sem acesso</span>}
                 </div>
                 <div className="profissional-funcoes">
                   <small>Função</small>
@@ -379,8 +363,7 @@ export function Profissionais() {
           })}
         </div>
       ) : <div className="vazio">{lista.length ? 'Nenhum profissional encontrado com esses filtros.' : 'Nenhum profissional cadastrado ainda.'}</div>}
-      <PaginacaoEventos pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
-      {form.aberto && <FormProfissional item={form.aberto.item} onFechar={form.fechar} />}
+      <Paginacao pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
     </Pagina>
   );
 }
@@ -416,7 +399,7 @@ export function Personagens() {
 }
 
 export function Fantasias() {
-  const { db, permissoes, usuario, hoje } = useEstado();
+  const { db, permissoes, hoje, telas, papeis } = useEstado();
   const form = useFormulario<(typeof db.fantasias)[number]>();
   const [conferir, setConferir] = useState<(typeof db.eventos)[number] | null>(null);
   const pendentes = permissoes.conferirFantasias ? conferenciasPendentes(db, hoje) : [];
@@ -424,7 +407,7 @@ export function Fantasias() {
   const lista = [...db.fantasias].sort((a, b) =>
     nomePersonagem(a.personagem_id).localeCompare(nomePersonagem(b.personagem_id)) || a.identificacao.localeCompare(b.identificacao));
   // A responsável pelas fantasias também atualiza a situação (limpeza, manutenção)
-  const podeEditar = permissoes.operacao || usuario.perfil === 'fantasias';
+  const podeEditar = permissoes.operacao || papeis.has('fantasias');
 
   return (
     <Pagina
@@ -439,7 +422,9 @@ export function Fantasias() {
             linhas={pendentes.map(({ evento, faltam }) => ({
               chave: evento.id,
               celulas: [
-                <Link to={`/eventos/${evento.id}`} className="link-marca">{evento.titulo}</Link>,
+                telas.has('eventos')
+                  ? <Link to={`/eventos/${evento.id}`} className="link-marca">{evento.titulo}</Link>
+                  : <strong>{evento.titulo}</strong>,
                 `${diaCurto(evento.inicio)} · ${hora(evento.inicio)}`,
                 faltam,
                 <button type="button" className="botao pequeno primario" onClick={() => setConferir(evento)}>Conferir</button>,
@@ -472,11 +457,11 @@ export function Fantasias() {
 }
 
 export function Veiculos() {
-  const { db, permissoes, usuario } = useEstado();
+  const { db, permissoes, usuario, papeis } = useEstado();
   const form = useFormulario<(typeof db.veiculos)[number]>();
   const [reserva, setReserva] = useState<{ item?: (typeof db.reservas_veiculo)[number] } | null>(null);
   const reservas = [...db.reservas_veiculo].filter((r) => r.ativo).sort((a, b) => b.retirada.localeCompare(a.retirada));
-  const podeReservar = permissoes.operacao || usuario.perfil === 'produtor';
+  const podeReservar = permissoes.operacao || papeis.has('produtor');
   const nomeVeiculo = (id: string) => db.veiculos.find((v) => v.id === id)?.nome ?? '';
 
   return (
@@ -667,24 +652,20 @@ export function CadastrosGerais() {
 }
 
 export function Mais() {
-  const { permissoes } = useEstado();
-  const itens = [
-    { para: '/personagens', texto: 'Personagens' },
-    { para: '/fantasias', texto: 'Fantasias' },
-    { para: '/veiculos', texto: 'Veículos' },
-    { para: '/financeiro', texto: 'Financeiro' },
-    { para: '/cadastros', texto: 'Contratantes e locais' },
-    ...(permissoes.operacao ? [
-      { para: '/usuarios', texto: 'Usuários e acessos' },
-      { para: '/configuracoes', texto: 'Configurações' },
-    ] : []),
-  ];
+  const { telas } = useEstado();
+  // O que o perfil enxerga e ainda não está nas abas de baixo
+  const nasAbas = new Set(abasDoPerfil(telas).map((a) => a.para));
+  const itens = MENU
+    .filter((i) => telas.has(i.tela) && !nasAbas.has(i.para))
+    .map((i) => (i.tela === 'cadastros' ? { ...i, texto: 'Contratantes e locais' } : i));
   return (
     <Layout>
       <h1 style={{ marginBottom: 14 }}>Mais</h1>
-      <section className="cartao proximos" style={{ marginBottom: 18 }}>
-        {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto} <Icone nome="direita" /></Link>)}
-      </section>
+      {itens.length > 0 && (
+        <section className="cartao proximos" style={{ marginBottom: 18 }}>
+          {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto} <Icone nome="direita" /></Link>)}
+        </section>
+      )}
       <ContaUsuario />
     </Layout>
   );

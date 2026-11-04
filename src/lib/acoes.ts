@@ -267,6 +267,16 @@ export interface NovoAcesso {
   /** senha: provisória definida aqui; convite: e-mail com link */
   modo: 'senha' | 'convite';
   senha?: string;
+  /** Equipe: profissional cadastrado junto com o acesso (em vez de ligar um já cadastrado) */
+  profissional_novo?: DadosEquipe;
+}
+
+/** O que a pessoa da equipe vai ser e os dados do cadastro de profissional */
+export interface DadosEquipe {
+  funcoes: FuncaoProfissional[];
+  telefone: string | null;
+  personagens: string[];
+  disponibilidade: string | null;
 }
 
 export const criarAcesso = (c: Cliente, novo: NovoAcesso) =>
@@ -276,6 +286,8 @@ export interface EdicaoAcesso extends Pick<Usuario, 'id' | 'nome' | 'email' | 'p
   profissional_id: string | null;
   /** Nova senha provisória; vazio mantém a atual */
   senha?: string;
+  /** Telas escolhidas (null volta ao padrão do perfil) */
+  telas?: string[] | null;
 }
 
 /** Nome, e-mail, perfil, profissional, senha e situação: tudo no servidor, com as travas da gestão */

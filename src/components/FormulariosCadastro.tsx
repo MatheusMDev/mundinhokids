@@ -1,15 +1,16 @@
-// Formulários dos cadastros: profissionais, personagens, fantasias,
-// contratantes, locais e veículos. Ninguém é apagado: quem sai fica inativo.
+// Formulários dos cadastros: personagens, fantasias, contratantes, locais e
+// veículos (o profissional é cadastrado junto com o acesso, em Usuários).
+// Ninguém é apagado: quem sai fica inativo.
 
 import { useState } from 'react';
-import { Campo, Dialogo, Linha, Marcador, SeletorMultiplo } from './Formulario';
+import { Campo, Dialogo, Linha, Marcador } from './Formulario';
 import { useEstado } from '../lib/estado';
 import {
-  salvarContratante, salvarFantasia, salvarLocal, salvarPersonagem, salvarProfissional, salvarVeiculo, vazioParaNulo,
+  salvarContratante, salvarFantasia, salvarLocal, salvarPersonagem, salvarVeiculo, vazioParaNulo,
 } from '../lib/acoes';
 import { deCampos, paraCampos } from '../lib/formato';
 import type {
-  Contratante, Fantasia, FuncaoProfissional, Local, Personagem, Profissional, SituacaoFantasia, Veiculo,
+  Contratante, Fantasia, FuncaoProfissional, Local, Personagem, SituacaoFantasia, Veiculo,
 } from '../lib/tipos';
 
 interface Props<T> {
@@ -17,14 +18,14 @@ interface Props<T> {
   onFechar: () => void;
 }
 
-const FUNCOES: { valor: FuncaoProfissional; texto: string }[] = [
+export const FUNCOES: { valor: FuncaoProfissional; texto: string }[] = [
   { valor: 'artista', texto: 'Artista' },
   { valor: 'produtor', texto: 'Produção' },
   { valor: 'maquiador', texto: 'Maquiagem' },
   { valor: 'fantasias', texto: 'Responsável pelas fantasias' },
 ];
 
-function mascaraTelefone(valor: string) {
+export function mascaraTelefone(valor: string) {
   const numeros = valor.replace(/\D/g, '').slice(0, 11);
   if (!numeros) return '';
   if (numeros.length <= 2) return `(${numeros}`;
@@ -46,60 +47,6 @@ const TIPOS_LOCAL = [
 ];
 
 // ---------------------------------------------------------------------
-
-export function FormProfissional({ item, onFechar }: Props<Profissional>) {
-  const { db, cliente, executar } = useEstado();
-  const atuais = item ? db.profissional_personagens.filter((x) => x.profissional_id === item.id).map((x) => x.personagem_id) : [];
-  const notaAtual = item ? db.profissionais_notas.find((n) => n.profissional_id === item.id)?.observacoes ?? '' : '';
-
-  const [nome, setNome] = useState(item?.nome ?? '');
-  const [telefone, setTelefone] = useState(mascaraTelefone(item?.telefone ?? ''));
-  const [email, setEmail] = useState(item?.email ?? '');
-  const [funcoes, setFuncoes] = useState<string[]>(item?.funcoes ?? ['artista']);
-  const [personagens, setPersonagens] = useState<string[]>(atuais);
-  const [disponibilidade, setDisponibilidade] = useState(item?.disponibilidade ?? '');
-  const [nota, setNota] = useState(notaAtual);
-  const [ativo, setAtivo] = useState(item?.ativo ?? true);
-
-  const ehArtista = funcoes.includes('artista');
-
-  return (
-    <Dialogo
-      titulo={item ? `Editar ${item.nome}` : 'Novo profissional'}
-      onFechar={onFechar}
-      validar={() => (!nome.trim() ? 'Informe o nome.' : !funcoes.length ? 'Marque pelo menos uma função.' : null)}
-      onSalvar={() => executar(
-        () => salvarProfissional(cliente, item?.id, {
-          nome: nome.trim(), telefone: vazioParaNulo(telefone), email: vazioParaNulo(email),
-          funcoes: funcoes as FuncaoProfissional[], disponibilidade: vazioParaNulo(disponibilidade), ativo,
-        }, { atuais, novos: personagens }, vazioParaNulo(nota)),
-        item ? 'Profissional atualizado.' : 'Profissional cadastrado.',
-      )}
-    >
-      <Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required autoFocus />}</Campo>
-      <Linha>
-        <Campo rotulo="Telefone">{(id) => <input id={id} type="tel" inputMode="numeric" value={telefone} onChange={(e) => setTelefone(mascaraTelefone(e.target.value))} placeholder="(11) 90000-0000" />}</Campo>
-        <Campo rotulo="E-mail">{(id) => <input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</Campo>
-      </Linha>
-      <SeletorMultiplo rotulo="Funções" opcoes={FUNCOES} marcados={funcoes} onMudar={setFuncoes} />
-      {ehArtista && (
-        <SeletorMultiplo
-          rotulo="Personagens que pode fazer"
-          opcoes={db.personagens.filter((p) => p.ativo || personagens.includes(p.id)).map((p) => ({ valor: p.id, texto: p.nome }))}
-          marcados={personagens} onMudar={setPersonagens}
-          vazio="Nenhum personagem cadastrado ainda."
-        />
-      )}
-      <Campo rotulo="Disponibilidade" dica="Ex.: só fins de semana, não trabalha à noite.">
-        {(id) => <input id={id} value={disponibilidade} onChange={(e) => setDisponibilidade(e.target.value)} />}
-      </Campo>
-      <Campo rotulo="Observações internas" dica="Só a direção, a gerente e a supervisora veem.">
-        {(id) => <textarea id={id} value={nota} onChange={(e) => setNota(e.target.value)} />}
-      </Campo>
-      {item && <Marcador texto="Ativo" dica="Profissional inativo não aparece para escalar." marcado={ativo} onMudar={setAtivo} />}
-    </Dialogo>
-  );
-}
 
 // ---------------------------------------------------------------------
 
