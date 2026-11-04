@@ -22,6 +22,18 @@ export interface Usuario {
   ativo: boolean;
 }
 
+/** Situação do login no Supabase Auth (só a gestão vê, pela função "usuarios") */
+export interface SituacaoLogin {
+  id: string;
+  email: string;
+  criado_em: string;
+  ultimo_acesso: string | null;
+  convite_pendente: boolean;
+  /** Ainda está com a senha provisória ou com o convite */
+  trocar_senha: boolean;
+  bloqueado: boolean;
+}
+
 export interface Profissional {
   id: string;
   usuario_id: string | null;

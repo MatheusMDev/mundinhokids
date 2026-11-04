@@ -343,6 +343,18 @@ h3 { font-size: 15px; font-weight: 800; }
 .filtro-menu button { padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--texto); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .filtro-menu button:hover, .filtro-menu button:focus-visible { outline: 0; background: var(--marca-suave); color: var(--marca-escura); }
 .filtro-menu button.selecionado { background: var(--marca-suave); color: var(--marca-escura); font-weight: 700; }
+.paginacao { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+.paginacao-botoes { display: flex; align-items: center; gap: 10px; }
+.paginacao-botoes .botao:disabled { opacity: .45; cursor: default; }
+.contadores { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.contador { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--borda); border-radius: 999px; background: var(--cartao); color: var(--texto); font: inherit; font-size: 13px; cursor: pointer; }
+.contador strong { font-family: var(--fonte-titulo); }
+.contador.ativo { border-color: var(--marca); background: var(--marca-suave); color: var(--marca-escura); }
+.cartoes-acesso { display: flex; flex-direction: column; gap: 10px; }
+.cartao-acesso { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--cartao); color: var(--texto); font: inherit; text-align: left; }
+.cartao-acesso.inativo { opacity: .65; }
+.cartao-acesso-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cartao-acesso .selos { display: flex; flex-wrap: wrap; gap: 6px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .eventos-grade { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .profissionais-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -620,6 +632,8 @@ h3 { font-size: 15px; font-weight: 800; }
 .login-submit:disabled { cursor: wait; opacity: .78; }
 .login-spinner { width: 15px; height: 15px; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; border-radius: 50%; animation: login-gira .7s linear infinite; }
 @keyframes login-gira { to { transform: rotate(360deg); } }
+.login-link { align-self: center; margin-top: 16px; font-size: 13px; }
+.login-aviso { margin: 18px 0 0; padding: 10px 12px; border: 1px solid var(--marca-borda); border-radius: 10px; background: var(--marca-suave); color: var(--marca-escura); font-size: 13px; line-height: 1.4; }
 .login-rodape { margin: 26px 0 0; color: var(--texto-fraco); font-size: 11px; text-align: center; }
 .erro { margin: 0; color: #a12a2a; font-size: 13px; }
 

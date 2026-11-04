@@ -1,17 +1,24 @@
 // Usuários e acessos: quem tem login, com qual perfil e ligado a qual
-// profissional do cadastro. A operação vê a lista; só a gestão altera.
-// Criar o login em si exige a chave de administrador do Supabase (fica para o back).
+// profissional do cadastro. Tudo é feito aqui no site: a operação vê a lista;
+// Direção e Gerente criam, editam e excluem acessos (nome, e-mail, perfil, senha e
+// situação) pela função "usuarios" do Supabase, que guarda a chave de
+// administrador fora do navegador. Só a Direção mexe em acessos de Direção.
 
-import { useState } from 'react';
-import { Layout } from '../components/Layout';
-import { Campo, Dialogo, Marcador } from '../components/Formulario';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Layout, useCelular } from '../components/Layout';
+import { Paginacao, paginar } from '../components/Paginacao';
+import { SeletorFiltro } from '../components/SeletorFiltro';
+import { Campo, Dialogo, Linha, Marcador } from '../components/Formulario';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { salvarUsuario } from '../lib/acoes';
-import type { PerfilAcesso, Usuario } from '../lib/tipos';
+import { criarAcesso, editarAcesso, excluirAcesso, listarLogins, type NovoAcesso } from '../lib/acoes';
+import { traduzirErro } from '../lib/erros';
+import { diaCurto, hora, semAcentos } from '../lib/formato';
+import type { PerfilAcesso, SituacaoLogin, Usuario } from '../lib/tipos';
 
 const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: boolean }[] = [
-  { valor: 'diretora', texto: 'Direção', descricao: 'Vê tudo, inclusive valores; aprova trocas e despesas.', equipe: false },
-  { valor: 'gerente', texto: 'Gerente geral', descricao: 'Organiza eventos e equipes, vê valores, aprova trocas.', equipe: false },
+  { valor: 'diretora', texto: 'Direção', descricao: 'Vê tudo, inclusive valores; aprova trocas e despesas; cuida de todos os acessos.', equipe: false },
+  { valor: 'gerente', texto: 'Gerente geral', descricao: 'Organiza eventos e equipes, vê valores, aprova trocas e cuida dos acessos.', equipe: false },
   { valor: 'supervisora', texto: 'Supervisora', descricao: 'Cadastra, monta escalas e orienta a equipe. Não vê valores.', equipe: false },
   { valor: 'produtor', texto: 'Produção', descricao: 'Vê os próprios eventos, reserva o veículo, lança despesas.', equipe: true },
   { valor: 'artista', texto: 'Artista', descricao: 'Vê os próprios eventos e o valor a receber; pede troca.', equipe: true },
@@ -20,128 +27,469 @@ const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: b
 ];
 
 const perfilEhEquipe = (p: PerfilAcesso) => PERFIS.find((x) => x.valor === p)?.equipe ?? false;
+const emailValido = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-function FormUsuario({ item, onFechar }: { item: Usuario; onFechar: () => void }) {
+/** Senha provisória fácil de ditar (sem letras e números que se confundem) */
+function gerarSenha() {
+  const letras = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const sorteio = crypto.getRandomValues(new Uint32Array(8));
+  return Array.from(sorteio, (n) => letras[n % letras.length]).join('');
+}
+
+function textoAcesso(s: SituacaoLogin | undefined): { texto: string; tipo: string } {
+  if (!s) return { texto: '—', tipo: 'neutro' };
+  if (s.bloqueado) return { texto: 'Bloqueado', tipo: 'neutro' };
+  if (s.convite_pendente) return { texto: 'Convite enviado', tipo: 'alerta' };
+  if (!s.ultimo_acesso) return { texto: 'Nunca entrou', tipo: 'alerta' };
+  if (s.trocar_senha) return { texto: 'Falta trocar a senha', tipo: 'alerta' };
+  return { texto: `Entrou ${diaCurto(s.ultimo_acesso)} · ${hora(s.ultimo_acesso)}`, tipo: 'ok' };
+}
+
+/** Perfis que quem está logado pode dar: só a Direção dá o perfil de Direção */
+function usePerfisPermitidos(atual?: PerfilAcesso) {
+  const { usuario } = useEstado();
+  return PERFIS.filter((p) => p.valor !== 'diretora' || usuario.perfil === 'diretora' || atual === 'diretora');
+}
+
+function CampoSenha({ rotulo, valor, onMudar, dica, obrigatorio }: {
+  rotulo: string; valor: string; onMudar: (v: string) => void; dica: string; obrigatorio?: boolean;
+}) {
+  return (
+    <Campo rotulo={rotulo} dica={dica} obrigatorio={obrigatorio}>
+      {(id) => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input id={id} value={valor} onChange={(e) => onMudar(e.target.value)} autoComplete="new-password" minLength={6} style={{ flex: 1 }} />
+          <button type="button" className="botao" onClick={() => onMudar(gerarSenha())}>Gerar</button>
+        </div>
+      )}
+    </Campo>
+  );
+}
+
+function CampoProfissional({ valor, onMudar, perfil, loginId }: {
+  valor: string; onMudar: (id: string) => void; perfil: PerfilAcesso; loginId?: string;
+}) {
+  const { db } = useEstado();
+  const equipe = perfilEhEquipe(perfil);
+  // Profissionais livres (sem login) ou o que já está ligado a este login
+  const livres = db.profissionais
+    .filter((p) => !p.usuario_id || p.usuario_id === loginId)
+    .filter((p) => p.ativo || p.usuario_id === loginId)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  return (
+    <Campo
+      rotulo={equipe ? 'Profissional do cadastro' : 'Profissional do cadastro (opcional)'} obrigatorio={equipe}
+      dica={equipe ? 'É assim que a pessoa vê os próprios eventos. Só aparecem profissionais sem login.' : 'Só aparecem profissionais sem login.'}
+    >
+      {(id) => (
+        <select id={id} value={valor} onChange={(e) => onMudar(e.target.value)}>
+          <option value="">Nenhum</option>
+          {livres.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.ativo ? '' : ' (inativo)'}</option>)}
+        </select>
+      )}
+    </Campo>
+  );
+}
+
+// ---------------------------------------------------------------------
+
+interface Inicial { nome?: string; perfil?: PerfilAcesso; profissional?: string }
+
+function FormNovoAcesso({ inicial, onFechar, onCriado }: { inicial: Inicial; onFechar: () => void; onCriado: () => void }) {
+  const { db, cliente, executar } = useEstado();
+  const perfis = usePerfisPermitidos();
+  const [email, setEmail] = useState('');
+  const [nome, setNome] = useState(inicial.nome ?? '');
+  const [perfil, setPerfil] = useState<PerfilAcesso>(inicial.perfil ?? 'artista');
+  const [profissional, setProfissional] = useState(inicial.profissional ?? '');
+  const [modo, setModo] = useState<NovoAcesso['modo']>('senha');
+  const [senha, setSenha] = useState(gerarSenha);
+  const equipe = perfilEhEquipe(perfil);
+
+  function escolherProfissional(id: string) {
+    setProfissional(id);
+    const p = db.profissionais.find((x) => x.id === id);
+    if (p && !nome.trim()) setNome(p.nome);
+  }
+
+  return (
+    <Dialogo
+      titulo="Novo acesso"
+      textoSalvar={modo === 'convite' ? 'Enviar convite' : 'Criar acesso'}
+      onFechar={onFechar}
+      validar={() => (!emailValido(email) ? 'Informe um e-mail válido.'
+        : !nome.trim() ? 'Informe o nome.'
+        : equipe && !profissional ? 'Ligue este login ao profissional do cadastro: é assim que ele vê os próprios eventos.'
+        : modo === 'senha' && senha.trim().length < 6 ? 'A senha provisória precisa ter pelo menos 6 caracteres.'
+        : null)}
+      onSalvar={async () => {
+        const r = await executar(
+          () => criarAcesso(cliente, {
+            email: email.trim(), nome: nome.trim(), perfil, profissional_id: profissional || null,
+            modo, senha: modo === 'senha' ? senha.trim() : undefined,
+          }),
+          modo === 'convite' ? `Convite enviado para ${email.trim()}.` : `Acesso criado. Passe o e-mail e a senha provisória para ${nome.trim()}.`,
+        );
+        if (r === true) onCriado();
+        return r;
+      }}
+    >
+      <Linha>
+        <Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required />}</Campo>
+        <Campo rotulo="E-mail (é o login)" obrigatorio>
+          {(id) => <input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />}
+        </Campo>
+      </Linha>
+      <Campo rotulo="Perfil" dica={PERFIS.find((p) => p.valor === perfil)?.descricao}>
+        {(id) => (
+          <select id={id} value={perfil} onChange={(e) => setPerfil(e.target.value as PerfilAcesso)}>
+            {perfis.map((p) => <option key={p.valor} value={p.valor}>{p.texto}</option>)}
+          </select>
+        )}
+      </Campo>
+      <CampoProfissional valor={profissional} onMudar={escolherProfissional} perfil={perfil} />
+      <Campo
+        rotulo="Como a pessoa vai entrar"
+        dica={modo === 'convite'
+          ? 'A pessoa recebe um e-mail com o link para criar a senha. Só funciona com o envio de e-mails configurado.'
+          : 'Passe o e-mail e a senha para a pessoa. No primeiro acesso, o sistema pede para ela criar a própria senha.'}
+      >
+        {(id) => (
+          <select id={id} value={modo} onChange={(e) => setModo(e.target.value as NovoAcesso['modo'])}>
+            <option value="senha">Senha provisória</option>
+            <option value="convite">Convite por e-mail</option>
+          </select>
+        )}
+      </Campo>
+      {modo === 'senha' && (
+        <CampoSenha rotulo="Senha provisória" valor={senha} onMudar={setSenha} obrigatorio dica="Pelo menos 6 caracteres. Anote antes de salvar." />
+      )}
+    </Dialogo>
+  );
+}
+
+// ---------------------------------------------------------------------
+
+function FormUsuario({ item, situacao, onFechar, onSalvo, onExcluir }: {
+  item: Usuario; situacao?: SituacaoLogin; onFechar: () => void; onSalvo: () => void; onExcluir: () => void;
+}) {
   const { db, cliente, executar, usuario } = useEstado();
-  const ligadoAtual = db.profissionais.find((p) => p.usuario_id === item.id)?.id ?? null;
+  const perfis = usePerfisPermitidos(item.perfil);
+  const ligadoAtual = db.profissionais.find((p) => p.usuario_id === item.id)?.id ?? '';
   const ehVoce = item.id === usuario.id;
 
   const [nome, setNome] = useState(item.nome);
+  const [email, setEmail] = useState(item.email);
   const [perfil, setPerfil] = useState<PerfilAcesso>(item.perfil);
   const [ativo, setAtivo] = useState(item.ativo);
-  const [profissional, setProfissional] = useState(ligadoAtual ?? '');
-
-  // Profissionais livres (sem login) ou o que já está ligado a este usuário
-  const livres = db.profissionais
-    .filter((p) => !p.usuario_id || p.usuario_id === item.id)
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-  const descricao = PERFIS.find((p) => p.valor === perfil)?.descricao;
+  const [profissional, setProfissional] = useState(ligadoAtual);
+  const [novaSenha, setNovaSenha] = useState('');
+  const acesso = textoAcesso(situacao);
 
   return (
     <Dialogo
       titulo={`Acesso de ${item.nome}`}
       onFechar={onFechar}
       validar={() => (!nome.trim() ? 'Informe o nome.'
+        : !emailValido(email) ? 'Informe um e-mail válido.'
         : perfilEhEquipe(perfil) && !profissional ? 'Ligue este login ao profissional do cadastro: é assim que ele vê os próprios eventos.'
+        : novaSenha && novaSenha.trim().length < 6 ? 'A senha provisória precisa ter pelo menos 6 caracteres.'
         : null)}
-      onSalvar={() => executar(
-        () => salvarUsuario(cliente, item.id, { nome: nome.trim(), perfil, ativo }, {
-          atual: ligadoAtual, novo: profissional || null,
-        }),
-        'Acesso atualizado.',
-      )}
+      onSalvar={async () => {
+        const r = await executar(
+          () => editarAcesso(cliente, {
+            id: item.id, nome: nome.trim(), email: email.trim(), perfil, ativo,
+            profissional_id: profissional || null, senha: novaSenha.trim() || undefined,
+          }),
+          novaSenha.trim() ? `Acesso atualizado. Passe a nova senha para ${nome.trim()}.` : 'Acesso atualizado.',
+        );
+        if (r === true) onSalvo();
+        return r;
+      }}
     >
-      <p className="suave" style={{ margin: 0 }}>Login: <strong>{item.email}</strong></p>
-      <Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required />}</Campo>
-      <Campo rotulo="Perfil" dica={ehVoce ? 'Você não pode mudar o próprio perfil (para não perder o acesso à gestão).' : descricao}>
-        {(id) => (
-          <select id={id} value={perfil} onChange={(e) => setPerfil(e.target.value as PerfilAcesso)} disabled={ehVoce}>
-            {PERFIS.map((p) => <option key={p.valor} value={p.valor}>{p.texto}</option>)}
-          </select>
-        )}
-      </Campo>
+      {situacao && (
+        <p className="suave" style={{ margin: 0 }}>Situação do login: <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span></p>
+      )}
+      <Linha>
+        <Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required />}</Campo>
+        <Campo rotulo="E-mail (é o login)" obrigatorio dica={email.trim() !== item.email ? 'A pessoa passa a entrar com o e-mail novo.' : undefined}>
+          {(id) => <input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />}
+        </Campo>
+      </Linha>
       <Campo
-        rotulo={perfilEhEquipe(perfil) ? 'Profissional do cadastro' : 'Profissional do cadastro (opcional)'}
-        obrigatorio={perfilEhEquipe(perfil)}
-        dica="Só aparecem profissionais que ainda não têm login."
+        rotulo="Perfil"
+        dica={ehVoce ? 'Você não pode mudar o próprio perfil (para não perder o acesso à gestão).' : PERFIS.find((p) => p.valor === perfil)?.descricao}
       >
         {(id) => (
-          <select id={id} value={profissional} onChange={(e) => setProfissional(e.target.value)}>
-            <option value="">Nenhum</option>
-            {livres.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.ativo ? '' : ' (inativo)'}</option>)}
+          <select id={id} value={perfil} onChange={(e) => setPerfil(e.target.value as PerfilAcesso)} disabled={ehVoce}>
+            {perfis.map((p) => <option key={p.valor} value={p.valor}>{p.texto}</option>)}
           </select>
         )}
       </Campo>
+      <CampoProfissional valor={profissional} onMudar={setProfissional} perfil={perfil} loginId={item.id} />
+      {!ehVoce && (
+        <CampoSenha
+          rotulo="Nova senha provisória (opcional)" valor={novaSenha} onMudar={setNovaSenha}
+          dica="Use quando a pessoa esqueceu a senha. Em branco, a senha atual continua; no próximo acesso ela cria a própria senha."
+        />
+      )}
       <Marcador
         texto="Acesso ativo"
-        dica={ehVoce ? 'Você não pode desativar o próprio acesso.' : 'Com o acesso inativo, a pessoa entra mas não vê nada.'}
+        dica={ehVoce ? 'Você não pode desativar o próprio acesso.' : 'Com o acesso desativado, a pessoa não consegue mais entrar.'}
         marcado={ativo} onMudar={setAtivo} desativado={ehVoce}
       />
+      {!ehVoce && (
+        <div style={{ borderTop: '1px solid var(--borda)', paddingTop: 14 }}>
+          <button type="button" className="botao perigo" onClick={onExcluir}>Excluir acesso</button>
+          <small className="suave" style={{ display: 'block', marginTop: 6 }}>
+            Para quem nunca usou o sistema ou foi criado por engano. Quem já tem histórico deve ser desativado.
+          </small>
+        </div>
+      )}
     </Dialogo>
   );
 }
 
+function ConfirmarExclusao({ item, onFechar, onExcluido }: { item: Usuario; onFechar: () => void; onExcluido: () => void }) {
+  const { cliente, executar } = useEstado();
+  return (
+    <Dialogo
+      titulo="Excluir acesso"
+      textoSalvar="Excluir de vez"
+      perigo
+      onFechar={onFechar}
+      onSalvar={async () => {
+        const r = await executar(() => excluirAcesso(cliente, item.id), `Acesso de ${item.nome} excluído.`);
+        if (r === true) onExcluido();
+        return r;
+      }}
+    >
+      <p style={{ margin: 0 }}>
+        Excluir o acesso de <strong>{item.nome}</strong> ({item.email})? O login deixa de existir e isso não pode ser desfeito.
+      </p>
+      <p className="suave" style={{ margin: 0 }}>
+        Se a pessoa for ligada a um profissional, o cadastro dele continua. Se ela já tiver registros no sistema, a exclusão é
+        recusada: nesse caso, desative o acesso.
+      </p>
+    </Dialogo>
+  );
+}
+
+// ---------------------------------------------------------------------
+
+const POR_PAGINA = 15;
+
+type FiltroSituacao = '' | 'ativos' | 'inativos' | 'nunca' | 'senha';
+
+/** Situações da lista; as que dependem da situação do login só aparecem para a gestão */
+const SITUACOES_FILTRO: { valor: FiltroSituacao; texto: string; precisaLogins?: boolean }[] = [
+  { valor: '', texto: 'Todos' },
+  { valor: 'ativos', texto: 'Ativos' },
+  { valor: 'inativos', texto: 'Inativos' },
+  { valor: 'nunca', texto: 'Nunca entraram', precisaLogins: true },
+  { valor: 'senha', texto: 'Falta trocar a senha', precisaLogins: true },
+];
+
 export function Usuarios() {
-  const { db, permissoes, usuario } = useEstado();
+  const { db, cliente, permissoes, usuario } = useEstado();
+  const celular = useCelular();
   const [editando, setEditando] = useState<Usuario | null>(null);
+  const [excluindo, setExcluindo] = useState<Usuario | null>(null);
+  const [novo, setNovo] = useState<Inicial | null>(null);
+  const [logins, setLogins] = useState<SituacaoLogin[] | null>(null);
+  const [erroLogins, setErroLogins] = useState<string | null>(null);
+
+  const carregarLogins = useCallback(async () => {
+    if (!permissoes.gestao) return;
+    try {
+      setErroLogins(null);
+      setLogins((await listarLogins(cliente)).logins);
+    } catch (e) {
+      setErroLogins(traduzirErro(e));
+    }
+  }, [cliente, permissoes.gestao]);
+
+  useEffect(() => { void carregarLogins(); }, [carregarLogins]);
+
+  /** Gerente não altera acessos de Direção */
+  const podeEditar = (u: Usuario) => permissoes.gestao && (u.perfil !== 'diretora' || usuario.perfil === 'diretora');
+  const situacaoDe = (id: string) => logins?.find((l) => l.id === id);
   const profissionalDe = (id: string) => db.profissionais.find((p) => p.usuario_id === id);
-  const lista = [...db.usuarios].sort((a, b) => Number(b.ativo) - Number(a.ativo)
+  const todos = [...db.usuarios].sort((a, b) => Number(b.ativo) - Number(a.ativo)
     || PERFIS.findIndex((p) => p.valor === a.perfil) - PERFIS.findIndex((p) => p.valor === b.perfil)
     || a.nome.localeCompare(b.nome));
-  const semLogin = db.profissionais.filter((p) => p.ativo && !p.usuario_id);
+
+  // Filtros no endereço da página: continuam ao voltar e podem ser compartilhados
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const perfilFiltro = parametros.get('perfil') ?? '';
+  const situacaoFiltro = (parametros.get('situacao') ?? '') as FiltroSituacao;
+  const pagina = Number(parametros.get('pagina')) || 1;
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos, { replace: true });
+  };
+
+  const passaSituacao = (u: Usuario, filtro: FiltroSituacao) => {
+    const s = situacaoDe(u.id);
+    switch (filtro) {
+      case 'ativos': return u.ativo;
+      case 'inativos': return !u.ativo;
+      case 'nunca': return u.ativo && !!s && !s.ultimo_acesso;
+      case 'senha': return u.ativo && !!s && s.trocar_senha && !!s.ultimo_acesso;
+      default: return true;
+    }
+  };
+  const termo = semAcentos(busca.trim());
+  const filtrados = todos.filter((u) => (!termo || semAcentos(`${u.nome} ${u.email} ${profissionalDe(u.id)?.nome ?? ''}`).includes(termo))
+    && (!perfilFiltro || u.perfil === perfilFiltro)
+    && passaSituacao(u, situacaoFiltro));
+  const { itens: lista, atual, totalPaginas } = paginar(filtrados, pagina, POR_PAGINA);
+
+  const contadores = SITUACOES_FILTRO
+    .filter((f) => permissoes.gestao || !f.precisaLogins)
+    .map((f) => ({ ...f, total: todos.filter((u) => passaSituacao(u, f.valor)).length }))
+    .filter((f) => f.valor === '' || f.total > 0);
 
   return (
     <Layout>
       <div className="lista-topo">
         <div>
           <h1>Usuários e acessos</h1>
-          <p>{permissoes.gestao ? 'Quem entra no sistema, com qual perfil.' : 'Só a direção e a gerente alteram os acessos.'}</p>
+          <p>{permissoes.gestao ? 'Quem entra no sistema, com qual perfil. Tudo é criado e alterado aqui.' : 'Só a direção e a gerente alteram os acessos.'}</p>
         </div>
+        {permissoes.gestao && (
+          <button type="button" className="botao primario" onClick={() => setNovo({})}>+ Novo acesso</button>
+        )}
       </div>
 
       <div className="coluna">
-        <section className="cartao tabela-rolagem">
-          <table className="tabela">
-            <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Profissional</th><th>Situação</th></tr></thead>
-            <tbody>
+        {erroLogins && (
+          <p className="erro" role="alert" style={{ margin: 0 }}>
+            Não foi possível ver a situação dos logins: {erroLogins}
+          </p>
+        )}
+
+        <div>
+          <div className="contadores" role="group" aria-label="Atalhos de situação">
+            {contadores.map((f) => (
+              <button
+                key={f.valor || 'todos'} type="button" className={`contador${situacaoFiltro === f.valor ? ' ativo' : ''}`}
+                onClick={() => alterar('situacao', f.valor)} aria-pressed={situacaoFiltro === f.valor}
+              >
+                {f.texto} <strong>{f.total}</strong>
+              </button>
+            ))}
+          </div>
+
+          <section className="filtros-eventos" aria-label="Filtros de acessos">
+            <label className="busca-eventos">
+              <span className="busca-icone" aria-hidden="true">⌕</span>
+              <span className="sr-only">Buscar acesso</span>
+              <input
+                type="search" value={busca} onChange={(e) => alterar('busca', e.target.value)}
+                placeholder="Buscar por nome, e-mail ou profissional"
+              />
+              {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+            </label>
+            <SeletorFiltro
+              label="Perfil" icon="chave" value={perfilFiltro} onChange={(valor) => alterar('perfil', valor)}
+              options={[['', 'Todos os perfis'], ...PERFIS.map((p) => [p.valor, p.texto] as [string, string])]}
+            />
+            <SeletorFiltro
+              label="Situação" icon="lista" value={situacaoFiltro} onChange={(valor) => alterar('situacao', valor)}
+              options={SITUACOES_FILTRO.filter((f) => permissoes.gestao || !f.precisaLogins)
+                .map((f) => [f.valor, f.valor ? f.texto : 'Todas as situações'] as [string, string])}
+            />
+          </section>
+
+          {filtrados.length === 0 ? (
+            <div className="vazio">
+              Nenhum acesso encontrado com esses filtros.{' '}
+              <button type="button" className="link-botao" onClick={() => setParametros(new URLSearchParams(), { replace: true })}>Limpar filtros</button>
+            </div>
+          ) : celular ? (
+            <div className="cartoes-acesso">
               {lista.map((u) => {
-                const abrir = permissoes.gestao ? () => setEditando(u) : undefined;
+                const abrir = podeEditar(u) ? () => setEditando(u) : undefined;
                 const prof = profissionalDe(u.id);
-                const faltaLigar = perfilEhEquipe(u.perfil) && !prof;
+                const acesso = textoAcesso(situacaoDe(u.id));
                 return (
-                  <tr key={u.id} className={`${abrir ? 'clicavel' : ''}${u.ativo ? '' : ' inativo'}`} onClick={abrir}>
-                    <td>
-                      {abrir
-                        ? <button type="button" className="link-botao" onClick={(e) => { e.stopPropagation(); abrir(); }}>{u.nome}</button>
-                        : <strong>{u.nome}</strong>}
-                      {u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}
-                    </td>
-                    <td className="suave">{u.email}</td>
-                    <td>{NOME_PERFIL[u.perfil]}</td>
-                    <td>{prof?.nome ?? (faltaLigar ? <span className="alerta-texto">Falta ligar</span> : '—')}</td>
-                    <td><span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
-                  </tr>
+                  <button key={u.id} type="button" className={`cartao-acesso${u.ativo ? '' : ' inativo'}`} onClick={abrir} disabled={!abrir}>
+                    <span className="cartao-acesso-topo">
+                      <strong>{u.nome}{u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}</strong>
+                      <span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </span>
+                    <span className="suave">{u.email}</span>
+                    <span className="selos">
+                      <span className="selo marca">{NOME_PERFIL[u.perfil]}</span>
+                      {prof && <span className="selo neutro">{prof.nome}</span>}
+                      {permissoes.gestao && logins && <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span>}
+                    </span>
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="cartao">
-          <h2>Novo acesso</h2>
-          <p className="suave" style={{ margin: '0 0 8px' }}>
-            Por enquanto, o login é criado no painel do Supabase (Authentication → Users) e ligado ao perfil pelo
-            arquivo <code>supabase/vincular_usuarios.sql</code>. O convite por e-mail direto daqui entra com o back.
-          </p>
-          {semLogin.length > 0 && (
-            <p className="suave" style={{ margin: 0 }}>
-              Profissionais ativos ainda sem login: {semLogin.map((p) => p.nome).join(', ')}.
-            </p>
+            </div>
+          ) : (
+            <section className="cartao tabela-rolagem">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Nome</th><th>Login</th><th>Perfil</th><th>Profissional</th>
+                    {permissoes.gestao && <th>Acesso</th>}
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lista.map((u) => {
+                    const abrir = podeEditar(u) ? () => setEditando(u) : undefined;
+                    const prof = profissionalDe(u.id);
+                    const faltaLigar = perfilEhEquipe(u.perfil) && !prof;
+                    const acesso = textoAcesso(situacaoDe(u.id));
+                    return (
+                      <tr key={u.id} className={`${abrir ? 'clicavel' : ''}${u.ativo ? '' : ' inativo'}`} onClick={abrir}>
+                        <td>
+                          {abrir
+                            ? <button type="button" className="link-botao" onClick={(e) => { e.stopPropagation(); abrir(); }}>{u.nome}</button>
+                            : <strong>{u.nome}</strong>}
+                          {u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}
+                        </td>
+                        <td className="suave">{u.email}</td>
+                        <td>{NOME_PERFIL[u.perfil]}</td>
+                        <td>{prof?.nome ?? (faltaLigar ? <span className="alerta-texto">Falta ligar</span> : '—')}</td>
+                        {permissoes.gestao && <td>{logins ? <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span> : '…'}</td>}
+                        <td><span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
           )}
-        </section>
+
+          <Paginacao
+            pagina={atual} totalPaginas={totalPaginas} total={filtrados.length} porPagina={POR_PAGINA}
+            onMudar={(p) => { alterar('pagina', p > 1 ? String(p) : ''); window.scrollTo(0, 0); }}
+          />
+        </div>
       </div>
 
-      {editando && <FormUsuario item={editando} onFechar={() => setEditando(null)} />}
+      {novo && (
+        <FormNovoAcesso inicial={novo} onFechar={() => setNovo(null)} onCriado={() => void carregarLogins()} />
+      )}
+      {editando && (
+        <FormUsuario
+          item={editando} situacao={situacaoDe(editando.id)}
+          onFechar={() => setEditando(null)} onSalvo={() => void carregarLogins()}
+          onExcluir={() => { setExcluindo(editando); setEditando(null); }}
+        />
+      )}
+      {excluindo && (
+        <ConfirmarExclusao item={excluindo} onFechar={() => setExcluindo(null)} onExcluido={() => void carregarLogins()} />
+      )}
     </Layout>
   );
 }
