@@ -13,7 +13,7 @@ import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, mesAno, moeda, partes } from '../lib/formato';
+import { dataLonga, diaCurto, hora, mesAno, moeda, partes, semAcentos } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
 } from '../lib/consultas';
@@ -21,10 +21,6 @@ import { LinhaEvento } from './Painel';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
 const SITUACOES = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
-
-function semAcentos(texto: string) {
-  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
 
 function FiltrosEventos({ eventos }: { eventos: ReturnType<typeof eventosOrdenados> }) {
   const [parametros, setParametros] = useSearchParams();

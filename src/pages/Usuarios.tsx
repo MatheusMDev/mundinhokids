@@ -1,17 +1,19 @@
 // Usuários e acessos: quem tem login, com qual perfil e ligado a qual
 // profissional do cadastro. Tudo é feito aqui no site: a operação vê a lista;
-// Direção e Gerente criam e editam acessos (nome, e-mail, perfil, senha e
+// Direção e Gerente criam, editam e excluem acessos (nome, e-mail, perfil, senha e
 // situação) pela função "usuarios" do Supabase, que guarda a chave de
 // administrador fora do navegador. Só a Direção mexe em acessos de Direção.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Layout } from '../components/Layout';
+import { useSearchParams } from 'react-router-dom';
+import { Layout, useCelular } from '../components/Layout';
+import { Paginacao, paginar } from '../components/Paginacao';
 import { Campo, Dialogo, Linha, Marcador } from '../components/Formulario';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { criarAcesso, editarAcesso, listarLogins, type NovoAcesso } from '../lib/acoes';
+import { criarAcesso, editarAcesso, excluirAcesso, listarLogins, type NovoAcesso } from '../lib/acoes';
 import { traduzirErro } from '../lib/erros';
-import { diaCurto, hora } from '../lib/formato';
-import type { FuncaoProfissional, PerfilAcesso, Profissional, SituacaoLogin, Usuario } from '../lib/tipos';
+import { diaCurto, hora, semAcentos } from '../lib/formato';
+import type { PerfilAcesso, SituacaoLogin, Usuario } from '../lib/tipos';
 
 const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: boolean }[] = [
   { valor: 'diretora', texto: 'Direção', descricao: 'Vê tudo, inclusive valores; aprova trocas e despesas; cuida de todos os acessos.', equipe: false },
@@ -25,11 +27,6 @@ const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: b
 
 const perfilEhEquipe = (p: PerfilAcesso) => PERFIS.find((x) => x.valor === p)?.equipe ?? false;
 const emailValido = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-
-/** Perfil sugerido pela primeira função do profissional */
-const PERFIL_DA_FUNCAO: Record<FuncaoProfissional, PerfilAcesso> = {
-  artista: 'artista', produtor: 'produtor', maquiador: 'maquiador', fantasias: 'fantasias',
-};
 
 /** Senha provisória fácil de ditar (sem letras e números que se confundem) */
 function gerarSenha() {
@@ -172,8 +169,8 @@ function FormNovoAcesso({ inicial, onFechar, onCriado }: { inicial: Inicial; onF
 
 // ---------------------------------------------------------------------
 
-function FormUsuario({ item, situacao, onFechar, onSalvo }: {
-  item: Usuario; situacao?: SituacaoLogin; onFechar: () => void; onSalvo: () => void;
+function FormUsuario({ item, situacao, onFechar, onSalvo, onExcluir }: {
+  item: Usuario; situacao?: SituacaoLogin; onFechar: () => void; onSalvo: () => void; onExcluir: () => void;
 }) {
   const { db, cliente, executar, usuario } = useEstado();
   const perfis = usePerfisPermitidos(item.perfil);
@@ -240,15 +237,63 @@ function FormUsuario({ item, situacao, onFechar, onSalvo }: {
         dica={ehVoce ? 'Você não pode desativar o próprio acesso.' : 'Com o acesso desativado, a pessoa não consegue mais entrar.'}
         marcado={ativo} onMudar={setAtivo} desativado={ehVoce}
       />
+      {!ehVoce && (
+        <div style={{ borderTop: '1px solid var(--borda)', paddingTop: 14 }}>
+          <button type="button" className="botao perigo" onClick={onExcluir}>Excluir acesso</button>
+          <small className="suave" style={{ display: 'block', marginTop: 6 }}>
+            Para quem nunca usou o sistema ou foi criado por engano. Quem já tem histórico deve ser desativado.
+          </small>
+        </div>
+      )}
+    </Dialogo>
+  );
+}
+
+function ConfirmarExclusao({ item, onFechar, onExcluido }: { item: Usuario; onFechar: () => void; onExcluido: () => void }) {
+  const { cliente, executar } = useEstado();
+  return (
+    <Dialogo
+      titulo="Excluir acesso"
+      textoSalvar="Excluir de vez"
+      perigo
+      onFechar={onFechar}
+      onSalvar={async () => {
+        const r = await executar(() => excluirAcesso(cliente, item.id), `Acesso de ${item.nome} excluído.`);
+        if (r === true) onExcluido();
+        return r;
+      }}
+    >
+      <p style={{ margin: 0 }}>
+        Excluir o acesso de <strong>{item.nome}</strong> ({item.email})? O login deixa de existir e isso não pode ser desfeito.
+      </p>
+      <p className="suave" style={{ margin: 0 }}>
+        Se a pessoa for ligada a um profissional, o cadastro dele continua. Se ela já tiver registros no sistema, a exclusão é
+        recusada: nesse caso, desative o acesso.
+      </p>
     </Dialogo>
   );
 }
 
 // ---------------------------------------------------------------------
 
+const POR_PAGINA = 15;
+
+type FiltroSituacao = '' | 'ativos' | 'inativos' | 'nunca' | 'senha';
+
+/** Situações da lista; as que dependem da situação do login só aparecem para a gestão */
+const SITUACOES_FILTRO: { valor: FiltroSituacao; texto: string; precisaLogins?: boolean }[] = [
+  { valor: '', texto: 'Todos' },
+  { valor: 'ativos', texto: 'Ativos' },
+  { valor: 'inativos', texto: 'Inativos' },
+  { valor: 'nunca', texto: 'Nunca entraram', precisaLogins: true },
+  { valor: 'senha', texto: 'Falta trocar a senha', precisaLogins: true },
+];
+
 export function Usuarios() {
   const { db, cliente, permissoes, usuario } = useEstado();
+  const celular = useCelular();
   const [editando, setEditando] = useState<Usuario | null>(null);
+  const [excluindo, setExcluindo] = useState<Usuario | null>(null);
   const [novo, setNovo] = useState<Inicial | null>(null);
   const [logins, setLogins] = useState<SituacaoLogin[] | null>(null);
   const [erroLogins, setErroLogins] = useState<string | null>(null);
@@ -269,14 +314,44 @@ export function Usuarios() {
   const podeEditar = (u: Usuario) => permissoes.gestao && (u.perfil !== 'diretora' || usuario.perfil === 'diretora');
   const situacaoDe = (id: string) => logins?.find((l) => l.id === id);
   const profissionalDe = (id: string) => db.profissionais.find((p) => p.usuario_id === id);
-  const lista = [...db.usuarios].sort((a, b) => Number(b.ativo) - Number(a.ativo)
+  const todos = [...db.usuarios].sort((a, b) => Number(b.ativo) - Number(a.ativo)
     || PERFIS.findIndex((p) => p.valor === a.perfil) - PERFIS.findIndex((p) => p.valor === b.perfil)
     || a.nome.localeCompare(b.nome));
-  const semLogin = db.profissionais.filter((p) => p.ativo && !p.usuario_id).sort((a, b) => a.nome.localeCompare(b.nome));
 
-  const criarPara = (p: Profissional) => setNovo({
-    nome: p.nome, profissional: p.id, perfil: p.funcoes[0] ? PERFIL_DA_FUNCAO[p.funcoes[0]] : 'artista',
-  });
+  // Filtros no endereço da página: continuam ao voltar e podem ser compartilhados
+  const [parametros, setParametros] = useSearchParams();
+  const busca = parametros.get('busca') ?? '';
+  const perfilFiltro = parametros.get('perfil') ?? '';
+  const situacaoFiltro = (parametros.get('situacao') ?? '') as FiltroSituacao;
+  const pagina = Number(parametros.get('pagina')) || 1;
+  const alterar = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    if (nome !== 'pagina') novos.delete('pagina');
+    setParametros(novos, { replace: true });
+  };
+
+  const passaSituacao = (u: Usuario, filtro: FiltroSituacao) => {
+    const s = situacaoDe(u.id);
+    switch (filtro) {
+      case 'ativos': return u.ativo;
+      case 'inativos': return !u.ativo;
+      case 'nunca': return u.ativo && !!s && !s.ultimo_acesso;
+      case 'senha': return u.ativo && !!s && s.trocar_senha && !!s.ultimo_acesso;
+      default: return true;
+    }
+  };
+  const termo = semAcentos(busca.trim());
+  const filtrados = todos.filter((u) => (!termo || semAcentos(`${u.nome} ${u.email} ${profissionalDe(u.id)?.nome ?? ''}`).includes(termo))
+    && (!perfilFiltro || u.perfil === perfilFiltro)
+    && passaSituacao(u, situacaoFiltro));
+  const { itens: lista, atual, totalPaginas } = paginar(filtrados, pagina, POR_PAGINA);
+
+  const contadores = SITUACOES_FILTRO
+    .filter((f) => permissoes.gestao || !f.precisaLogins)
+    .map((f) => ({ ...f, total: todos.filter((u) => passaSituacao(u, f.valor)).length }))
+    .filter((f) => f.valor === '' || f.total > 0);
 
   return (
     <Layout>
@@ -297,55 +372,114 @@ export function Usuarios() {
           </p>
         )}
 
-        <section className="cartao tabela-rolagem">
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Nome</th><th>Login</th><th>Perfil</th><th>Profissional</th>
-                {permissoes.gestao && <th>Acesso</th>}
-                <th>Situação</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div>
+          <div className="contadores" role="group" aria-label="Atalhos de situação">
+            {contadores.map((f) => (
+              <button
+                key={f.valor || 'todos'} type="button" className={`contador${situacaoFiltro === f.valor ? ' ativo' : ''}`}
+                onClick={() => alterar('situacao', f.valor)} aria-pressed={situacaoFiltro === f.valor}
+              >
+                {f.texto} <strong>{f.total}</strong>
+              </button>
+            ))}
+          </div>
+
+          <section className="filtros-eventos" aria-label="Filtros de acessos">
+            <label className="busca-eventos">
+              <span className="busca-icone" aria-hidden="true">⌕</span>
+              <span className="sr-only">Buscar acesso</span>
+              <input
+                type="search" value={busca} onChange={(e) => alterar('busca', e.target.value)}
+                placeholder="Buscar por nome, e-mail ou profissional"
+              />
+              {busca && <button type="button" className="limpar-busca" onClick={() => alterar('busca', '')} aria-label="Limpar busca">×</button>}
+            </label>
+            <label className="filtro-select">
+              <span>Perfil</span>
+              <select value={perfilFiltro} onChange={(e) => alterar('perfil', e.target.value)}>
+                <option value="">Todos os perfis</option>
+                {PERFIS.map((p) => <option key={p.valor} value={p.valor}>{p.texto}</option>)}
+              </select>
+            </label>
+            <label className="filtro-select">
+              <span>Situação</span>
+              <select value={situacaoFiltro} onChange={(e) => alterar('situacao', e.target.value)}>
+                {SITUACOES_FILTRO.filter((f) => permissoes.gestao || !f.precisaLogins).map((f) => (
+                  <option key={f.valor || 'todos'} value={f.valor}>{f.valor ? f.texto : 'Todas as situações'}</option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          {filtrados.length === 0 ? (
+            <div className="vazio">
+              Nenhum acesso encontrado com esses filtros.{' '}
+              <button type="button" className="link-botao" onClick={() => setParametros(new URLSearchParams(), { replace: true })}>Limpar filtros</button>
+            </div>
+          ) : celular ? (
+            <div className="cartoes-acesso">
               {lista.map((u) => {
                 const abrir = podeEditar(u) ? () => setEditando(u) : undefined;
                 const prof = profissionalDe(u.id);
-                const faltaLigar = perfilEhEquipe(u.perfil) && !prof;
                 const acesso = textoAcesso(situacaoDe(u.id));
                 return (
-                  <tr key={u.id} className={`${abrir ? 'clicavel' : ''}${u.ativo ? '' : ' inativo'}`} onClick={abrir}>
-                    <td>
-                      {abrir
-                        ? <button type="button" className="link-botao" onClick={(e) => { e.stopPropagation(); abrir(); }}>{u.nome}</button>
-                        : <strong>{u.nome}</strong>}
-                      {u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}
-                    </td>
-                    <td className="suave">{u.email}</td>
-                    <td>{NOME_PERFIL[u.perfil]}</td>
-                    <td>{prof?.nome ?? (faltaLigar ? <span className="alerta-texto">Falta ligar</span> : '—')}</td>
-                    {permissoes.gestao && <td>{logins ? <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span> : '…'}</td>}
-                    <td><span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
-                  </tr>
+                  <button key={u.id} type="button" className={`cartao-acesso${u.ativo ? '' : ' inativo'}`} onClick={abrir} disabled={!abrir}>
+                    <span className="cartao-acesso-topo">
+                      <strong>{u.nome}{u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}</strong>
+                      <span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </span>
+                    <span className="suave">{u.email}</span>
+                    <span className="selos">
+                      <span className="selo marca">{NOME_PERFIL[u.perfil]}</span>
+                      {prof && <span className="selo neutro">{prof.nome}</span>}
+                      {permissoes.gestao && logins && <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span>}
+                    </span>
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </section>
+            </div>
+          ) : (
+            <section className="cartao tabela-rolagem">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Nome</th><th>Login</th><th>Perfil</th><th>Profissional</th>
+                    {permissoes.gestao && <th>Acesso</th>}
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lista.map((u) => {
+                    const abrir = podeEditar(u) ? () => setEditando(u) : undefined;
+                    const prof = profissionalDe(u.id);
+                    const faltaLigar = perfilEhEquipe(u.perfil) && !prof;
+                    const acesso = textoAcesso(situacaoDe(u.id));
+                    return (
+                      <tr key={u.id} className={`${abrir ? 'clicavel' : ''}${u.ativo ? '' : ' inativo'}`} onClick={abrir}>
+                        <td>
+                          {abrir
+                            ? <button type="button" className="link-botao" onClick={(e) => { e.stopPropagation(); abrir(); }}>{u.nome}</button>
+                            : <strong>{u.nome}</strong>}
+                          {u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 8 }}>você</span>}
+                        </td>
+                        <td className="suave">{u.email}</td>
+                        <td>{NOME_PERFIL[u.perfil]}</td>
+                        <td>{prof?.nome ?? (faltaLigar ? <span className="alerta-texto">Falta ligar</span> : '—')}</td>
+                        {permissoes.gestao && <td>{logins ? <span className={`selo ${acesso.tipo}`}>{acesso.texto}</span> : '…'}</td>}
+                        <td><span className={`selo ${u.ativo ? 'ok' : 'neutro'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          )}
 
-        {semLogin.length > 0 && (
-          <section className="cartao">
-            <h2>Profissionais ativos sem login</h2>
-            {permissoes.gestao ? (
-              <div className="acoes-linha" style={{ marginTop: 0 }}>
-                {semLogin.map((p) => (
-                  <button key={p.id} type="button" className="botao" onClick={() => criarPara(p)}>Criar acesso para {p.nome}</button>
-                ))}
-              </div>
-            ) : (
-              <p className="suave" style={{ margin: 0 }}>{semLogin.map((p) => p.nome).join(', ')}.</p>
-            )}
-          </section>
-        )}
+          <Paginacao
+            pagina={atual} totalPaginas={totalPaginas} total={filtrados.length} porPagina={POR_PAGINA}
+            onMudar={(p) => { alterar('pagina', p > 1 ? String(p) : ''); window.scrollTo(0, 0); }}
+          />
+        </div>
       </div>
 
       {novo && (
@@ -355,7 +489,11 @@ export function Usuarios() {
         <FormUsuario
           item={editando} situacao={situacaoDe(editando.id)}
           onFechar={() => setEditando(null)} onSalvo={() => void carregarLogins()}
+          onExcluir={() => { setExcluindo(editando); setEditando(null); }}
         />
+      )}
+      {excluindo && (
+        <ConfirmarExclusao item={excluindo} onFechar={() => setExcluindo(null)} onExcluido={() => void carregarLogins()} />
       )}
     </Layout>
   );

@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
+import { sairDesteAparelho } from './supabase';
 import type {
   ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
   Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
@@ -244,6 +245,11 @@ async function chamarUsuarios<T>(c: Cliente, corpo: Record<string, unknown>): Pr
   if (!error) return data as T;
   const resposta = (error as { context?: Response }).context;
   if (resposta instanceof Response) {
+    // Sessão encerrada no servidor (ex.: saiu em outro aparelho): volta para a tela de login
+    if (resposta.status === 401) {
+      await sairDesteAparelho(c);
+      throw new Error('Sua sessão terminou. Entre de novo.');
+    }
     const json = await resposta.json().catch(() => null) as { erro?: string } | null;
     if (json?.erro) throw new Error(json.erro);
     if (resposta.status === 404) throw new Error('O serviço de acessos ainda não está no ar. Fale com quem cuida do sistema.');
@@ -274,6 +280,9 @@ export interface EdicaoAcesso extends Pick<Usuario, 'id' | 'nome' | 'email' | 'p
 
 /** Nome, e-mail, perfil, profissional, senha e situação: tudo no servidor, com as travas da gestão */
 export const editarAcesso = (c: Cliente, edicao: EdicaoAcesso) => chamarUsuarios(c, { acao: 'editar', ...edicao });
+
+/** Apaga o login; o servidor recusa se a pessoa já tem histórico (aí o certo é desativar) */
+export const excluirAcesso = (c: Cliente, id: string) => chamarUsuarios(c, { acao: 'excluir', id });
 
 /** A própria pessoa troca a senha (primeiro acesso, link de recuperação ou "Trocar minha senha") */
 export async function trocarMinhaSenha(c: Cliente, senha: string) {

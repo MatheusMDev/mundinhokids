@@ -11,8 +11,9 @@
 //   criar   cria o login (senha provisória ou convite por e-mail),
 //           ou dá perfil a um login que já existe sem perfil
 //   editar  nome, e-mail, perfil, profissional, nova senha e ativo/inativo
+//   excluir apaga o login de quem não tem histórico (com histórico: desativar)
 
-import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supabase-js@2.46.1';
+import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supabase-js@2';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -124,6 +125,7 @@ async function criar(admin: SupabaseClient, corpo: Record<string, unknown>, quem
   if (login) {
     const { data: jaTem } = await admin.from('usuarios').select('id').eq('id', login.id).maybeSingle();
     if (jaTem) throw new Recusa('Já existe um acesso com esse e-mail.');
+    if (modo === 'convite') throw new Recusa('Esse e-mail já tem login. Crie o acesso com senha provisória.');
     if (modo === 'senha') {
       const { error } = await admin.auth.admin.updateUserById(login.id, {
         password: senha, email_confirm: true, ban_duration: 'none',
@@ -234,20 +236,75 @@ async function editar(admin: SupabaseClient, corpo: Record<string, unknown>, que
   return { ok: true };
 }
 
+/** Registros que levam o nome da pessoa: com eles, o acesso é desativado, não excluído */
+const HISTORICO: [tabela: string, coluna: string, descricao: string][] = [
+  ['eventos', 'criado_por', 'eventos'],
+  ['evento_remarcacoes', 'alterado_por', 'remarcações'],
+  ['despesas', 'criado_por', 'despesas'],
+  ['despesas', 'aprovado_por', 'despesas aprovadas'],
+  ['substituicoes', 'decidido_por', 'trocas'],
+  ['conferencias_fantasia', 'responsavel_id', 'conferências de fantasias'],
+];
+
+async function excluir(admin: SupabaseClient, corpo: Record<string, unknown>, quem: Chamador) {
+  const id = texto(corpo.id);
+  if (id === quem.id) throw new Recusa('Você não pode excluir o próprio acesso.');
+  const { data: atual } = await admin.from('usuarios').select('id, perfil, ativo').eq('id', id).maybeSingle();
+  if (!atual) throw new Recusa('Acesso não encontrado.');
+  if (atual.perfil === 'diretora' && quem.perfil !== 'diretora') throw new Recusa('Só a Direção pode excluir um acesso de Direção.', 403);
+
+  // O sistema nunca pode ficar sem ninguém da gestão com acesso
+  if (atual.ativo && PERFIS_GESTAO.includes(atual.perfil)) {
+    const { count } = await admin.from('usuarios').select('id', { count: 'exact', head: true })
+      .eq('ativo', true).in('perfil', PERFIS_GESTAO).neq('id', id);
+    if (!count) throw new Recusa('É preciso ter pelo menos uma pessoa da Direção ou gerente com acesso ativo.');
+  }
+
+  const temHistorico: string[] = [];
+  for (const [tabela, coluna, descricao] of HISTORICO) {
+    const { count, error } = await admin.from(tabela).select(coluna, { count: 'exact', head: true }).eq(coluna, id);
+    if (error) throw error;
+    if (count && !temHistorico.includes(descricao)) temHistorico.push(descricao);
+  }
+  if (temHistorico.length) {
+    throw new Recusa(`Este acesso já tem registros no sistema (${temHistorico.join(', ')}). Para manter o histórico, desative o acesso em vez de excluir.`);
+  }
+
+  // O cadastro do profissional continua; só perde a ligação com o login
+  const { error: erroProf } = await admin.from('profissionais').update({ usuario_id: null }).eq('usuario_id', id);
+  if (erroProf) throw erroProf;
+  // Apagar o login apaga junto o perfil, os avisos e as inscrições de celular (cascata do banco)
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) throw error;
+  return { ok: true };
+}
+
+/** Chave de administrador: a nova (sb_secret_…) quando o projeto usa as chaves novas; senão a service_role antiga */
+function chaveAdmin(): string {
+  try {
+    const novas = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}') as Record<string, string>;
+    if (novas.default) return novas.default;
+  } catch { /* variável ausente ou em outro formato: usa a antiga */ }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return resposta({ erro: 'Use POST.' }, 405);
 
   try {
     const url = Deno.env.get('SUPABASE_URL')!;
-    const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    const admin = createClient(url, chaveAdmin(), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
     // Quem está chamando: o token do login vem no cabeçalho Authorization
     const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-    const { data: sessao } = await admin.auth.getUser(token);
-    if (!sessao.user) throw new Recusa('Entre de novo no sistema.', 401);
+    const { data: sessao, error: erroSessao } = await admin.auth.getUser(token);
+    if (!sessao.user) {
+      console.error('usuarios: login não reconhecido:', erroSessao?.message);
+      throw new Recusa('Entre de novo no sistema.', 401);
+    }
     const { data: perfil } = await admin.from('usuarios').select('perfil, ativo').eq('id', sessao.user.id).maybeSingle();
     if (!perfil?.ativo || !PERFIS_GESTAO.includes(perfil.perfil)) {
       throw new Recusa('Só a direção e a gerente cuidam dos acessos.', 403);
@@ -259,6 +316,7 @@ Deno.serve(async (req) => {
       case 'listar': return resposta(await listar(admin));
       case 'criar': return resposta(await criar(admin, corpo, quem));
       case 'editar': return resposta(await editar(admin, corpo, quem));
+      case 'excluir': return resposta(await excluir(admin, corpo, quem));
       default: throw new Recusa('Ação desconhecida.');
     }
   } catch (e) {

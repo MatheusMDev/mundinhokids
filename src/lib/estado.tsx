@@ -7,7 +7,7 @@ import type { BaseDados, PerfilAcesso } from './tipos';
 import type { PerfilTela } from './consultas';
 import { carregarBase } from './dados';
 import { traduzirErro } from './erros';
-import { supabase } from './supabase';
+import { sairDesteAparelho, supabase } from './supabase';
 import { Login } from '../pages/Login';
 import { TrocarSenha } from '../pages/TrocarSenha';
 import { SkeletonEventos } from '../components/SkeletonEventos';
@@ -143,7 +143,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     avisar(aprova ? 'Troca aprovada. Escala atualizada e equipe avisada.' : 'Troca recusada. A escala continua como estava.');
   }, [cliente, recarregar, avisar]);
 
-  const sair = useCallback(() => { void cliente.auth.signOut(); }, [cliente]);
+  const sair = useCallback(() => { void sairDesteAparelho(cliente); }, [cliente]);
 
   const executar = useCallback(async (acao: () => Promise<unknown>, sucesso: string) => {
     try {
