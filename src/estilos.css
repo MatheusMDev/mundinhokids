@@ -393,6 +393,33 @@ h3 { font-size: 15px; font-weight: 800; }
 .personagem-detalhes strong { overflow: hidden; color: var(--texto-suave); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .personagem-referencias { overflow: hidden; margin: 12px 0 0; color: var(--texto-fraco); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .personagem-referencias strong { color: var(--texto-suave); }
+.cadastros-secao { padding: 16px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--cartao); box-shadow: var(--sombra); }
+.cadastros-secao-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cadastros-secao-topo h2 { margin: 0; color: var(--texto); font-size: 18px; }
+.cadastros-secao-topo p { margin: 3px 0 0; color: var(--texto-fraco); font-size: 12px; }
+.filtros-cadastros { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 12px; }
+.filtros-locais { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(150px, 190px)); }
+.cadastros-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cadastro-cartao { min-width: 0; padding: 16px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--fundo); transition: border-color .2s, box-shadow .2s, transform .2s; }
+.cadastro-cartao.clicavel { cursor: pointer; }
+.cadastro-cartao.clicavel:hover { border-color: var(--marca-borda); box-shadow: 0 7px 18px rgba(29, 21, 39, .08); transform: translateY(-1px); }
+.cadastro-cartao.clicavel:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+.cadastro-cartao.inativo { opacity: .7; }
+.cadastro-cartao-cabecalho, .cadastro-identidade { display: flex; align-items: center; }
+.cadastro-cartao-cabecalho { justify-content: space-between; gap: 10px; color: var(--texto-fraco); }
+.cadastro-identidade { min-width: 0; gap: 10px; }
+.cadastro-identidade > div { display: grid; min-width: 0; gap: 5px; }
+.cadastro-identidade strong { overflow: hidden; color: var(--texto); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.cadastro-avatar { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--marca-suave); color: var(--marca-escura); }
+.local-cartao .cadastro-avatar { background: var(--verde-suave); color: var(--verde); }
+.local-cartao.inativo .cadastro-avatar { background: var(--cinza-suave); color: var(--cinza-texto); }
+.cadastro-detalhes { display: grid; gap: 9px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.cadastro-detalhes > div, .local-cartao-acesso { display: flex; min-width: 0; align-items: flex-start; gap: 8px; color: var(--marca); }
+.cadastro-detalhes span, .local-cartao-acesso span { display: grid; min-width: 0; gap: 2px; }
+.cadastro-detalhes small, .local-cartao-acesso small { color: var(--texto-fraco); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.cadastro-detalhes strong, .local-cartao-acesso strong { overflow: hidden; color: var(--texto-suave); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.local-cartao-acesso { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.local-cartao-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 12px; font-weight: 700; }
 .fantasias-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .fantasias-resumo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
 .fantasia-resumo-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 58px; padding: 10px 13px; border: 1px solid var(--borda); border-left: 4px solid var(--marca); border-radius: 11px; background: var(--cartao); color: var(--texto); font: inherit; text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s, background .2s; }
@@ -572,6 +599,9 @@ h3 { font-size: 15px; font-weight: 800; }
   .tabela-cartoes { display: grid; gap: 10px; }
   .profissionais-grade { grid-template-columns: 1fr; }
   .personagens-grade { grid-template-columns: 1fr; }
+  .cadastros-grade { grid-template-columns: 1fr; }
+  .filtros-locais { grid-template-columns: 1fr; }
+  .cadastros-secao-topo { align-items: flex-start; flex-direction: column; }
   .fantasias-grade { grid-template-columns: 1fr; }
   .veiculos-grade { grid-template-columns: 1fr; }
   .filtros-veiculos { grid-template-columns: 1fr 1fr; }
