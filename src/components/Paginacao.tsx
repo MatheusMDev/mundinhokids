@@ -1,4 +1,4 @@
-// Paginação simples para listas longas: "Mostrando 1–15 de 40" e anterior/próxima.
+// Paginação das listas (Eventos, Profissionais, Usuários): "Anterior · Página 1 de 3 · Próxima".
 
 export function paginar<T>(itens: T[], pagina: number, porPagina: number) {
   const totalPaginas = Math.max(1, Math.ceil(itens.length / porPagina));
@@ -6,20 +6,19 @@ export function paginar<T>(itens: T[], pagina: number, porPagina: number) {
   return { itens: itens.slice((atual - 1) * porPagina, atual * porPagina), atual, totalPaginas };
 }
 
-export function Paginacao({ pagina, totalPaginas, total, porPagina, onMudar }: {
-  pagina: number; totalPaginas: number; total: number; porPagina: number; onMudar: (pagina: number) => void;
+export function Paginacao({ pagina, total, onMudar, rotulo = 'Paginação' }: {
+  pagina: number; total: number; onMudar: (pagina: number) => void; rotulo?: string;
 }) {
-  if (totalPaginas <= 1) return null;
-  const inicio = (pagina - 1) * porPagina + 1;
-  const fim = Math.min(pagina * porPagina, total);
+  if (total <= 1) return null;
   return (
-    <nav className="paginacao" aria-label="Páginas">
-      <span className="suave">Mostrando {inicio}–{fim} de {total}</span>
-      <div className="paginacao-botoes">
-        <button type="button" className="botao" onClick={() => onMudar(pagina - 1)} disabled={pagina <= 1}>Anterior</button>
-        <span aria-current="page">{pagina} de {totalPaginas}</span>
-        <button type="button" className="botao" onClick={() => onMudar(pagina + 1)} disabled={pagina >= totalPaginas}>Próxima</button>
-      </div>
+    <nav className="paginacao-eventos" aria-label={rotulo}>
+      <button type="button" className="paginacao-botao" disabled={pagina === 1} onClick={() => onMudar(pagina - 1)}>
+        Anterior
+      </button>
+      <span>Página <strong>{pagina}</strong> de {total}</span>
+      <button type="button" className="paginacao-botao" disabled={pagina === total} onClick={() => onMudar(pagina + 1)}>
+        Próxima
+      </button>
     </nav>
   );
 }

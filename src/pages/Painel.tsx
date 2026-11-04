@@ -43,7 +43,10 @@ export function LinhaEvento({ evento, voltarPara }: { evento: Evento; voltarPara
 }
 
 export function Painel() {
-  const { db, hoje, perfil, permissoes } = useEstado();
+  const { db, hoje, perfil, permissoes, papeis } = useEstado();
+  // Equipe (artista, produção, maquiagem) vê a própria agenda; pendências só para operação e produção
+  const daEquipe = !permissoes.operacao;
+  const vePendencias = permissoes.operacao || papeis.has('produtor');
   const [novoEvento, setNovoEvento] = useState(false);
   const celular = useCelular();
   const p = partes(hoje);
@@ -72,7 +75,7 @@ export function Painel() {
         <div className="cabecalho">
           <div>
             <div className="data">{dataHoje}</div>
-            <h1>Agenda da equipe</h1>
+            <h1>{daEquipe ? 'Sua agenda' : 'Agenda da equipe'}</h1>
           </div>
         </div>
         <div style={{ marginBottom: 14 }}><TrocasParaMim /></div>
@@ -82,8 +85,12 @@ export function Painel() {
         />
         <h2 className="secao-titulo">{dataLongaDaChave(selecionado)}</h2>
         {doDia.length ? doDia.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento neste dia.</div>}
-        <h2 className="secao-titulo">Pendências da semana</h2>
-        <ListaPendencias pendencias={pendencias} />
+        {vePendencias && (
+          <>
+            <h2 className="secao-titulo">Pendências da semana</h2>
+            <ListaPendencias pendencias={pendencias} />
+          </>
+        )}
         {permissoes.operacao && (
           <button type="button" className="botao primario" style={{ width: '100%', marginTop: 18 }} onClick={() => setNovoEvento(true)}>
             <Icone nome="mais" /> Novo evento
@@ -99,7 +106,7 @@ export function Painel() {
       <div className="cabecalho">
         <div>
           <div className="data">{dataHoje}</div>
-          <h1>Olá! Esta é a semana da equipe.</h1>
+          <h1>{daEquipe ? 'Olá! Esta é a sua agenda.' : 'Olá! Esta é a semana da equipe.'}</h1>
         </div>
         {permissoes.operacao && (
           <button type="button" className="botao primario" onClick={() => setNovoEvento(true)}>
@@ -108,7 +115,7 @@ export function Painel() {
         )}
       </div>
 
-      <div className="numeros">
+      {!daEquipe && <div className="numeros">
         <div className="cartao numero">
           <span>Eventos nesta semana</span>
           <strong>{numeros.eventosSemana}</strong>
@@ -136,24 +143,27 @@ export function Painel() {
             <p>Valores ocultos para este perfil.</p>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="painel">
         <CalendarioMes mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia} />
         <div className="coluna">
           <TrocasParaMim />
+          {vePendencias && (
+            <section className="cartao">
+              <h2>Pendências da semana</h2>
+              <ListaPendencias pendencias={pendencias} />
+            </section>
+          )}
           <section className="cartao">
-            <h2>Pendências da semana</h2>
-            <ListaPendencias pendencias={pendencias} />
-          </section>
-          <section className="cartao">
-            <h2>Próximos eventos</h2>
+            <h2>{daEquipe ? 'Seus próximos eventos' : 'Próximos eventos'}</h2>
             <div className="proximos">
               {proximos.map((e) => (
                 <Link key={e.id} to={`/eventos/${e.id}`}>
                   {e.titulo} <small>{diaCurto(e.inicio)} · {hora(e.inicio)}</small>
                 </Link>
               ))}
+              {!proximos.length && <div className="vazio">Nenhum evento nos próximos 14 dias.</div>}
             </div>
           </section>
         </div>

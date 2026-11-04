@@ -20,6 +20,8 @@ export interface Usuario {
   email: string;
   perfil: PerfilAcesso;
   ativo: boolean;
+  /** Telas escolhidas pela gestão; null = padrão do perfil */
+  telas: string[] | null;
 }
 
 /** Situação do login no Supabase Auth (só a gestão vê, pela função "usuarios") */
