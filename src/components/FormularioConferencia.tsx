@@ -3,7 +3,7 @@
 // manutenção) muda sozinha no banco; a previsão de volta entra aqui.
 
 import { useState } from 'react';
-import { Campo, Dialogo, Linha, Marcador } from './Formulario';
+import { Campo, Dialogo, Linha, Marcador, SeletorData, SeletorOpcao } from './Formulario';
 import { useEstado } from '../lib/estado';
 import { salvarConferencias, vazioParaNulo, type DadosConferencia } from '../lib/acoes';
 import { deCampos, paraCampos } from '../lib/formato';
@@ -82,22 +82,14 @@ export function FormConferencia({ evento, onFechar }: { evento: Evento; onFechar
             <legend><strong>{l.nome}</strong>{l.quem && <small> · com {l.quem}</small>}</legend>
             <Linha>
               <Marcador texto="Devolvida" marcado={l.devolvida} onMudar={(v) => mudar(l.fantasia_id, { devolvida: v, condicao: v ? l.condicao : 'faltando' })} />
-              <Campo rotulo="Condição">
-                {(id) => (
-                  <select id={id} value={l.condicao} onChange={(e) => mudar(l.fantasia_id, { condicao: e.target.value as CondicaoPeca })}>
-                    {Object.entries(ROTULO_CONDICAO).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
-                  </select>
-                )}
-              </Campo>
+              <SeletorOpcao rotulo="Condição" valor={l.condicao} opcoes={Object.entries(ROTULO_CONDICAO)} onMudar={(valor) => mudar(l.fantasia_id, { condicao: valor as CondicaoPeca })} />
             </Linha>
             <Linha>
               <Marcador texto="Precisa de limpeza" marcado={l.limpeza} onMudar={(v) => mudar(l.fantasia_id, { limpeza: v })} />
               <Marcador texto="Precisa de reparo" marcado={l.reparo || l.condicao === 'danificada'} onMudar={(v) => mudar(l.fantasia_id, { reparo: v })} />
             </Linha>
             {foraDeUso && (
-              <Campo rotulo="Previsão de volta" dica="Até lá a fantasia não pode ser escalada para eventos anteriores a essa data.">
-                {(id) => <input id={id} type="date" value={l.volta} onChange={(e) => mudar(l.fantasia_id, { volta: e.target.value })} />}
-              </Campo>
+              <SeletorData rotulo="Previsão de volta" valor={l.volta} onMudar={(valor) => mudar(l.fantasia_id, { volta: valor })} />
             )}
             <Campo rotulo="Pendências para o próximo uso" dica={l.condicao !== 'ok' || !l.devolvida ? 'Obrigatório: o que falta ou o que estragou.' : 'Ex.: luva com o dedo descosturado.'}>
               {(id) => <input id={id} value={l.pendencias} onChange={(e) => mudar(l.fantasia_id, { pendencias: e.target.value })} />}

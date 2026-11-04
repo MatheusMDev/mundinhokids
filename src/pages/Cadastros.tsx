@@ -11,6 +11,7 @@ import {
 import { FormEvento } from '../components/FormulariosEvento';
 import { FormDespesa, FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
+import { SeletorData } from '../components/Formulario';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
 import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes } from '../lib/formato';
 import {
@@ -540,52 +541,138 @@ export function Fantasias() {
   const { db, permissoes, usuario, hoje } = useEstado();
   const form = useFormulario<(typeof db.fantasias)[number]>();
   const [conferir, setConferir] = useState<(typeof db.eventos)[number] | null>(null);
+  const [conferenciasAberto, setConferenciasAberto] = useState(true);
   const pendentes = permissoes.conferirFantasias ? conferenciasPendentes(db, hoje) : [];
   const nomePersonagem = (id: string) => db.personagens.find((p) => p.id === id)?.nome ?? '';
   const lista = [...db.fantasias].sort((a, b) =>
     nomePersonagem(a.personagem_id).localeCompare(nomePersonagem(b.personagem_id)) || a.identificacao.localeCompare(b.identificacao));
+  const [parametros, setParametros] = useSearchParams();
+  const situacaoFiltro = parametros.get('situacao') ?? '';
+  const buscaConferencia = semAcentos(parametros.get('buscaConferencia') ?? '');
+  const dataConferencia = parametros.get('dataConferencia') ?? '';
+  const listaFiltrada = lista.filter((fantasia) => !situacaoFiltro || fantasia.situacao === situacaoFiltro);
+  const totalPaginasFantasias = Math.max(1, Math.ceil(listaFiltrada.length / 10));
+  const paginaFantasiasSolicitada = Number(parametros.get('paginaFantasias') ?? '1');
+  const paginaFantasias = Math.min(totalPaginasFantasias, Math.max(1, Number.isFinite(paginaFantasiasSolicitada) ? paginaFantasiasSolicitada : 1));
+  const fantasiasDaPagina = listaFiltrada.slice((paginaFantasias - 1) * 10, paginaFantasias * 10);
+  const pendentesFiltradas = pendentes.filter(({ evento }) => {
+    const partesEvento = partes(evento.inicio);
+    const dataEvento = `${partesEvento.ano}-${String(partesEvento.mes).padStart(2, '0')}-${String(partesEvento.dia).padStart(2, '0')}`;
+    return (!buscaConferencia || semAcentos(evento.titulo).includes(buscaConferencia))
+      && (!dataConferencia || dataEvento === dataConferencia);
+  });
+  const totalPaginasConferencias = Math.max(1, Math.ceil(pendentesFiltradas.length / 10));
+  const paginaConferenciasSolicitada = Number(parametros.get('paginaConferencias') ?? '1');
+  const paginaConferencias = Math.min(totalPaginasConferencias, Math.max(1, Number.isFinite(paginaConferenciasSolicitada) ? paginaConferenciasSolicitada : 1));
+  const conferenciasDaPagina = pendentesFiltradas.slice((paginaConferencias - 1) * 10, paginaConferencias * 10);
   // A responsável pelas fantasias também atualiza a situação (limpeza, manutenção)
   const podeEditar = permissoes.operacao || usuario.perfil === 'fantasias';
+  const filtrarSituacao = (situacao: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (situacao === situacaoFiltro) novos.delete('situacao');
+    else novos.set('situacao', situacao);
+    novos.delete('paginaFantasias');
+    setParametros(novos);
+  };
+  const filtrarConferencias = (nome: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(nome, valor);
+    else novos.delete(nome);
+    novos.delete('paginaConferencias');
+    setParametros(novos);
+  };
+  const mudarPagina = (parametro: string, novaPagina: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (novaPagina === 1) novos.delete(parametro);
+    else novos.set(parametro, String(novaPagina));
+    setParametros(novos);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <Pagina
-      titulo="Fantasias" descricao="Situação de cada peça e previsão de volta da limpeza"
+      titulo="Fantasias" descricao={`${listaFiltrada.length} de ${lista.length} fantasias · situação e previsão de volta da limpeza`}
       acao={<BotaoNovo texto="Nova fantasia" onClick={form.novo} />}
     >
+      <div className="fantasias-resumo" aria-label="Resumo das fantasias">
+        {(['disponivel', 'limpeza', 'manutencao', 'inativa'] as const).map((situacao) => (
+          <button key={situacao} type="button" className={`fantasia-resumo-item ${situacao}${situacaoFiltro === situacao ? ' ativo' : ''}`} aria-pressed={situacaoFiltro === situacao} onClick={() => filtrarSituacao(situacao)}>
+            <span>{ROTULO_FANTASIA[situacao]}</span>
+            <strong>{lista.filter((fantasia) => fantasia.situacao === situacao).length}</strong>
+          </button>
+        ))}
+      </div>
       {pendentes.length > 0 && (
-        <div style={{ marginBottom: 18 }}>
-          <Tabela
-            titulo="Conferências pendentes"
-            cabecalho={['Evento', 'Quando', 'Fantasias sem conferência', '']}
-            linhas={pendentes.map(({ evento, faltam }) => ({
-              chave: evento.id,
-              celulas: [
-                <Link to={`/eventos/${evento.id}`} className="link-marca">{evento.titulo}</Link>,
-                `${diaCurto(evento.inicio)} · ${hora(evento.inicio)}`,
-                faltam,
-                <button type="button" className="botao pequeno primario" onClick={() => setConferir(evento)}>Conferir</button>,
-              ],
-            }))}
-          />
-        </div>
+        <section className="conferencias-pendentes" aria-labelledby="titulo-conferencias-pendentes">
+          <div className="conferencias-pendentes-topo">
+            <div><span className="etiqueta-alerta">Ação necessária</span><h2 id="titulo-conferencias-pendentes">Conferências pendentes</h2></div>
+            <div className="conferencias-pendentes-acoes">
+              <span>{pendentesFiltradas.length} {pendentesFiltradas.length === 1 ? 'evento' : 'eventos'}</span>
+              <button type="button" className="conferencias-toggle" aria-expanded={conferenciasAberto} aria-controls="conteudo-conferencias-pendentes" onClick={() => setConferenciasAberto((atual) => !atual)}>
+                {conferenciasAberto ? 'Ocultar' : 'Mostrar'} <Icone nome="direita" tamanho={14} />
+              </button>
+            </div>
+          </div>
+          {conferenciasAberto && <div id="conteudo-conferencias-pendentes">
+            <div className="filtros-conferencias">
+              <label className="busca-eventos">
+                <span className="busca-icone" aria-hidden="true">⌕</span>
+                <span className="sr-only">Buscar evento pendente</span>
+                <input type="search" value={parametros.get('buscaConferencia') ?? ''} onChange={(evento) => filtrarConferencias('buscaConferencia', evento.target.value)} placeholder="Buscar evento" />
+                {buscaConferencia && <button type="button" className="limpar-busca" onClick={() => filtrarConferencias('buscaConferencia', '')} aria-label="Limpar busca">×</button>}
+              </label>
+              <SeletorData rotulo="Data" valor={dataConferencia} onMudar={(valor) => filtrarConferencias('dataConferencia', valor)} />
+            </div>
+            <div className="conferencias-grade">
+              {conferenciasDaPagina.length ? conferenciasDaPagina.map(({ evento, faltam }) => (
+                <article key={evento.id} className="conferencia-cartao">
+                  <div className="conferencia-cartao-icone"><Icone nome="camiseta" tamanho={20} /></div>
+                  <div className="conferencia-cartao-corpo">
+                    <Link to={`/eventos/${evento.id}`} className="conferencia-evento">{evento.titulo}</Link>
+                    <span className="conferencia-data"><Icone nome="calendario" tamanho={14} /> {diaCurto(evento.inicio)} · {hora(evento.inicio)}</span>
+                    <strong>{faltam} {faltam === 1 ? 'fantasia aguarda' : 'fantasias aguardam'} conferência</strong>
+                  </div>
+                  <button type="button" className="botao pequeno primario" onClick={() => setConferir(evento)}>Conferir</button>
+                </article>
+              )) : <div className="vazio">Nenhuma conferência encontrada com esses filtros.</div>}
+            </div>
+            <PaginacaoEventos pagina={paginaConferencias} total={totalPaginasConferencias} onMudar={(pagina) => mudarPagina('paginaConferencias', pagina)} />
+          </div>}
+        </section>
       )}
-      <Tabela
-        cabecalho={['Fantasia', 'Personagem', 'Tamanho', 'Situação', 'Previsão de volta', 'Observações']}
-        linhas={lista.map((f) => {
-          const abrir = podeEditar ? () => form.editar(f) : undefined;
-          return {
-            chave: f.id, inativo: f.situacao === 'inativa', onAbrir: abrir,
-            celulas: [
-              <NomeEditavel texto={f.identificacao} onAbrir={abrir} />,
-              nomePersonagem(f.personagem_id),
-              f.tamanho ?? '—',
-              <span className={`selo ${f.situacao === 'disponivel' ? 'ok' : f.situacao === 'inativa' ? 'neutro' : 'alerta'}`}>{ROTULO_FANTASIA[f.situacao]}</span>,
-              f.previsao_disponivel ? `${diaCurto(f.previsao_disponivel)} · ${hora(f.previsao_disponivel)}` : '—',
-              f.observacoes ?? '—',
-            ],
-          };
-        })}
-      />
+      {fantasiasDaPagina.length ? (
+        <div className="fantasias-grade">
+          {fantasiasDaPagina.map((f) => {
+            const abrir = podeEditar ? () => form.editar(f) : undefined;
+            const situacao = f.situacao === 'disponivel' ? 'ok' : f.situacao === 'inativa' ? 'neutro' : 'alerta';
+            return (
+              <article
+                key={f.id}
+                className={`fantasia-cartao ${f.situacao}${f.situacao === 'inativa' ? ' inativo' : ''}${abrir ? ' clicavel' : ''}`}
+                onClick={abrir}
+                onKeyDown={(evento) => { if (evento.key === 'Enter') abrir?.(); }}
+                role={abrir ? 'button' : undefined}
+                tabIndex={abrir ? 0 : undefined}
+              >
+                <div className="fantasia-cartao-cabecalho">
+                  <div className="fantasia-identidade">
+                    <span className="fantasia-avatar"><Icone nome="camiseta" tamanho={19} /></span>
+                    <div><strong>{f.identificacao}</strong><span className={`selo ${situacao} ${f.situacao}`}>{ROTULO_FANTASIA[f.situacao]}</span></div>
+                  </div>
+                  {abrir && <Icone nome="lapis" tamanho={16} />}
+                </div>
+                <div className="fantasia-detalhes">
+                  <div><Icone nome="estrela" tamanho={15} /><span><small>Personagem</small><strong>{nomePersonagem(f.personagem_id) || 'Não informado'}</strong></span></div>
+                  <div><Icone nome="lista" tamanho={15} /><span><small>Tamanho</small><strong>{f.tamanho ?? 'Não informado'}</strong></span></div>
+                  <div><Icone nome="calendario" tamanho={15} /><span><small>Previsão de volta</small><strong>{f.previsao_disponivel ? `${diaCurto(f.previsao_disponivel)} · ${hora(f.previsao_disponivel)}` : 'Sem previsão'}</strong></span></div>
+                  <div><Icone nome="arquivo" tamanho={15} /><span><small>Observações</small><strong>{f.observacoes ?? 'Nenhuma observação'}</strong></span></div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="vazio">{lista.length ? 'Nenhuma fantasia encontrada nessa situação.' : 'Nenhuma fantasia cadastrada ainda.'}</div>}
+      <PaginacaoEventos pagina={paginaFantasias} total={totalPaginasFantasias} onMudar={(pagina) => mudarPagina('paginaFantasias', pagina)} />
       {form.aberto && <FormFantasia item={form.aberto.item} onFechar={form.fechar} />}
       {conferir && <FormConferencia evento={conferir} onFechar={() => setConferir(null)} />}
     </Pagina>
