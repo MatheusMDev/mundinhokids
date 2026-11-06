@@ -38,6 +38,8 @@ export interface SituacaoLogin {
 
 export interface Profissional {
   id: string;
+  /** Ausente em projetos anteriores à migração de exclusão de profissionais. */
+  excluido_em?: string | null;
   usuario_id: string | null;
   nome: string;
   telefone: string | null;
@@ -234,6 +236,8 @@ export interface TrocaParaMim {
 
 /** Tudo o que as telas leem. No Supabase, cada lista é uma tabela já filtrada pelas permissões. */
 export interface BaseDados {
+  /** IDs elegíveis para novos vínculos, calculados pelo banco sem expor logins de colegas. */
+  profissionais_disponiveis: string[];
   configuracoes: Record<string, string>;
   usuarios: Usuario[];
   profissionais: Profissional[];

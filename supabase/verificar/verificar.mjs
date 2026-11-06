@@ -15,6 +15,8 @@ const MIGRACOES = [
   'migrations/20261021000001_trocas_para_mim.sql',
   'migrations/20261104000001_funcoes_do_login.sql',
   'migrations/20261104000002_telas_do_usuario.sql',
+  'migrations/20261106000001_profissionais_disponiveis.sql',
+  'migrations/20261106000002_excluir_profissional.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -302,6 +304,219 @@ await teste('telas do login só aceitam telas que existem', async () => {
   await esperaErro(db.exec(`update usuarios set telas = '{painel,qualquer}' where id = '${ID.ana}'`), 'usuarios_telas_validas');
   await db.exec(`update usuarios set telas = null where id = '${ID.ana}'`);
 });
+
+// ---------------------------------------------------------------------
+// Exclusões, desativações e seleções desatualizadas (task #63).
+// Cada cenário desfaz as próprias mudanças, sem depender da ordem dos testes.
+// ---------------------------------------------------------------------
+async function isolado(fn) {
+  await db.transaction(async (tx) => {
+    await tx.exec(`set local app.uid = '${ID.diretora}'`);
+    await fn(tx);
+    await tx.rollback();
+  }).catch((e) => { if (!String(e.message).includes('rollback')) throw e; });
+}
+const PROF = {
+  ana: '10000000-0000-0000-0000-000000000011',
+  bia: '10000000-0000-0000-0000-000000000012',
+  bruno: '10000000-0000-0000-0000-000000000013',
+};
+const EVENTO = '60000000-0000-0000-0000-000000000001';
+
+await teste('elegibilidade exclui login inativo, mas mantém profissional legítimo sem login', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set ativo = false where id = '${ID.bia}';
+    insert into profissionais (id, nome, funcoes) values ('10000000-0000-0000-0000-000000000099', 'Sem login legítimo', '{produtor}')`);
+  const ids = (await tx.query('select id from profissionais_disponiveis()')).rows.map((p) => p.id);
+  if (ids.includes(PROF.bia) || !ids.includes(PROF.ana) || !ids.includes('10000000-0000-0000-0000-000000000099')) throw new Error('Lista de elegíveis incorreta');
+}));
+
+await teste('colega não precisa ler usuarios para receber a elegibilidade correta', () => isolado(async (tx) => {
+  await tx.exec(`update profissionais set funcoes = '{produtor}' where id = '${PROF.bia}';
+    insert into evento_escala (evento_id, profissional_id, funcao) values ('${EVENTO}', '${PROF.bia}', 'produtor');
+    set local role authenticated; set local app.uid = '${ID.ana}'`);
+  if (await qtd(tx, `select count(*) as n from usuarios where id = '${ID.bia}'`) !== 0) throw new Error('Login de colega exposto');
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis() where id = '${PROF.bia}'`) !== 1) throw new Error('Colega ativo ausente');
+  await tx.exec(`reset role; update usuarios set ativo = false where id = '${ID.bia}'; set local role authenticated`);
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis() where id = '${PROF.bia}'`) !== 0) throw new Error('Colega com login inativo disponível');
+}));
+
+await teste('RPC de elegíveis não expõe profissionais fora da visibilidade do perfil', () => isolado(async (tx) => {
+  await tx.exec(`set local role authenticated; set local app.uid = '${ID.ana}'`);
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis() where id = '${PROF.bia}'`) !== 0) throw new Error('Profissional fora do evento exposto');
+}));
+
+await teste('desvincular login desativa profissional em vez de criar órfão ativo', () => isolado(async (tx) => {
+  await tx.exec(`update profissionais set usuario_id = null where id = '${PROF.bia}'`);
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bia}' and not ativo and usuario_id is null`) !== 1) throw new Error('Órfão permaneceu ativo');
+}));
+
+await teste('excluir Auth desativa e preserva profissional, escalas e pagamentos históricos', () => isolado(async (tx) => {
+  await tx.exec(`insert into pagamentos_profissionais (evento_id, profissional_id, valor_combinado) values ('${EVENTO}', '${PROF.bruno}', 150);
+    delete from auth.users where id = '${ID.bruno}'`);
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bruno}' and not ativo and usuario_id is null`) !== 1) throw new Error('Profissional não foi preservado inativo');
+  if (await qtd(tx, `select count(*) as n from evento_escala where profissional_id = '${PROF.bruno}'`) < 1) throw new Error('Escala histórica perdida');
+  if (await qtd(tx, `select count(*) as n from pagamentos_profissionais where profissional_id = '${PROF.bruno}'`) !== 1) throw new Error('Pagamento histórico perdido');
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis() where id = '${PROF.bruno}'`) !== 0) throw new Error('Excluído ainda selecionável');
+}));
+
+await teste('profissional inativo é recusado na escala por chamada direta', () => isolado(async (tx) => {
+  await tx.exec(`update profissionais set ativo = false where id = '${PROF.bia}'`);
+  await esperaErro(tx.exec(`insert into evento_escala (evento_id, profissional_id, funcao, personagem_id)
+    values ('60000000-0000-0000-0000-000000000002', '${PROF.bia}', 'artista', '20000000-0000-0000-0000-000000000001')`), 'não está mais disponível');
+}));
+
+await teste('exclusão recusada preserva vínculo e atividade do profissional', () => isolado(async (tx) => {
+  await tx.exec(`insert into despesas (descricao, valor, criado_por) values ('Histórico do usuário', 10, '${ID.bruno}'); savepoint tentativa_exclusao`);
+  await esperaErro(tx.exec(`delete from auth.users where id = '${ID.bruno}'`), 'foreign key');
+  await tx.exec('rollback to savepoint tentativa_exclusao');
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bruno}' and ativo and usuario_id = '${ID.bruno}'`) !== 1) throw new Error('Exclusão recusada deixou um órfão');
+}));
+
+await teste('reativação de vaga não pode reutilizar profissional desligado', () => isolado(async (tx) => {
+  await tx.exec(`update evento_escala set ativo = false where profissional_id = '${PROF.bruno}'; update profissionais set ativo = false where id = '${PROF.bruno}'`);
+  await esperaErro(tx.exec(`update evento_escala set ativo = true where profissional_id = '${PROF.bruno}'`), 'não está mais disponível');
+}));
+
+await teste('login inativo é recusado na escala mesmo com profissional ativo', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set ativo = false where id = '${ID.bia}'`);
+  await esperaErro(tx.exec(`insert into evento_escala (evento_id, profissional_id, funcao, personagem_id)
+    values ('60000000-0000-0000-0000-000000000002', '${PROF.bia}', 'artista', '20000000-0000-0000-0000-000000000001')`), 'não está mais disponível');
+}));
+
+await teste('reserva de veículo recusa responsável com login inativo', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set ativo = false where id = '${ID.bruno}'`);
+  await esperaErro(tx.exec(`insert into reservas_veiculo (veiculo_id, responsavel_id, retirada, devolucao_prevista)
+    values ('70000000-0000-0000-0000-000000000001', '${PROF.bruno}', '2030-03-01 10:00-03', '2030-03-01 12:00-03')`), 'não está mais disponível');
+}));
+
+await teste('nova despesa recusa responsável com login excluído', () => isolado(async (tx) => {
+  await tx.exec(`delete from auth.users where id = '${ID.bruno}'`);
+  await esperaErro(tx.exec(`insert into despesas (descricao, valor, responsavel_id) values ('Teste', 10, '${PROF.bruno}')`), 'não está mais disponível');
+}));
+
+await teste('despesa existente de profissional desligado continua editável e quitável', () => isolado(async (tx) => {
+  await tx.exec(`insert into despesas (id, descricao, valor, responsavel_id) values ('80000000-0000-0000-0000-000000000099', 'Teste', 10, '${PROF.bruno}');
+    insert into pagamentos_profissionais (evento_id, profissional_id, valor_combinado) values ('${EVENTO}', '${PROF.bruno}', 150);
+    update profissionais set ativo = false where id = '${PROF.bruno}';
+    update despesas set descricao = 'Corrigida' where id = '80000000-0000-0000-0000-000000000099';
+    update pagamentos_profissionais set situacao = 'pago', pago_em = current_date where evento_id = '${EVENTO}' and profissional_id = '${PROF.bruno}'`);
+  if (await qtd(tx, `select count(*) as n from pagamentos_profissionais where profissional_id = '${PROF.bruno}' and situacao = 'pago'`) !== 1) throw new Error('Quitação histórica bloqueada');
+}));
+
+await teste('devolver ou cancelar reserva antiga permanece permitido após desligamento', () => isolado(async (tx) => {
+  await tx.exec(`insert into reservas_veiculo (id, veiculo_id, responsavel_id, retirada, devolucao_prevista)
+    values ('81000000-0000-0000-0000-000000000099', '70000000-0000-0000-0000-000000000001', '${PROF.bruno}', '2030-03-01 10:00-03', '2030-03-01 12:00-03');
+    update profissionais set ativo = false where id = '${PROF.bruno}';
+    update reservas_veiculo set devolvido_em = '2030-03-01 11:00-03' where id = '81000000-0000-0000-0000-000000000099';
+    update reservas_veiculo set ativo = false where id = '81000000-0000-0000-0000-000000000099'`);
+}));
+
+await teste('substitutos disponíveis excluem login desativado', () => isolado(async (tx) => {
+  const escala = (await tx.query(`select id from evento_escala where evento_id = '${EVENTO}' and profissional_id = '${PROF.ana}' and ativo`)).rows[0].id;
+  await tx.exec(`update usuarios set ativo = false where id = '${ID.bia}'`);
+  if (await qtd(tx, `select count(*) as n from substitutos_disponiveis('${escala}') where profissional_id = '${PROF.bia}'`) !== 0) throw new Error('Substituto inativo disponível');
+}));
+
+await teste('aprovação de troca antiga é recusada se substituto foi desativado', () => isolado(async (tx) => {
+  const escala = (await tx.query(`select id from evento_escala where evento_id = '${EVENTO}' and profissional_id = '${PROF.ana}' and ativo`)).rows[0].id;
+  await tx.exec(`insert into substituicoes (id, escala_id, solicitante_id, substituto_id, situacao)
+    values ('82000000-0000-0000-0000-000000000099', '${escala}', '${PROF.ana}', '${PROF.bia}', 'aguardando_aprovacao');
+    update usuarios set ativo = false where id = '${ID.bia}'`);
+  await esperaErro(tx.exec(`select decidir_substituicao('82000000-0000-0000-0000-000000000099', true)`), 'não está mais disponível');
+}));
+
+await teste('sessão antiga de login desativado não retém acesso aos eventos', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set ativo = false where id = '${ID.ana}'; set local role authenticated; set local app.uid = '${ID.ana}'`);
+  if (await qtd(tx, `select count(*) as n from eventos`) !== 0) throw new Error('Sessão desativada ainda lê eventos');
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis()`) !== 0) throw new Error('Sessão desativada ainda recebe seleções');
+}));
+
+// ---------------------------------------------------------------------
+// Exclusão de profissional pela gestão: cadastro sai da operação, mantendo histórico.
+// ---------------------------------------------------------------------
+await teste('Direção exclui profissional preservando login, escala e pagamento', () => isolado(async (tx) => {
+  await tx.exec(`insert into pagamentos_profissionais (evento_id, profissional_id, valor_combinado) values ('${EVENTO}', '${PROF.bruno}', 150);
+    set local role authenticated; select excluir_profissional('${PROF.bruno}')`);
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bruno}' and excluido_em is not null and not ativo and usuario_id is null`) !== 1) throw new Error('Exclusão incompleta');
+  if (await qtd(tx, `select count(*) as n from usuarios where id = '${ID.bruno}' and ativo`) !== 1) throw new Error('Login foi removido ou desativado');
+  if (await qtd(tx, `select count(*) as n from evento_escala where profissional_id = '${PROF.bruno}'`) < 1) throw new Error('Escala perdida');
+  if (await qtd(tx, `select count(*) as n from pagamentos_profissionais where profissional_id = '${PROF.bruno}'`) !== 1) throw new Error('Pagamento perdido');
+  if (await qtd(tx, `select count(*) as n from profissionais_disponiveis() where id = '${PROF.bruno}'`) !== 0) throw new Error('Excluído continua elegível');
+}));
+
+await teste('Gerência exclui profissional sem apagar cadastro de login', () => isolado(async (tx) => {
+  const gerente = '00000000-0000-0000-0000-000000000090';
+  await tx.exec(`insert into auth.users (id) values ('${gerente}'); insert into usuarios (id, nome, email, perfil) values ('${gerente}', 'Gerente', 'gerente@exemplo.test', 'gerente');
+    set local role authenticated; set local app.uid = '${gerente}'; select excluir_profissional('${PROF.bia}')`);
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bia}' and excluido_em is not null`) !== 1) throw new Error('Gerência não conseguiu excluir');
+}));
+
+await teste('Supervisora não exclui profissional por RPC', () =>
+  como(ID.supervisora, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'Só a direção')));
+
+await teste('Supervisora não contorna a exclusão com update direto', () =>
+  como(ID.supervisora, (tx) => esperaErro(tx.exec(`update profissionais set excluido_em = now() where id = '${PROF.bia}'`), 'Só a direção')));
+
+await teste('Artista não exclui profissional por RPC', () =>
+  como(ID.ana, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'Só a direção')));
+
+await teste('Sem login não é possível chamar excluir_profissional', () =>
+  como(null, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'permission denied'), 'anon'));
+
+await teste('Gerência com acesso inativo não exclui profissional', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set perfil = 'gerente', ativo = false where id = '${ID.bia}'; set local role authenticated; set local app.uid = '${ID.bia}'`);
+  await esperaErro(tx.exec(`select excluir_profissional('${PROF.ana}')`), 'Só a direção');
+}));
+
+await teste('Gerência não exclui profissional vinculado à Direção', () => isolado(async (tx) => {
+  await tx.exec(`update usuarios set perfil = 'gerente' where id = '${ID.bruno}';
+    insert into profissionais (id, nome, usuario_id, funcoes) values ('10000000-0000-0000-0000-000000000090', 'Direção', '${ID.diretora}', '{produtor}');
+    set local role authenticated; set local app.uid = '${ID.bruno}'`);
+  await esperaErro(tx.exec(`select excluir_profissional('10000000-0000-0000-0000-000000000090')`), 'Só a Direção');
+}));
+
+await teste('profissional excluído não pode ser reativado por alteração de ativo', () => isolado(async (tx) => {
+  await tx.exec(`select excluir_profissional('${PROF.bia}'); update profissionais set ativo = true where id = '${PROF.bia}'`);
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bia}' and ativo`) !== 0) throw new Error('Profissional excluído foi reativado');
+}));
+
+await teste('excluir duas vezes não confirma uma nova exclusão', () => isolado(async (tx) => {
+  await tx.exec(`select excluir_profissional('${PROF.bia}')`);
+  await esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'já excluído');
+}));
+
+await teste('exclusão do profissional bloqueia tentativa de escala antiga', () => isolado(async (tx) => {
+  await tx.exec(`select excluir_profissional('${PROF.bia}')`);
+  await esperaErro(tx.exec(`insert into evento_escala (evento_id, profissional_id, funcao, personagem_id)
+    values ('60000000-0000-0000-0000-000000000002', '${PROF.bia}', 'artista', '20000000-0000-0000-0000-000000000001')`), 'não está mais disponível');
+}));
+
+// ---------------------------------------------------------------------
+// Regularização dos IDs escolhidos pelo usuário, sempre em banco fictício.
+// ---------------------------------------------------------------------
+const MATHEUS_PRINCIPAL = 'a18e2007-5d9f-4b0f-9409-d4561170204b';
+const MATHEUS_DUPLICADO = '7206b688-d741-4cef-9dc5-023c737b4f73';
+const criarMatheusDeTeste = (tx) => tx.exec(`insert into profissionais (id, nome, ativo, funcoes) values
+  ('${MATHEUS_PRINCIPAL}', 'Matheus Miranda', false, '{produtor}'),
+  ('${MATHEUS_DUPLICADO}', 'Matheus  Miranda', true, '{produtor}');
+  insert into pagamentos_profissionais (evento_id, profissional_id, valor_combinado) values
+    ('${EVENTO}', '${MATHEUS_PRINCIPAL}', 100), ('${EVENTO}', '${MATHEUS_DUPLICADO}', 100)`);
+
+await teste('regularização mantém um espaço ativo e preserva pagamentos dos dois IDs', () => isolado(async (tx) => {
+  await criarMatheusDeTeste(tx);
+  await tx.exec(readFileSync(pasta('regularizar_matheus.sql'), 'utf8'));
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${MATHEUS_PRINCIPAL}' and ativo`) !== 1) throw new Error('Principal não ficou ativo');
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${MATHEUS_DUPLICADO}' and not ativo`) !== 1) throw new Error('Duplicado permaneceu ativo');
+  if (await qtd(tx, `select count(*) as n from pagamentos_profissionais where profissional_id in ('${MATHEUS_PRINCIPAL}', '${MATHEUS_DUPLICADO}')`) !== 2) throw new Error('Pagamento perdido');
+}));
+
+await teste('regularização não altera nenhum cadastro se o principal já foi excluído', () => isolado(async (tx) => {
+  await criarMatheusDeTeste(tx);
+  await tx.exec(`select excluir_profissional('${MATHEUS_PRINCIPAL}')`);
+  await tx.exec(readFileSync(pasta('regularizar_matheus.sql'), 'utf8'));
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${MATHEUS_PRINCIPAL}' and not ativo and excluido_em is not null`) !== 1) throw new Error('Excluído foi reativado');
+  if (await qtd(tx, `select count(*) as n from profissionais where id = '${MATHEUS_DUPLICADO}' and ativo`) !== 1) throw new Error('Duplicado foi desativado sem principal válido');
+}));
 
 // ---------------------------------------------------------------------
 // Dados de teste (seed.sql) e vínculo de logins, num banco novo

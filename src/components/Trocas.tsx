@@ -27,13 +27,22 @@ export function FormPedirTroca({ evento, escala, personagem, onFechar }: {
   const prazo = prazoDaTroca(evento, db.configuracoes);
 
   useEffect(() => {
-    buscarSubstitutos(cliente, escala.id).then(setOpcoes).catch((e) => setErroLista(traduzirErro(e)));
-  }, [cliente, escala.id]);
+    let cancelado = false;
+    setOpcoes(null);
+    setErroLista(null);
+    buscarSubstitutos(cliente, escala.id).then((lista) => {
+      if (cancelado) return;
+      setOpcoes(lista);
+      setSubstituto((atual) => lista.some((p) => p.profissional_id === atual) ? atual : '');
+    }).catch((e) => { if (!cancelado) setErroLista(traduzirErro(e)); });
+    return () => { cancelado = true; };
+  }, [cliente, escala.id, db.profissionais_disponiveis]);
 
   return (
     <Dialogo
       titulo={`Pedir troca · ${personagem}`} onFechar={onFechar} textoSalvar="Enviar pedido"
-      validar={() => (!substituto ? 'Escolha quem pode assumir.' : null)}
+      validar={() => (!substituto ? 'Escolha quem pode assumir.'
+        : !opcoes?.some((p) => p.profissional_id === substituto) ? 'Este profissional não está mais disponível. Atualize a lista.' : null)}
       onSalvar={() => executar(
         () => pedirTroca(cliente, escala.id, substituto, vazioParaNulo(motivo)),
         'Pedido enviado. Agora a pessoa indicada precisa aceitar e a gestão aprovar.',

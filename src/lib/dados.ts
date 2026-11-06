@@ -27,19 +27,34 @@ interface LinhaHistorico {
 }
 
 export async function carregarBase(cliente: SupabaseClient): Promise<BaseDados> {
-  const [configuracoes, historico, trocasParaMim, ...tabelas] = await Promise.all([
+  const [configuracoes, historico, trocasParaMim, disponiveis, ...tabelas] = await Promise.all([
     cliente.from('configuracoes').select('chave, valor'),
     cliente.from('historico').select('*').not('evento_id', 'is', null).order('em', { ascending: false }).limit(500),
     cliente.rpc('trocas_para_mim'),
+    cliente.rpc('profissionais_disponiveis'),
     ...TABELAS.map((t) => cliente.from(t).select('*')),
   ]);
 
   // Os pedidos de troca para o substituto são um extra: se a função ainda não existir no banco, a tela segue sem eles
   if (trocasParaMim.error) console.warn('trocas_para_mim indisponível:', trocasParaMim.error.message);
-  const erro = [configuracoes, historico, ...tabelas].find((r) => r.error)?.error;
+  const funcaoAusente = !!disponiveis.error
+    && ['PGRST202', '42883'].includes(disponiveis.error.code)
+    && disponiveis.error.message.includes('profissionais_disponiveis');
+  const erro = [configuracoes, historico, ...(funcaoAusente ? [] : [disponiveis]), ...tabelas].find((r) => r.error)?.error;
   if (erro) throw new Error(erro.message);
 
   const base = Object.fromEntries(TABELAS.map((t, i) => [t, tabelas[i].data ?? []])) as unknown as Omit<BaseDados, 'configuracoes' | 'historico' | 'trocas_para_mim'>;
+  if (funcaoAusente) {
+    // Compatibilidade durante a implantação: só libera quem tem login ativo
+    // comprovado nas linhas que a RLS permite ler. Sem login ou login oculto
+    // não é possível distinguir cadastro legítimo de sobra de exclusão antiga.
+    const loginsAtivos = new Set(base.usuarios.filter((u) => u.ativo).map((u) => u.id));
+    base.profissionais_disponiveis = base.profissionais
+      .filter((p) => p.ativo && p.usuario_id !== null && loginsAtivos.has(p.usuario_id))
+      .map((p) => p.id);
+  } else {
+    base.profissionais_disponiveis = (disponiveis.data ?? []).map((p: { id: string }) => p.id);
+  }
 
   return {
     ...base,

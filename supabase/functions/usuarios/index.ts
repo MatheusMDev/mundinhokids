@@ -103,9 +103,10 @@ const bloqueado = (u: User) => {
 
 /** Confere se o profissional existe e está livre (ou já é deste login) */
 async function conferirProfissional(admin: SupabaseClient, profissionalId: string, loginId?: string) {
-  const { data: prof } = await admin.from('profissionais').select('id, usuario_id').eq('id', profissionalId).maybeSingle();
+  const { data: prof } = await admin.from('profissionais').select('id, usuario_id, ativo').eq('id', profissionalId).maybeSingle();
   if (!prof) throw new Recusa('Profissional não encontrado.');
   if (prof.usuario_id && prof.usuario_id !== loginId) throw new Recusa('Este profissional já está ligado a outro login.');
+  if (!prof.ativo && prof.usuario_id !== loginId) throw new Recusa('Este profissional está inativo e não pode receber um novo vínculo.');
 }
 
 async function listar(admin: SupabaseClient) {
@@ -333,9 +334,8 @@ async function excluir(admin: SupabaseClient, corpo: Record<string, unknown>, qu
     throw new Recusa(`Este acesso já tem registros no sistema (${temHistorico.join(', ')}). Para manter o histórico, desative o acesso em vez de excluir.`);
   }
 
-  // O cadastro do profissional continua; só perde a ligação com o login
-  const { error: erroProf } = await admin.from('profissionais').update({ usuario_id: null }).eq('usuario_id', id);
-  if (erroProf) throw erroProf;
+  // O trigger de usuarios desativa e desvincula o profissional na mesma
+  // transação do Auth. Se apagar falhar, o vínculo original é preservado.
   // Apagar o login apaga junto o perfil, os avisos e as inscrições de celular (cascata do banco)
   const { error } = await admin.auth.admin.deleteUser(id);
   if (error) throw error;

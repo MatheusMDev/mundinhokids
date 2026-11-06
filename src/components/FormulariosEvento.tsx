@@ -9,7 +9,7 @@ import { FormContratante } from './FormulariosCadastro';
 import { useEstado } from '../lib/estado';
 import { cancelarEvento, escalar, remarcarEvento, salvarEvento, tirarDaEscala, vazioParaNulo } from '../lib/acoes';
 import { deCampos, diaCurto, hora, paraCampos } from '../lib/formato';
-import { ROTULO_FUNCAO } from '../lib/consultas';
+import { profissionalDisponivel, ROTULO_FUNCAO } from '../lib/consultas';
 import type { BaseDados, Evento, FuncaoEscala, SituacaoEvento } from '../lib/tipos';
 
 const antes = (a: string, b: string) => new Date(a) < new Date(b);
@@ -196,7 +196,7 @@ export function FormEscala({ evento, onFechar }: { evento: Evento; onFechar: () 
   }, [db, evento]);
 
   const profissionais = db.profissionais
-    .filter((p) => p.ativo && p.funcoes.includes(funcao))
+    .filter((p) => profissionalDisponivel(db, p) && p.funcoes.includes(funcao))
     .filter((p) => funcao !== 'artista' || !personagem
       || db.profissional_personagens.some((x) => x.profissional_id === p.id && x.personagem_id === personagem))
     .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -221,7 +221,8 @@ export function FormEscala({ evento, onFechar }: { evento: Evento; onFechar: () 
       titulo={`Escalar para ${evento.titulo}`}
       onFechar={onFechar}
       textoSalvar="Escalar"
-      validar={() => (funcao === 'artista' && !personagem ? 'Escolha o personagem.' : !profissional ? 'Escolha quem vai.' : null)}
+      validar={() => (funcao === 'artista' && !personagem ? 'Escolha o personagem.' : !profissional ? 'Escolha quem vai.'
+        : !profissionais.some((p) => p.id === profissional) ? 'Este profissional não está mais disponível. Escolha outra pessoa.' : null)}
       onSalvar={() => executar(() => escalar(cliente, {
         evento_id: evento.id, profissional_id: profissional, funcao,
         personagem_id: funcao === 'artista' ? personagem : null,

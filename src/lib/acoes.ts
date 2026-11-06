@@ -296,6 +296,15 @@ export const editarAcesso = (c: Cliente, edicao: EdicaoAcesso) => chamarUsuarios
 /** Apaga o login; o servidor recusa se a pessoa já tem histórico (aí o certo é desativar) */
 export const excluirAcesso = (c: Cliente, id: string) => chamarUsuarios(c, { acao: 'excluir', id });
 
+/** Retira o cadastro das novas operações e mantém os vínculos históricos. */
+export async function excluirProfissional(c: Cliente, id: string) {
+  const r = await c.rpc('excluir_profissional', { p_profissional_id: id });
+  if (r.error && ['PGRST202', '42883'].includes(r.error.code)) {
+    throw new Error('A exclusão de profissionais ainda precisa ser ativada por quem cuida do sistema.');
+  }
+  ok(r);
+}
+
 /** A própria pessoa troca a senha (primeiro acesso, link de recuperação ou "Trocar minha senha") */
 export async function trocarMinhaSenha(c: Cliente, senha: string) {
   const { error } = await c.auth.updateUser({ password: senha, data: { trocar_senha: false } });

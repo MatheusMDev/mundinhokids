@@ -32,6 +32,10 @@ export const localDe = (db: BaseDados, e: Evento) => porId(db.locais, e.local_id
 export const contratanteDe = (db: BaseDados, e: Evento) => porId(db.contratantes, e.contratante_id);
 export const profissionalPorId = (db: BaseDados, id: string) => porId(db.profissionais, id);
 
+/** Não filtrar a base histórica: esta regra vale apenas para novas seleções. */
+export const profissionalDisponivel = (db: BaseDados, p: Profissional) =>
+  !p.excluido_em && p.ativo && db.profissionais_disponiveis.includes(p.id);
+
 export function eventosOrdenados(db: BaseDados): Evento[] {
   return [...db.eventos].sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
@@ -216,7 +220,7 @@ export function conferenciaDoEvento(db: BaseDados, eventoId: string): 'pendente'
 export function financeiroDoEvento(db: BaseDados, eventoId: string) {
   const contratado = db.evento_financeiro.find((f) => f.evento_id === eventoId)?.valor_contratado ?? 0;
   const recebido = db.recebimentos.filter((r) => r.evento_id === eventoId).reduce((s, r) => s + r.valor, 0);
-  const situacao = recebido === 0 ? 'pendente' : recebido < contratado ? 'parcial' : 'pago';
+  const situacao: 'pendente' | 'parcial' | 'pago' = recebido === 0 ? 'pendente' : recebido < contratado ? 'parcial' : 'pago';
   const pagamentos = db.pagamentos_profissionais
     .filter((p) => p.evento_id === eventoId)
     .map((p) => ({ ...p, profissional: porId(db.profissionais, p.profissional_id) }));

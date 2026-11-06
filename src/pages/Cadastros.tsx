@@ -9,16 +9,19 @@ import {
   FormContratante, FormFantasia, FormLocal, FormPersonagem, FormVeiculo, ROTULO_FANTASIA,
 } from '../components/FormulariosCadastro';
 import { FormEvento } from '../components/FormulariosEvento';
-import { FormDespesa, FormReserva } from '../components/FormulariosValores';
+import { FormReserva } from '../components/FormulariosValores';
 import { FormConferencia } from '../components/FormularioConferencia';
-import { SeletorData } from '../components/Formulario';
+import { Dialogo, SeletorData } from '../components/Formulario';
+import { excluirProfissional } from '../lib/acoes';
+import type { Profissional } from '../lib/tipos';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Paginacao } from '../components/Paginacao';
 import { NOME_PERFIL, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, MESES, mesAno, moeda, partes, semAcentos } from '../lib/formato';
+import { dataLonga, diaCurto, hora, MESES, mesAno, partes, semAcentos } from '../lib/formato';
 import {
-  conferenciasPendentes, eventosOrdenados, financeiroDoEvento, localDe, ROTULO_SITUACAO, veValores,
+  conferenciasPendentes, eventosOrdenados, localDe, ROTULO_SITUACAO,
+  profissionalDisponivel,
 } from '../lib/consultas';
 
 const ROTULO_FUNCAO_PROF = { artista: 'Artista', produtor: 'Produção', maquiador: 'Maquiagem', fantasias: 'Fantasias' };
@@ -105,58 +108,6 @@ function Pagina({ titulo, descricao, acao, children }: { titulo: string; descric
   );
 }
 
-interface Linha {
-  chave: string;
-  celulas: ReactNode[];
-  inativo?: boolean;
-  onAbrir?: () => void;
-}
-
-function Tabela({ titulo, acao, cabecalho, linhas, vazio }: {
-  titulo?: string; acao?: ReactNode; cabecalho: string[]; linhas: Linha[]; vazio?: string;
-}) {
-  return (
-    <section className="cartao tabela-rolagem">
-      {(titulo || acao) && <div className="cartao-topo">{titulo && <h2>{titulo}</h2>}{acao}</div>}
-      {linhas.length === 0 ? <div className="vazio">{vazio ?? 'Nada cadastrado ainda.'}</div> : (
-        <table className="tabela tabela-desktop">
-          <thead><tr>{cabecalho.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-          <tbody>
-            {linhas.map((l) => (
-              <tr key={l.chave} className={`${l.onAbrir ? 'clicavel' : ''}${l.inativo ? ' inativo' : ''}`} onClick={l.onAbrir}>
-                {l.celulas.map((c, j) => <td key={j}>{c}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {linhas.length > 0 && (
-        <div className="tabela-cartoes">
-          {linhas.map((linha) => (
-            <article
-              key={linha.chave}
-              className={`tabela-card${linha.inativo ? ' inativo' : ''}${linha.onAbrir ? ' clicavel' : ''}`}
-              onClick={linha.onAbrir}
-              onKeyDown={(evento) => { if (evento.key === 'Enter') linha.onAbrir?.(); }}
-              role={linha.onAbrir ? 'button' : undefined}
-              tabIndex={linha.onAbrir ? 0 : undefined}
-            >
-              <div className="tabela-card-titulo">{linha.celulas[0]}</div>
-              <dl>
-                {linha.celulas.slice(1).map((valor, j) => (
-                  <div key={cabecalho[j + 1]}>
-                    <dt>{cabecalho[j + 1]}</dt>
-                    <dd>{valor}</dd>
-                  </div>
-                ))}
-              </dl>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
 function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }) {
   const [parametros, setParametros] = useSearchParams();
@@ -164,6 +115,7 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
   const personagem = parametros.get('personagem') ?? '';
   const funcao = parametros.get('funcao') ?? '';
   const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const status = parametros.get('status') ?? 'ativo';
   const alterar = (nome: string, valor: string) => {
     const novos = new URLSearchParams(parametros);
     if (valor) novos.set(nome, valor);
@@ -204,6 +156,9 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
         options={[['', 'Todas as disponibilidades'], ...disponibilidades.map((item) => [item, item] as [string, string])]}
         onChange={(valor) => alterar('disponibilidade', valor)}
       />
+      <SeletorFiltro label="Situação" icon="lista" value={status}
+        options={[[ 'ativo', 'Ativos' ], [ 'inativo', 'Inativos / sem acesso ativo' ], [ 'todos', 'Todos' ]]}
+        onChange={(valor) => alterar('status', valor)} />
     </section>
   );
 }
@@ -251,16 +206,6 @@ function PaginacaoEventos({ pagina, total, onMudar }: { pagina: number; total: n
         Próxima
       </button>
     </nav>
-  );
-}
-/** Nome que abre a edição: um botão de verdade, para funcionar no teclado */
-function NomeEditavel({ texto, inativo, onAbrir }: { texto: string; inativo?: boolean; onAbrir?: () => void }) {
-  if (!onAbrir) return <strong>{texto}</strong>;
-  return (
-    <span>
-      <button type="button" className="link-botao" onClick={(e) => { e.stopPropagation(); onAbrir(); }}>{texto}</button>
-      {inativo && <span className="selo neutro" style={{ marginLeft: 8 }}>Inativo</span>}
-    </span>
   );
 }
 
@@ -338,21 +283,37 @@ export function Eventos() {
   );
 }
 
-// Só visualização: o profissional é cadastrado e alterado junto com o acesso, em Usuários e acessos
+export function ConfirmarExclusaoProfissional({ profissional, onFechar }: { profissional: Profissional; onFechar: () => void }) {
+  const { cliente, executar, permissoes } = useEstado();
+  if (!permissoes.gestao) return null;
+  return (
+    <Dialogo titulo="Excluir profissional" textoSalvar="Excluir profissional" perigo onFechar={onFechar}
+      onSalvar={() => executar(() => excluirProfissional(cliente, profissional.id), `Profissional ${profissional.nome} excluído.`)}>
+      <p style={{ margin: 0 }}>Excluir <strong>{profissional.nome}</strong>{profissional.email ? ` (${profissional.email})` : ''} do cadastro de profissionais?</p>
+      <p className="suave" style={{ margin: 0 }}>Ele deixará de aparecer na lista de profissionais e nas opções para novas escalas, reservas e despesas. O histórico de eventos e pagamentos será preservado.</p>
+      {profissional.usuario_id && <p className="suave" style={{ margin: 0 }}>O login será mantido, mas perderá o vínculo com este profissional. Para remover também o acesso, use Usuários e acessos.</p>}
+    </Dialogo>
+  );
+}
+
+// Cadastro/edição junto ao acesso; exclusão disponível diretamente nesta tela.
 export function Profissionais() {
-  const { db, permissoes } = useEstado();
+  const { db, permissoes, usuario } = useEstado();
+  const [excluindo, setExcluindo] = useState<Profissional | null>(null);
   const [parametros, setParametros] = useSearchParams();
-  const lista = useMemo(() => [...db.profissionais].sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)), [db.profissionais]);
+  const lista = useMemo(() => db.profissionais.filter((p) => !p.excluido_em).sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome)), [db.profissionais]);
   const busca = semAcentos(parametros.get('busca') ?? '');
   const personagem = parametros.get('personagem') ?? '';
   const funcao = parametros.get('funcao') ?? '';
   const disponibilidade = parametros.get('disponibilidade') ?? '';
+  const status = parametros.get('status') ?? 'ativo';
   const filtrados = lista.filter((profissional) => {
     const personagens = db.profissional_personagens.filter((item) => item.profissional_id === profissional.id);
     return (!busca || semAcentos(profissional.nome).includes(busca))
       && (!personagem || personagens.some((item) => item.personagem_id === personagem))
       && (!funcao || profissional.funcoes.includes(funcao as keyof typeof ROTULO_FUNCAO_PROF))
-      && (!disponibilidade || profissional.disponibilidade === disponibilidade);
+      && (!disponibilidade || profissional.disponibilidade === disponibilidade)
+      && (status === 'todos' || (status === 'inativo' ? !profissionalDisponivel(db, profissional) : profissionalDisponivel(db, profissional)));
   });
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
   const paginaSolicitada = Number(parametros.get('pagina') ?? '1');
@@ -373,25 +334,25 @@ export function Profissionais() {
     >
       {permissoes.gestao && (
         <p className="suave" style={{ margin: '-6px 0 14px' }}>
-          Para cadastrar alguém da equipe ou mudar o que a pessoa faz, use <Link to="/usuarios" className="link-marca">Usuários e acessos</Link>:
-          o profissional é criado junto com o acesso.
+          Cadastre e edite a equipe em <Link to="/usuarios" className="link-marca">Usuários e acessos</Link>.
         </p>
       )}
       <FiltrosProfissionais db={db} />
       {listaDaPagina.length ? (
         <div className="profissionais-grade">
           {listaDaPagina.map((p) => {
+            const disponivel = profissionalDisponivel(db, p);
             const personagens = db.profissional_personagens.filter((x) => x.profissional_id === p.id)
               .map((x) => db.personagens.find((pe) => pe.id === x.personagem_id)?.nome)
               .filter(Boolean) as string[];
             return (
-              <article key={p.id} className={`profissional-cartao${!p.ativo ? ' inativo' : ''}`}>
+              <article key={p.id} className={`profissional-cartao${!disponivel ? ' inativo' : ''}`}>
                 <div className="profissional-cartao-cabecalho">
                   <div className="profissional-identidade">
                     <span className="profissional-avatar"><Icone nome="usuario" tamanho={19} /></span>
                     <div>
                       <strong>{p.nome}</strong>
-                      <span className={`selo ${p.ativo ? 'confirmado' : 'realizado'}`}>{p.ativo ? 'Ativo' : 'Inativo'}</span>
+                      <span className={`selo ${disponivel ? 'confirmado' : 'realizado'}`}>{disponivel ? 'Ativo' : p.ativo ? 'Acesso inativo' : 'Inativo'}</span>
                     </div>
                   </div>
                   {!p.usuario_id && <span className="selo neutro" title="Ainda não tem acesso ao sistema">Sem acesso</span>}
@@ -405,12 +366,20 @@ export function Profissionais() {
                   <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{p.telefone ?? 'Não informado'}</strong></span></div>
                   <div><Icone nome="relogio" tamanho={15} /><span><small>Disponibilidade</small><strong>{p.disponibilidade ?? 'Não informada'}</strong></span></div>
                 </div>
+                {permissoes.gestao && (usuario.perfil === 'diretora' || !db.usuarios.some((u) => u.id === p.usuario_id && u.perfil === 'diretora')) && (
+                  <div className="acoes-linha">
+                    <button type="button" className="botao pequeno texto-perigo" aria-label={`Excluir profissional ${p.nome}`} onClick={() => setExcluindo(p)}>
+                      <Icone nome="lixeira" tamanho={15} /> Excluir profissional
+                    </button>
+                  </div>
+                )}
               </article>
             );
           })}
         </div>
       ) : <div className="vazio">{lista.length ? 'Nenhum profissional encontrado com esses filtros.' : 'Nenhum profissional cadastrado ainda.'}</div>}
       <Paginacao pagina={pagina} total={totalPaginas} onMudar={mudarPagina} />
+      {excluindo && permissoes.gestao && <ConfirmarExclusaoProfissional profissional={excluindo} onFechar={() => setExcluindo(null)} />}
     </Pagina>
   );
 }
@@ -767,97 +736,7 @@ export function Veiculos() {
   );
 }
 
-export function Financeiro() {
-  const { db, perfil } = useEstado();
-  const [despesa, setDespesa] = useState<{ item?: (typeof db.despesas)[number] } | null>(null);
-  if (!veValores(perfil)) {
-    return (
-      <Pagina titulo="Financeiro" descricao="Valores dos eventos, recebimentos, pagamentos e despesas">
-        <section className="cartao oculto"><h3>Sem acesso para este perfil</h3><p>Só a direção e a gerente veem os valores.</p></section>
-      </Pagina>
-    );
-  }
-
-  const eventos = eventosOrdenados(db).filter((e) => e.situacao !== 'cancelado'
-    && (db.evento_financeiro.some((f) => f.evento_id === e.id) || db.pagamentos_profissionais.some((p) => p.evento_id === e.id)));
-  const resumo = eventos.map((e) => {
-    const f = financeiroDoEvento(db, e.id);
-    const aPagar = f.pagamentos.filter((p) => p.situacao === 'pendente').reduce((s, p) => s + p.valor_combinado, 0);
-    return { evento: e, ...f, aPagar };
-  });
-  const despesasGerais = db.despesas.filter((d) => !d.evento_id).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
-  const pendentesAprovacao = db.despesas.filter((d) => d.aprovacao === 'pendente');
-  const totais = resumo.reduce((t, r) => ({
-    contratado: t.contratado + r.contratado, recebido: t.recebido + r.recebido,
-    aPagar: t.aPagar + r.aPagar, despesas: t.despesas + r.despesas,
-  }), { contratado: 0, recebido: 0, aPagar: 0, despesas: despesasGerais.reduce((s, d) => s + d.valor, 0) });
-
-  // Quem tem valor a receber, somando os eventos
-  const porProfissional = new Map<string, { nome: string; total: number; eventos: string[] }>();
-  for (const p of db.pagamentos_profissionais.filter((x) => x.situacao === 'pendente')) {
-    const atual = porProfissional.get(p.profissional_id)
-      ?? { nome: db.profissionais.find((x) => x.id === p.profissional_id)?.nome ?? 'Profissional', total: 0, eventos: [] };
-    atual.total += p.valor_combinado;
-    atual.eventos.push(db.eventos.find((e) => e.id === p.evento_id)?.titulo ?? '');
-    porProfissional.set(p.profissional_id, atual);
-  }
-
-  return (
-    <Pagina titulo="Financeiro" descricao="Valores dos eventos, recebimentos, pagamentos e despesas">
-      <div className="numeros">
-        <div className="cartao numero"><span>Contratado</span><strong>{moeda(totais.contratado)}</strong><small>{eventos.length} eventos</small></div>
-        <div className="cartao numero"><span>Recebido</span><strong>{moeda(totais.recebido)}</strong><small>falta {moeda(Math.max(0, totais.contratado - totais.recebido))}</small></div>
-        <div className="cartao numero"><span>Equipe a pagar</span><strong className="marca">{moeda(totais.aPagar)}</strong><small>{porProfissional.size} profissionais</small></div>
-        <div className="cartao numero">
-          <span>Despesas</span><strong>{moeda(totais.despesas)}</strong>
-          <small>{pendentesAprovacao.length ? `${pendentesAprovacao.length} aguardando aprovação` : 'eventos e gerais'}</small>
-        </div>
-      </div>
-      <div className="coluna">
-        <Tabela
-          titulo="Por evento"
-          cabecalho={['Evento', 'Contratado', 'Recebido', 'Situação', 'Equipe a pagar', 'Despesas']}
-          vazio="Nenhum evento com valores registrados."
-          linhas={resumo.map((r) => ({
-            chave: r.evento.id,
-            celulas: [
-              <Link to={`/eventos/${r.evento.id}`} className="link-marca">{r.evento.titulo}</Link>,
-              moeda(r.contratado),
-              moeda(r.recebido),
-              <span className={`selo ${r.situacao === 'pago' ? 'ok' : r.situacao === 'parcial' ? 'alerta' : 'neutro'}`}>{r.situacao}</span>,
-              r.aPagar ? moeda(r.aPagar) : '—',
-              r.despesas ? moeda(r.despesas) : '—',
-            ],
-          }))}
-        />
-        <Tabela
-          titulo="A pagar por profissional"
-          cabecalho={['Profissional', 'Eventos', 'Total']}
-          vazio="Nenhum pagamento pendente."
-          linhas={[...porProfissional.entries()].sort((a, b) => b[1].total - a[1].total).map(([id, p]) => ({
-            chave: id, celulas: [<strong>{p.nome}</strong>, p.eventos.join(', '), moeda(p.total)],
-          }))}
-        />
-        <Tabela
-          titulo="Despesas gerais e insumos"
-          acao={<button type="button" className="botao pequeno" onClick={() => setDespesa({})}><Icone nome="mais" tamanho={14} /> Lançar</button>}
-          cabecalho={['Descrição', 'Tipo', 'Quem gastou', 'Valor']}
-          vazio="Nenhuma despesa fora de evento."
-          linhas={despesasGerais.map((d) => ({
-            chave: d.id, onAbrir: () => setDespesa({ item: d }),
-            celulas: [
-              <NomeEditavel texto={d.descricao} onAbrir={() => setDespesa({ item: d })} />,
-              d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra',
-              db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? '—',
-              moeda(d.valor),
-            ],
-          }))}
-        />
-      </div>
-      {despesa && <FormDespesa item={despesa.item} onFechar={() => setDespesa(null)} />}
-    </Pagina>
-  );
-}
+export { Financeiro } from './Financeiro';
 
 export function CadastrosGerais() {
   const { db, permissoes } = useEstado();

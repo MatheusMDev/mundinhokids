@@ -435,7 +435,7 @@ function ConfirmarExclusao({ item, onFechar, onExcluido }: { item: Usuario; onFe
         Excluir o acesso de <strong>{item.nome}</strong> ({item.email})? O login deixa de existir e isso não pode ser desfeito.
       </p>
       <p className="suave" style={{ margin: 0 }}>
-        Se a pessoa for ligada a um profissional, o cadastro dele continua. Se ela já tiver registros no sistema, a exclusão é
+        Se a pessoa for ligada a um profissional, o cadastro dele é desativado e preservado para consulta. Se ela já tiver registros no sistema, a exclusão é
         recusada: nesse caso, desative o acesso.
       </p>
     </Dialogo>

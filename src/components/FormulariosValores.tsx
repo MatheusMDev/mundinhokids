@@ -8,7 +8,7 @@ import {
   type DadosPagamento,
 } from '../lib/acoes';
 import { dataLonga, deCampos, hojeCampo, hora, lerValor, moeda, paraCampos } from '../lib/formato';
-import { equipeDoEvento, ROTULO_FUNCAO } from '../lib/consultas';
+import { equipeDoEvento, profissionalDisponivel, ROTULO_FUNCAO } from '../lib/consultas';
 import type { Despesa, Evento, Recebimento, ReservaVeiculo } from '../lib/tipos';
 
 const antes = (a: string, b: string) => new Date(a) < new Date(b);
@@ -26,15 +26,17 @@ export function FormReserva({ evento, reserva, onFechar }: { evento?: Evento; re
   // Quem pode ser responsável: o próprio produtor; para a operação, os produtores do evento (ou todos, sem evento)
   const produtoresDoEvento = evento ? equipeDoEvento(db, evento.id).filter((m) => m.escala.funcao === 'produtor').map((m) => m.escala.profissional_id) : [];
   const responsaveis = permissoes.operacao
-    ? db.profissionais.filter((p) => p.ativo && p.funcoes.includes('produtor'))
+    ? db.profissionais.filter((p) => profissionalDisponivel(db, p) && p.funcoes.includes('produtor'))
         .sort((a, b) => Number(produtoresDoEvento.includes(b.id)) - Number(produtoresDoEvento.includes(a.id)) || a.nome.localeCompare(b.nome))
-    : db.profissionais.filter((p) => p.id === usuario.profissionalId);
+    : db.profissionais.filter((p) => p.id === usuario.profissionalId && profissionalDisponivel(db, p));
+  const responsavelAnterior = reserva && db.profissionais.find((p) => p.id === reserva.responsavel_id && !responsaveis.some((r) => r.id === p.id));
 
   const retiradaPadrao = paraCampos(reserva?.retirada ?? (evento ? somarHoras(evento.inicio, -1) : new Date().toISOString()));
   const devolucaoPadrao = paraCampos(reserva?.devolucao_prevista ?? (evento ? somarHoras(evento.fim, 1) : somarHoras(new Date().toISOString(), 4)));
 
   const [veiculo, setVeiculo] = useState(reserva?.veiculo_id ?? veiculos[0]?.id ?? '');
-  const [responsavel, setResponsavel] = useState(reserva?.responsavel_id ?? produtoresDoEvento[0] ?? usuario.profissionalId ?? '');
+  const [responsavel, setResponsavel] = useState(reserva?.responsavel_id ?? responsaveis.find((p) => produtoresDoEvento.includes(p.id))?.id
+    ?? responsaveis.find((p) => p.id === usuario.profissionalId)?.id ?? '');
   const [dataRetirada, setDataRetirada] = useState(retiradaPadrao.data);
   const [horaRetirada, setHoraRetirada] = useState(retiradaPadrao.hora);
   const [dataDevolucao, setDataDevolucao] = useState(devolucaoPadrao.data);
@@ -63,6 +65,7 @@ export function FormReserva({ evento, reserva, onFechar }: { evento?: Evento; re
       textoSalvar={reserva ? 'Salvar' : 'Reservar'}
       validar={() => (!veiculo ? 'Escolha o veículo.'
         : !responsavel ? 'Escolha quem fica com o veículo.'
+        : !responsaveis.some((p) => p.id === responsavel) && responsavel !== reserva?.responsavel_id ? 'Este profissional não está mais disponível. Escolha outra pessoa.'
         : !retirada || !devolucao ? 'Informe a retirada e a devolução.'
         : !antes(retirada, devolucao) ? 'A devolução precisa ser depois da retirada.'
         : conflito ? 'O veículo já está reservado nesse período. Ajuste os horários.'
@@ -75,7 +78,7 @@ export function FormReserva({ evento, reserva, onFechar }: { evento?: Evento; re
       {eventoExibido && <div className="reserva-evento-contexto"><span>Evento da reserva</span><strong>{eventoExibido.titulo}</strong><small>{dataLonga(eventoExibido.inicio, false)} · {hora(eventoExibido.inicio)} às {hora(eventoExibido.fim)}</small></div>}
       <Linha>
         <SeletorOpcao rotulo="Veículo *" valor={veiculo} opcoes={veiculos.length ? veiculos.map((v) => [v.id, `${v.nome}${v.placa ? ` · ${v.placa}` : ''}`] as [string, string]) : [['', 'Nenhum veículo cadastrado']]} onMudar={setVeiculo} />
-        <SeletorOpcao rotulo="Responsável *" valor={responsavel} opcoes={[['', 'Escolha…'], ...responsaveis.map((p) => [p.id, `${p.nome}${produtoresDoEvento.includes(p.id) ? ' (produz o evento)' : ''}`] as [string, string])]} onMudar={setResponsavel} disabled={!permissoes.operacao} />
+        <SeletorOpcao rotulo="Responsável *" valor={responsavel} opcoes={[['', 'Escolha…'], ...(responsavelAnterior && responsavel === responsavelAnterior.id ? [[responsavelAnterior.id, `${responsavelAnterior.nome} (indisponível — vínculo atual)`] as [string, string]] : []), ...responsaveis.map((p) => [p.id, `${p.nome}${produtoresDoEvento.includes(p.id) ? ' (produz o evento)' : ''}`] as [string, string])]} onMudar={setResponsavel} disabled={!permissoes.operacao} />
       </Linha>
       <Linha>
         <SeletorData rotulo="Retirada *" valor={dataRetirada} onMudar={setDataRetirada} />
@@ -255,21 +258,25 @@ export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?
   const [tipo, setTipo] = useState<Despesa['tipo']>(item?.tipo ?? (evento ? 'extra' : 'insumo'));
   const [descricao, setDescricao] = useState(item?.descricao ?? '');
   const [valor, setValor] = useState(item ? String(item.valor).replace('.', ',') : '');
-  const [responsavel, setResponsavel] = useState(item?.responsavel_id ?? usuario.profissionalId ?? '');
+  const [responsavel, setResponsavel] = useState(item?.responsavel_id
+    ?? db.profissionais.find((p) => p.id === usuario.profissionalId && profissionalDisponivel(db, p))?.id ?? '');
   const [comprovante, setComprovante] = useState(item?.comprovante ?? '');
   const [observacoes, setObservacoes] = useState(item?.observacoes ?? '');
   const numero = lerValor(valor);
 
   const pessoas = evento
-    ? equipeDoEvento(db, evento.id).map((m) => m.profissional).filter((p): p is NonNullable<typeof p> => !!p)
-    : db.profissionais.filter((p) => p.ativo);
+    ? equipeDoEvento(db, evento.id).map((m) => m.profissional).filter((p): p is NonNullable<typeof p> => !!p && profissionalDisponivel(db, p))
+    : db.profissionais.filter((p) => profissionalDisponivel(db, p));
+  const responsavelAnterior = item && db.profissionais.find((p) => p.id === item.responsavel_id && !pessoas.some((r) => r.id === p.id));
 
   return (
     <Dialogo
       titulo={item ? 'Alterar despesa' : evento ? `Despesa · ${evento.titulo}` : 'Despesa geral ou insumo'}
       onFechar={onFechar}
       textoSalvar={item ? 'Salvar' : 'Lançar despesa'}
-      validar={() => (!descricao.trim() ? 'Descreva a despesa.' : numero === null || numero <= 0 ? 'Informe um valor maior que zero.' : null)}
+      validar={() => (!descricao.trim() ? 'Descreva a despesa.' : numero === null || numero <= 0 ? 'Informe um valor maior que zero.'
+        : responsavel && !pessoas.some((p) => p.id === responsavel) && responsavel !== item?.responsavel_id
+          ? 'Este profissional não está mais disponível. Escolha outra pessoa.' : null)}
       onSalvar={() => executar(() => salvarDespesa(cliente, item?.id, {
         evento_id: item ? item.evento_id : evento?.id ?? null, tipo, descricao: descricao.trim(), valor: numero!,
         responsavel_id: responsavel || null, comprovante: vazioParaNulo(comprovante), observacoes: vazioParaNulo(observacoes),
@@ -295,6 +302,7 @@ export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?
         {(id) => (
           <select id={id} value={responsavel} onChange={(e) => setResponsavel(e.target.value)}>
             <option value="">Não informado</option>
+            {responsavelAnterior && <option value={responsavelAnterior.id} disabled>{responsavelAnterior.nome} (indisponível — vínculo atual)</option>}
             {pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
         )}

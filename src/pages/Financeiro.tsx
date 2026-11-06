@@ -1,0 +1,171 @@
+import { useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Layout } from '../components/Layout';
+import { Icone, type NomeIcone } from '../components/Icone';
+import { FormDespesa } from '../components/FormulariosValores';
+import { Paginacao, paginar } from '../components/Paginacao';
+import { SeletorFiltro } from '../components/SeletorFiltro';
+import { useEstado } from '../lib/estado';
+import { resumoDoFinanceiro } from '../lib/financeiro';
+import { veValores } from '../lib/consultas';
+import { dataLonga, iniciais, mesAno, moeda, partes, semAcentos } from '../lib/formato';
+import type { Despesa } from '../lib/tipos';
+
+const SECOES = [
+  { id: 'eventos', nome: 'Por evento', icone: 'presente' },
+  { id: 'equipe', nome: 'Equipe a pagar', icone: 'pessoas' },
+  { id: 'despesas', nome: 'Despesas gerais', icone: 'dinheiro' },
+] as const;
+const SITUACOES = { pendente: 'Pendente', parcial: 'Parcial', pago: 'Pago' };
+const APROVACAO = { nao_requer: 'Sem aprovação necessária', pendente: 'Aguardando aprovação', aprovada: 'Aprovada', recusada: 'Recusada' };
+const mesDoEvento = (inicio: string) => { const { ano, mes } = partes(inicio); return `${ano}-${String(mes).padStart(2, '0')}`; };
+
+function Vazio({ icone, titulo, filtrado, limpar }: { icone: NomeIcone; titulo: string; filtrado: boolean; limpar: () => void }) {
+  return <div className="financeiro-vazio" role="status">
+    <span className="financeiro-vazio-icone"><Icone nome={icone} tamanho={24} /></span>
+    <h3>{filtrado ? 'Nenhum resultado encontrado' : titulo}</h3>
+    <p>{filtrado ? 'Tente outro termo ou ajuste os filtros.' : 'Os registros aparecerão aqui assim que forem lançados.'}</p>
+    {filtrado && <button type="button" className="botao" onClick={limpar}>Limpar filtros</button>}
+  </div>;
+}
+
+export function Financeiro() {
+  const { db, perfil } = useEstado();
+  const [parametros, setParametros] = useSearchParams();
+  const [despesa, setDespesa] = useState<{ item?: Despesa } | null>(null);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const dados = useMemo(() => resumoDoFinanceiro(db), [db]);
+  const aba = SECOES.find((s) => s.id === parametros.get('aba'))?.id ?? 'eventos';
+  const busca = parametros.get(`busca_${aba}`) ?? '';
+  const termo = semAcentos(busca.trim());
+  const mes = parametros.get('mes') ?? '';
+  const situacao = parametros.get('situacao') ?? '';
+  const tipo = parametros.get('tipo') ?? '';
+  const aprovacao = parametros.get('aprovacao') ?? '';
+  const chavePagina = `pagina_${aba}`;
+  const paginaPedida = Number(parametros.get(chavePagina));
+  const pagina = Number.isFinite(paginaPedida) && paginaPedida >= 1 ? Math.floor(paginaPedida) : 1;
+  const alterar = (chave: string, valor: string) => {
+    const novos = new URLSearchParams(parametros);
+    if (valor) novos.set(chave, valor); else novos.delete(chave);
+    novos.delete(chavePagina);
+    setParametros(novos);
+  };
+  const limpar = () => {
+    const novos = new URLSearchParams(parametros);
+    for (const chave of [`busca_${aba}`, chavePagina, ...(aba === 'eventos' ? ['mes', 'situacao'] : aba === 'despesas' ? ['tipo', 'aprovacao'] : [])]) novos.delete(chave);
+    setParametros(novos);
+  };
+  const mudarPagina = (nova: number) => {
+    const novos = new URLSearchParams(parametros);
+    if (nova > 1) novos.set(chavePagina, String(nova)); else novos.delete(chavePagina);
+    setParametros(novos);
+    document.getElementById('financeiro-lista')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+
+  if (!veValores(perfil)) return <Layout><section className="cartao oculto"><h1>Financeiro</h1><p>Só a direção e a gerência veem os valores financeiros.</p></section></Layout>;
+
+  const { totais } = dados;
+  const meses = new Map<string, string>();
+  for (const { evento } of dados.eventos) { const { ano, mes } = partes(evento.inicio); meses.set(mesDoEvento(evento.inicio), mesAno(ano, mes)); }
+  const eventos = dados.eventos.filter((r) => (!termo || semAcentos(`${r.evento.titulo} ${r.evento.aniversariante ?? ''}`).includes(termo))
+    && (!mes || mesDoEvento(r.evento.inicio) === mes) && (!situacao || r.situacao === situacao));
+  const equipe = dados.equipe.filter((p) => !termo || semAcentos(`${p.nome} ${p.eventos.map((e) => e.titulo).join(' ')}`).includes(termo));
+  const despesas = dados.despesasGerais.filter((d) => (!termo || semAcentos(`${d.descricao} ${db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? ''}`).includes(termo))
+    && (!tipo || d.tipo === tipo) && (!aprovacao || d.aprovacao === aprovacao));
+  const paginaEventos = paginar(eventos, pagina, 6);
+  const paginaEquipe = paginar(equipe, pagina, 6);
+  const paginaDespesas = paginar(despesas, pagina, 6);
+  const paginacao = aba === 'eventos' ? paginaEventos : aba === 'equipe' ? paginaEquipe : paginaDespesas;
+  const total = aba === 'eventos' ? dados.eventos.length : aba === 'equipe' ? dados.equipe.length : dados.despesasGerais.length;
+  const encontrados = aba === 'eventos' ? eventos.length : aba === 'equipe' ? equipe.length : despesas.length;
+  const filtrado = !!termo || (aba === 'eventos' ? !!mes || !!situacao : aba === 'despesas' ? !!tipo || !!aprovacao : false);
+  const filtrosSelecionados = aba === 'eventos' ? Number(!!mes) + Number(!!situacao) : aba === 'despesas' ? Number(!!tipo) + Number(!!aprovacao) : 0;
+  const indicadores: { nome: string; valor: number; detalhe: string; icone: NomeIcone; tom: string }[] = [
+    { nome: 'Contratado', valor: totais.contratado, detalhe: `${dados.eventos.length} ${dados.eventos.length === 1 ? 'evento' : 'eventos'} com valores`, icone: 'arquivo', tom: 'rosa' },
+    { nome: 'Recebido', valor: totais.recebido, detalhe: `${moeda(Math.max(0, totais.contratado - totais.recebido))} a receber`, icone: 'dinheiro', tom: 'verde' },
+    { nome: 'Equipe a pagar', valor: totais.aPagar, detalhe: `${dados.equipe.length} ${dados.equipe.length === 1 ? 'profissional' : 'profissionais'}`, icone: 'pessoas', tom: 'laranja' },
+    { nome: 'Despesas', valor: totais.despesas, detalhe: dados.pendentesAprovacao.length ? `${dados.pendentesAprovacao.length} para aprovar` : 'Dos eventos e gerais', icone: 'lista', tom: 'neutro' },
+  ];
+
+  return <Layout>
+    <div className="lista-topo financeiro-cabecalho">
+      <div><h1>Financeiro</h1><p>Recebimentos, equipe e despesas em um só lugar.</p></div>
+      <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>
+    </div>
+    <section className="financeiro-indicadores" aria-label="Resumo financeiro geral">
+      {indicadores.map((i) => <article className={`financeiro-indicador ${i.tom}`} key={i.nome}>
+        <div className="financeiro-indicador-topo"><span>{i.nome}</span><span className="financeiro-indicador-icone"><Icone nome={i.icone} tamanho={18} /></span></div>
+        <strong>{moeda(i.valor)}</strong><small title={i.detalhe}>{i.detalhe}</small>
+      </article>)}
+    </section>
+    <nav className="financeiro-abas" aria-label="Seções do financeiro">
+      {SECOES.map((s) => {
+        const novos = new URLSearchParams(parametros); novos.set('aba', s.id);
+        const quantidade = s.id === 'eventos' ? dados.eventos.length : s.id === 'equipe' ? dados.equipe.length : dados.despesasGerais.length;
+        return <Link key={s.id} to={{ pathname: '/financeiro', search: novos.toString() }} aria-current={aba === s.id ? 'page' : undefined} className={aba === s.id ? 'ativo' : ''}>
+          <Icone nome={s.icone} tamanho={18} /><span className="financeiro-aba-nome">{s.nome}</span><span className="financeiro-aba-curto">{s.id === 'eventos' ? 'Eventos' : s.id === 'equipe' ? 'Equipe' : 'Despesas'}</span><small>{quantidade}</small>
+        </Link>;
+      })}
+    </nav>
+    <section className="financeiro-secao" id="financeiro-lista" aria-labelledby="financeiro-titulo">
+      <div className="financeiro-secao-topo"><div>
+        <h2 id="financeiro-titulo">{aba === 'eventos' ? 'Resumo por evento' : aba === 'equipe' ? 'Pagamentos pendentes' : 'Despesas gerais e insumos'}</h2>
+        <p>{encontrados} de {total} {aba === 'eventos' ? 'eventos' : aba === 'equipe' ? 'profissionais' : 'despesas'}</p>
+      </div>{filtrado && <button type="button" className="link-botao" onClick={limpar}>Limpar filtros</button>}</div>
+      <div className={`financeiro-filtros ${aba === 'equipe' ? 'somente-busca' : ''}${filtrosAbertos ? ' aberto' : ''}`}>
+        <div className="financeiro-busca-linha">
+        <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">{aba === 'eventos' ? 'Buscar evento' : aba === 'equipe' ? 'Buscar profissional ou evento' : 'Buscar despesa'}</span>
+          <input type="search" value={busca} onChange={(e) => alterar(`busca_${aba}`, e.target.value)} placeholder={aba === 'eventos' ? 'Buscar evento' : aba === 'equipe' ? 'Buscar profissional ou evento' : 'Buscar despesa'} />
+          {busca && <button type="button" className="limpar-busca" aria-label="Limpar busca" onClick={() => alterar(`busca_${aba}`, '')}>×</button>}
+        </label>
+        {aba !== 'equipe' && <button type="button" className="botao financeiro-filtros-toggle so-mobile" aria-expanded={filtrosAbertos} aria-controls="financeiro-filtros-detalhes" onClick={() => setFiltrosAbertos((atual) => !atual)}>
+          <Icone nome="lista" tamanho={16} /><span>Filtros</span>{filtrosSelecionados > 0 && <small>{filtrosSelecionados}</small>}
+        </button>}
+        </div>
+        {aba !== 'equipe' && <div className="financeiro-filtros-detalhes" id="financeiro-filtros-detalhes">
+        {aba === 'eventos' && <>
+          <SeletorFiltro label="Mês" icon="calendario" value={mes} options={[[ '', 'Todos os meses' ], ...[...meses].sort(([a], [b]) => b.localeCompare(a))]} onChange={(v) => alterar('mes', v)} />
+          <SeletorFiltro label="Recebimento" icon="dinheiro" value={situacao} options={[[ '', 'Todas as situações' ], ...Object.entries(SITUACOES)]} onChange={(v) => alterar('situacao', v)} />
+        </>}
+        {aba === 'despesas' && <>
+          <SeletorFiltro label="Tipo" icon="lista" value={tipo} options={[[ '', 'Todos os tipos' ], ['extra', 'Gasto extra'], ['insumo', 'Insumo']]} onChange={(v) => alterar('tipo', v)} />
+          <SeletorFiltro label="Aprovação" icon="acessos" value={aprovacao} options={[[ '', 'Todas as situações' ], ...Object.entries(APROVACAO)]} onChange={(v) => alterar('aprovacao', v)} />
+        </>}
+        </div>}
+      </div>
+      {aba === 'eventos' && (paginaEventos.itens.length ? <div className="financeiro-grade">
+        {paginaEventos.itens.map((r) => {
+          const percentual = r.contratado > 0 ? Math.min(100, Math.max(0, r.recebido / r.contratado * 100)) : 0;
+          return <Link to={`/eventos/${r.evento.id}`} state={{ voltarPara: `/financeiro?${parametros}` }} className="financeiro-evento" key={r.evento.id}>
+            <div className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="presente" tamanho={19} /></span><span className={`selo ${r.situacao === 'pago' ? 'ok' : r.situacao === 'parcial' ? 'alerta' : 'neutro'}`}>{SITUACOES[r.situacao]}</span></div>
+            <h3>{r.evento.titulo}</h3><p className="financeiro-data"><Icone nome="calendario" tamanho={14} />{dataLonga(r.evento.inicio, false)}</p>
+            <dl className="financeiro-valores"><div><dt>Contratado</dt><dd>{moeda(r.contratado)}</dd></div><div><dt>Recebido</dt><dd className="ok-texto">{moeda(r.recebido)}</dd></div></dl>
+            <progress className={r.situacao === 'pago' ? 'pago' : ''} value={percentual} max={100} aria-label={`Recebido de ${r.evento.titulo}`} />
+            <div className="financeiro-restante"><span>A receber</span><strong>{moeda(Math.max(0, r.contratado - r.recebido))}</strong></div>
+            <div className="financeiro-evento-rodape"><div><span>Equipe a pagar</span><strong>{moeda(r.aPagar)}</strong></div><div><span>Despesas</span><strong>{moeda(r.despesas)}</strong></div><Icone nome="direita" tamanho={18} /></div>
+          </Link>;
+        })}
+      </div> : <Vazio icone="presente" titulo="Nenhum evento com valores registrados" filtrado={filtrado} limpar={limpar} />)}
+      {aba === 'equipe' && (paginaEquipe.itens.length ? <div className="financeiro-grade">
+        {paginaEquipe.itens.map((p) => <article className="financeiro-profissional" key={p.id}>
+          <div className="financeiro-profissional-topo"><span className="avatar">{iniciais(p.nome)}</span><div><h3>{p.nome}</h3><small>{p.eventos.length} {p.eventos.length === 1 ? 'evento pendente' : 'eventos pendentes'}</small></div><span className="selo alerta">A pagar</span></div>
+          <strong className="financeiro-pagamento-total">{moeda(p.total)}</strong>
+          <details className="financeiro-profissional-eventos"><summary>Ver eventos<Icone nome="direita" tamanho={15} /></summary>
+            <ul className="financeiro-pagamento-eventos">{p.eventos.map((e) => <li key={e.id}><Link to={`/eventos/${e.id}`} state={{ voltarPara: `/financeiro?${parametros}` }}>{e.titulo}<Icone nome="direita" tamanho={14} /></Link><strong>{moeda(e.valor)}</strong></li>)}</ul>
+          </details>
+        </article>)}
+      </div> : <Vazio icone="pessoas" titulo="Nenhum pagamento pendente" filtrado={filtrado} limpar={limpar} />)}
+      {aba === 'despesas' && (paginaDespesas.itens.length ? <div className="financeiro-grade">
+        {paginaDespesas.itens.map((d) => <button type="button" className="financeiro-despesa" key={d.id} onClick={() => setDespesa({ item: d })} aria-label={`Editar despesa ${d.descricao}`}>
+          <span className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="dinheiro" tamanho={19} /></span><span className="selo neutro">{d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra'}</span></span>
+          <strong className="financeiro-despesa-titulo">{d.descricao}</strong><span className="financeiro-data">{db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado'}</span>
+          <strong className="financeiro-despesa-valor">{moeda(d.valor)}</strong>
+          <span className="financeiro-despesa-rodape"><span className={`selo ${d.aprovacao === 'pendente' ? 'alerta' : d.aprovacao === 'aprovada' ? 'ok' : 'neutro'}`}>{APROVACAO[d.aprovacao]}</span><Icone nome="lapis" tamanho={16} /></span>
+        </button>)}
+      </div> : <Vazio icone="dinheiro" titulo="Nenhuma despesa geral lançada" filtrado={filtrado} limpar={limpar} />)}
+      <Paginacao pagina={paginacao.atual} total={paginacao.totalPaginas} onMudar={mudarPagina} rotulo={`Paginação de ${SECOES.find((s) => s.id === aba)?.nome}`} />
+    </section>
+    {despesa && <FormDespesa item={despesa.item} onFechar={() => setDespesa(null)} />}
+  </Layout>;
+}

@@ -1,7 +1,7 @@
 // Estado do app: login, base carregada do Supabase (já filtrada pelas
 // permissões do banco) e ações que chamam as funções do banco.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import type { BaseDados, PerfilAcesso } from './tipos';
 import type { PerfilTela } from './consultas';
@@ -11,6 +11,7 @@ import { sairDesteAparelho, supabase } from './supabase';
 import { Login } from '../pages/Login';
 import { TrocarSenha } from '../pages/TrocarSenha';
 import { SkeletonEventos } from '../components/SkeletonEventos';
+import { SkeletonFinanceiro } from '../components/SkeletonFinanceiro';
 
 interface Estado {
   db: BaseDados;
@@ -153,6 +154,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   /** Chegou pelo link de "esqueci minha senha": precisa criar a nova senha antes de usar o sistema */
   const [recuperando, setRecuperando] = useState(false);
   const { aviso, avisar } = useAviso();
+  const recargaAtual = useRef(0);
 
   useEffect(() => {
     cliente.auth.getSession().then(({ data }) => setSessao(data.session));
@@ -164,19 +166,41 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   }, [cliente]);
 
   const recarregar = useCallback(async () => {
+    const requisicao = ++recargaAtual.current;
     try {
+      const novaBase = await carregarBase(cliente);
+      if (requisicao !== recargaAtual.current) return;
       setErro(null);
-      setDb(await carregarBase(cliente));
+      setDb(novaBase);
       setHoje(new Date().toISOString());
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      if (requisicao === recargaAtual.current) setErro(e instanceof Error ? e.message : String(e));
     }
   }, [cliente]);
 
   const uid = sessao?.user.id;
   useEffect(() => {
+    // Trocar/sair do login invalida respostas de consultas da sessão anterior.
+    recargaAtual.current++;
+    setDb(null);
+    setErro(null);
     if (uid) void recarregar();
-    else setDb(null);
+    return () => { recargaAtual.current++; };
+  }, [uid, recarregar]);
+
+  // Exclusões e desativações feitas em outra aba/aparelho precisam chegar
+  // também aos formulários que continuam abertos. O banco valida ao salvar.
+  useEffect(() => {
+    if (!uid) return;
+    const atualizar = () => { if (document.visibilityState === 'visible') void recarregar(); };
+    window.addEventListener('focus', atualizar);
+    document.addEventListener('visibilitychange', atualizar);
+    const intervalo = window.setInterval(atualizar, 30_000);
+    return () => {
+      window.removeEventListener('focus', atualizar);
+      document.removeEventListener('visibilitychange', atualizar);
+      window.clearInterval(intervalo);
+    };
   }, [uid, recarregar]);
 
   const eu = db?.usuarios.find((u) => u.id === uid);
@@ -206,7 +230,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
 
   const valor = useMemo<Estado | null>(() => {
     if (!db || !eu) return null;
-    const profissional = db.profissionais.find((p) => p.usuario_id === eu.id);
+    const profissional = db.profissionais.find((p) => p.usuario_id === eu.id && p.ativo);
     const papeis = new Set<PerfilAcesso>([eu.perfil, ...(profissional?.funcoes ?? [])]);
     // Telas escolhidas pela gestão na edição do acesso; sem escolha, o padrão do perfil
     const telas = eu.telas
@@ -225,7 +249,9 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     };
   }, [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
 
-  if (sessao === undefined) return <SkeletonEventos />;
+  const telaFinanceiro = window.location.pathname === '/financeiro';
+  const carregamento = telaFinanceiro ? <SkeletonFinanceiro /> : <SkeletonEventos />;
+  if (sessao === undefined) return carregamento;
   if (!sessao) return <Login />;
   // Senha provisória, convite ou link de recuperação: a pessoa cria a própria senha primeiro
   if (recuperando || sessao.user.user_metadata?.trocar_senha === true) {
@@ -239,7 +265,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   if (erro) {
     return (
       <TelaSimples
-        titulo="Não foi possível carregar os dados"
+        titulo={telaFinanceiro ? 'Não foi possível carregar o Financeiro' : 'Não foi possível carregar os dados'}
         texto={erro}
         acao={<div className="acoes" style={{ marginTop: 14 }}>
           <button type="button" className="botao primario" onClick={() => void recarregar()}>Tentar de novo</button>
@@ -248,7 +274,11 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
       />
     );
   }
-  if (!db) return <SkeletonEventos />;
+  if (!db) return carregamento;
+  if (eu && !eu.ativo) {
+    return <TelaSimples titulo="Acesso desativado" texto="Seu acesso foi desativado. Fale com a gerente ou a direção."
+      acao={<button type="button" className="botao" onClick={sair}>Sair</button>} />;
+  }
   if (!eu || !valor) {
     return (
       <TelaSimples

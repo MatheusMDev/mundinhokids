@@ -39,7 +39,7 @@ export function DetalheEvento() {
   const { db, hoje, perfil, decidirTroca, permissoes, executar, cliente, avisar, usuario } = useEstado();
   const origem = (location.state as { voltarPara?: string } | null)?.voltarPara;
   const voltarPara = origem ?? '/';
-  const textoVoltar = origem?.startsWith('/eventos') ? 'Voltar aos eventos' : 'Voltar ao calendário';
+  const textoVoltar = origem?.startsWith('/financeiro') ? 'Voltar ao financeiro' : origem?.startsWith('/eventos') ? 'Voltar aos eventos' : 'Voltar ao calendário';
   const [janela, setJanela] = useState<Janela | null>(null);
   const evento = eventoPorId(db, id);
 
