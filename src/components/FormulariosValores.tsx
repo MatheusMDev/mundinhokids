@@ -157,7 +157,7 @@ export function FormRecebimento({ evento, item, onFechar }: { evento: Evento; it
         evento_id: evento.id, valor: numero!, recebido_em: data, forma, observacoes: vazioParaNulo(observacoes),
       }), item ? 'Recebimento atualizado.' : 'Recebimento registrado.')}
     >
-      <p className="suave" style={{ margin: 0 }}>{evento.titulo}. O sistema só registra: o pagamento em si acontece fora dele.</p>
+      <p className="suave" style={{ margin: 0 }}>{evento.titulo}</p>
       <Linha>
         <Campo rotulo="Valor (R$)" obrigatorio>{(id) => <input id={id} inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="900" required autoFocus />}</Campo>
         <Campo rotulo="Data" obrigatorio>{(id) => <input id={id} type="date" value={data} onChange={(e) => setData(e.target.value)} required />}</Campo>

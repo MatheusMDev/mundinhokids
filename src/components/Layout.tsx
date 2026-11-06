@@ -49,20 +49,24 @@ interface Props {
   children: ReactNode;
   /** Título da barra do celular; sem título mostra a marca */
   tituloMobile?: string;
-  /** Página com barra de ações fixa no celular (esconde as abas) */
+  /** Página com barra de ações acima da navegação do celular */
   comBarra?: boolean;
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
   const { usuario, aviso, sair, telas, inicio } = useEstado();
   const inicial = iniciais(usuario.nome);
+  const principais = abasDoPerfil(telas);
   const abas = [
-    ...abasDoPerfil(telas),
+    ...principais,
     { para: '/mais', texto: 'Mais', icone: 'menu' as NomeIcone },
   ];
   const navegar = useNavigate();
   const { pathname } = useLocation();
-  const ativo = (para: string) => (para === '/' ? pathname === '/' : pathname.startsWith(para));
+  const corresponde = (para: string) => (para === '/' ? pathname === '/' : pathname === para || pathname.startsWith(`${para}/`));
+  const ativo = (para: string): boolean => para === '/mais'
+    ? corresponde('/mais') || MENU.some((item) => telas.has(item.tela) && corresponde(item.para) && !principais.some((aba) => aba.para === item.para))
+    : corresponde(para);
 
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
 
@@ -93,7 +97,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
       <header className="topo-mobile">
         {tituloMobile ? (
           <>
-            <button type="button" className="voltar-icone" onClick={() => navegar(-1)} aria-label="Voltar" style={{ border: 0, background: 'none' }}>
+            <button type="button" className="voltar-icone" onClick={() => window.history.state?.idx > 0 ? navegar(-1) : navegar(inicio)} aria-label="Voltar" style={{ border: 0, background: 'none' }}>
               <Icone nome="esquerda" tamanho={22} />
             </button>
             <strong style={{ fontFamily: 'var(--fonte)', fontWeight: 600 }}>{tituloMobile}</strong>
@@ -112,7 +116,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
 
       <nav className="abas" aria-label="Navegação">
         {abas.map((aba) => (
-          <NavLink key={aba.para} to={aba.para} className={() => (ativo(aba.para) ? 'ativo' : '')}>
+          <NavLink key={aba.para} to={aba.para} aria-current={ativo(aba.para) ? 'page' : false} className={() => (ativo(aba.para) ? 'ativo' : '')}>
             <Icone nome={aba.icone} tamanho={20} />
             {aba.texto}
           </NavLink>
