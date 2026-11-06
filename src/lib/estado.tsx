@@ -101,7 +101,7 @@ const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
   produtor: ['painel', 'eventos', 'veiculos'],
   artista: ['painel', 'eventos'],
   maquiador: ['painel', 'eventos'],
-  fantasias: ['fantasias'],
+  fantasias: ['eventos', 'fantasias'],
 };
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {
