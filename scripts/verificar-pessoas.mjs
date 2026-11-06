@@ -22,7 +22,7 @@ import { Configuracoes } from './src/pages/Configuracoes';
 import { DetalheEvento } from './src/pages/DetalheEvento';
 import { PdfEvento } from './src/pages/PdfEvento';
 import { Painel } from './src/pages/Painel';
-import { TODAS } from './src/lib/estado';
+import { TODAS, telasPadrao } from './src/lib/estado';
 
 globalThis.window = { matchMedia: () => ({ matches: true }), history: { state: { idx: 0 } } };
 const originalError = console.error;
@@ -54,6 +54,11 @@ const indisponiveis = ['Profissional desativado', 'Profissional do login excluí
 function semIndisponiveis(html) { for (const nome of indisponiveis) assert(!html.includes(nome), nome + ' apareceu numa nova seleção'); }
 
 async function executar() {
+  teste('Fantasias acessa eventos e conferência sem liberar Financeiro ou Usuários', () => {
+    const telas = telasPadrao('fantasias', []);
+    assert(telas.has('eventos') && telas.has('fantasias'));
+    assert(!telas.has('financeiro') && !telas.has('usuarios') && !telas.has('configuracoes'));
+  });
   teste('regra central permite ativo e sem login, bloqueia excluído/desativado/login inativo', () => {
     assert.deepEqual(dados.profissionais.filter(p => profissionalDisponivel(dados, p)).map(p => p.id), ['ativo', 'sem-login']);
   });

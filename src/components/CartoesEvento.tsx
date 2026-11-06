@@ -236,7 +236,7 @@ export function CartaoMeuValor({ evento }: { evento: Evento }) {
     return (
       <section className="cartao oculto">
         <h3>Valores ocultos para este perfil</h3>
-        <p>A supervisora vê e edita o evento, mas não vê o valor da festa nem os pagamentos.</p>
+        <p>Seu perfil não tem acesso ao valor da festa nem aos pagamentos da equipe.</p>
       </section>
     );
   }

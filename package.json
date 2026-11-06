@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "banco:verificar": "node supabase/verificar/verificar.mjs",
+    "perfis:verificar": "node supabase/verificar/perfis.mjs",
     "pessoas:verificar": "node scripts/verificar-pessoas.mjs",
     "financeiro:verificar": "node scripts/verificar-financeiro.mjs",
     "banco:juntar": "node supabase/juntar.mjs"
