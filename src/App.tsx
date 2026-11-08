@@ -11,6 +11,7 @@ import {
 } from './pages/Cadastros';
 import { TelaErro } from './pages/Erro';
 import { Restrita } from './components/Restrita';
+import { Notificacoes } from './pages/Notificacoes';
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
             <Route path="/eventos" element={<Restrita tela="eventos"><Eventos /></Restrita>} />
             <Route path="/eventos/:id" element={<Restrita tela="eventos"><DetalheEvento /></Restrita>} />
             <Route path="/eventos/:id/pdf" element={<Restrita tela="eventos"><PdfEvento /></Restrita>} />
+            <Route path="/notificacoes" element={<Restrita tela="notificacoes"><Notificacoes /></Restrita>} />
             <Route path="/profissionais" element={<Restrita tela="profissionais"><Profissionais /></Restrita>} />
             <Route path="/personagens" element={<Restrita tela="personagens"><Personagens /></Restrita>} />
             <Route path="/fantasias" element={<Restrita tela="fantasias"><Fantasias /></Restrita>} />

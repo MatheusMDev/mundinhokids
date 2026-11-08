@@ -1,15 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icone, Logo, type NomeIcone } from './Icone';
 import { BotaoMinhaSenha } from './MinhaSenha';
 import { NOME_PERFIL, useEstado, type Tela } from '../lib/estado';
 import { iniciais } from '../lib/formato';
+import type { Notificacao } from '../lib/tipos';
+import { prepararSom, tocarSomNotificacao } from '../lib/som';
 
 interface ItemMenu { para: string; texto: string; icone: NomeIcone; tela: Tela }
 
 export const MENU: ItemMenu[] = [
   { para: '/', texto: 'Calendário e painel', icone: 'calendario', tela: 'painel' },
   { para: '/eventos', texto: 'Eventos', icone: 'presente', tela: 'eventos' },
+  { para: '/notificacoes', texto: 'Notificações', icone: 'sino', tela: 'notificacoes' },
   { para: '/profissionais', texto: 'Profissionais', icone: 'pessoas', tela: 'profissionais' },
   { para: '/personagens', texto: 'Personagens', icone: 'estrela', tela: 'personagens' },
   { para: '/fantasias', texto: 'Fantasias', icone: 'camiseta', tela: 'fantasias' },
@@ -54,7 +57,10 @@ interface Props {
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
-  const { usuario, aviso, sair, telas, inicio } = useEstado();
+  const { db, usuario, aviso, sair, telas, inicio } = useEstado();
+  const idsNotificacoes = useRef<Set<string> | null>(null);
+  const [notificacaoToast, setNotificacaoToast] = useState<Notificacao | null>(null);
+  const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
   const inicial = iniciais(usuario.nome);
   const principais = abasDoPerfil(telas);
   const abas = [
@@ -70,6 +76,24 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
 
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
 
+  useEffect(() => {
+    window.addEventListener('pointerdown', prepararSom);
+    return () => window.removeEventListener('pointerdown', prepararSom);
+  }, []);
+
+  useEffect(() => {
+    const atuais = new Set(db.notificacoes.map((notificacao) => notificacao.id));
+    const nova = idsNotificacoes.current
+      ? db.notificacoes.find((notificacao) => !idsNotificacoes.current?.has(notificacao.id) && !notificacao.lida_em)
+      : undefined;
+    if (nova) {
+      setNotificacaoToast(nova);
+      window.setTimeout(() => setNotificacaoToast((atual) => atual?.id === nova.id ? null : atual), 7000);
+      tocarSomNotificacao();
+    }
+    idsNotificacoes.current = atuais;
+  }, [db.notificacoes]);
+
   return (
     <div className={`app${comBarra ? ' com-barra' : ''}`}>
       <aside className="lateral">
@@ -80,7 +104,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         <nav className="nav" aria-label="Menu principal">
           {MENU.filter((item) => telas.has(item.tela)).map((item) => (
             <NavLink key={item.para} to={item.para} className={() => (ativo(item.para) ? 'ativo' : '')}>
-              <Icone nome={item.icone} /> {item.texto}
+               <Icone nome={item.icone} /> <span>{item.texto}</span>{item.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
           ))}
         </nav>
@@ -118,12 +142,20 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         {abas.map((aba) => (
           <NavLink key={aba.para} to={aba.para} aria-current={ativo(aba.para) ? 'page' : false} className={() => (ativo(aba.para) ? 'ativo' : '')}>
             <Icone nome={aba.icone} tamanho={20} />
-            {aba.texto}
+             {aba.texto}{aba.para === '/mais' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
           </NavLink>
         ))}
       </nav>
 
       {aviso && <div className="aviso-flutuante" role="status">{aviso}</div>}
+      {notificacaoToast && <div className="notificacao-toast" role="status" aria-live="polite">
+        <span className="notificacao-icone"><Icone nome="sino" /></span>
+        <Link to={notificacaoToast.evento_id ? `/eventos/${notificacaoToast.evento_id}` : '/notificacoes'} onClick={() => setNotificacaoToast(null)}>
+          <strong>Nova notificação</strong>
+          <span>{notificacaoToast.mensagem ?? 'Você recebeu um novo aviso.'}</span>
+        </Link>
+        <button type="button" onClick={() => setNotificacaoToast(null)} aria-label="Fechar notificação">×</button>
+      </div>}
     </div>
   );
 }

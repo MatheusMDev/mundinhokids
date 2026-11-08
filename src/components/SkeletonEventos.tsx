@@ -38,3 +38,25 @@ export function SkeletonEventos() {
     </main>
   );
 }
+
+export function SkeletonDetalheEvento() {
+  return (
+    <main className="skeleton-tela" aria-busy="true" aria-label="Carregando detalhe do evento">
+      <div className="skeleton-cabecalho skeleton-detalhe-cabecalho">
+        <div>
+          <span className="skeleton-linha skeleton-data" />
+          <span className="skeleton-linha skeleton-titulo" />
+          <span className="skeleton-linha skeleton-detalhe-meta" />
+        </div>
+        <span className="skeleton-botao" />
+      </div>
+      <div className="skeleton-detalhe-contexto">
+        {[1, 2, 3].map((item) => <div className="skeleton-bloco" key={item}><span className="skeleton-linha skeleton-label" /><span className="skeleton-linha skeleton-detalhe-texto" /><span className="skeleton-linha skeleton-legenda" /></div>)}
+      </div>
+      <div className="skeleton-detalhe-grade">
+        <div className="skeleton-coluna">{[1, 2, 3].map((item) => <div className="skeleton-bloco skeleton-lista" key={item}><span className="skeleton-linha skeleton-subtitulo" /><span className="skeleton-evento" /><span className="skeleton-evento" /><span className="skeleton-evento" /></div>)}</div>
+        <div className="skeleton-coluna">{[1, 2, 3, 4].map((item) => <div className="skeleton-bloco skeleton-lista" key={item}><span className="skeleton-linha skeleton-subtitulo" /><span className="skeleton-evento" /><span className="skeleton-evento" /></div>)}</div>
+      </div>
+    </main>
+  );
+}

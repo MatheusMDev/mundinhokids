@@ -1,7 +1,7 @@
 // Listas dos cadastros com os formulários de criar e editar.
 // Quem não é da operação vê as listas, mas não os botões de cadastrar.
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { abasDoPerfil, Layout, MENU } from '../components/Layout';
 import { Icone } from '../components/Icone';
@@ -450,10 +450,23 @@ export function Personagens() {
 }
 
 export function Fantasias() {
-  const { db, permissoes, hoje, papeis } = useEstado();
+  const { db, permissoes, hoje, papeis, usuario } = useEstado();
   const form = useFormulario<(typeof db.fantasias)[number]>();
   const [conferir, setConferir] = useState<(typeof db.eventos)[number] | null>(null);
-  const [conferenciasAberto, setConferenciasAberto] = useState(true);
+  const [conferenciasAberto, setConferenciasAberto] = useState(() => {
+    try {
+      return localStorage.getItem(`mundinho:fantasias:${usuario.id}:conferencias`) !== 'fechada';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(`mundinho:fantasias:${usuario.id}:conferencias`, conferenciasAberto ? 'aberta' : 'fechada');
+    } catch {
+      // A tela segue funcionando se o navegador bloquear o armazenamento local.
+    }
+  }, [conferenciasAberto, usuario.id]);
   const pendentes = permissoes.conferirFantasias ? conferenciasPendentes(db, hoje) : [];
   const nomePersonagem = (id: string) => db.personagens.find((p) => p.id === id)?.nome ?? '';
   const lista = [...db.fantasias].sort((a, b) =>
@@ -850,7 +863,8 @@ export function CadastrosGerais() {
 }
 
 export function Mais() {
-  const { telas } = useEstado();
+  const { telas, db } = useEstado();
+  const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
   // O que o perfil enxerga e ainda não está nas abas de baixo
   const nasAbas = new Set(abasDoPerfil(telas).map((a) => a.para));
   const itens = MENU
@@ -861,7 +875,7 @@ export function Mais() {
       <h1 style={{ marginBottom: 14 }}>Mais</h1>
       {itens.length > 0 && (
         <section className="cartao proximos" style={{ marginBottom: 18 }}>
-          {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto} <Icone nome="direita" /></Link>)}
+           {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto}{i.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>} <Icone nome="direita" /></Link>)}
         </section>
       )}
       <ContaUsuario />
