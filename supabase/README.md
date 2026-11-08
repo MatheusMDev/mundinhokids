@@ -12,13 +12,8 @@ Passo a passo para subir a base de teste e ligar o app nela.
 
 Jeito mais rápido: rode `npm run banco:juntar`, abra `supabase/subir_tudo.sql`, copie tudo,
 cole no **SQL Editor → New query** e clique em **Run** (confirme o aviso de operações
-destrutivas: são as colunas de observações que mudam de tabela). Ou, um por vez, na ordem:
-
-| Ordem | Arquivo | O que faz |
-| --- | --- | --- |
-| 1 | `migrations/20261020000001_schema_v1.sql` | Tabelas, travas, permissões e funções |
-| 2 | `migrations/20261020000002_ajustes_v1.sql` | Correções da V1 |
-| 3 | `seed.sql` | Dados de teste (eventos da semana atual) |
+destrutivas: são as colunas de observações que mudam de tabela). Ou, um por vez: cada
+arquivo de `migrations/` em ordem de nome e, por último, o `seed.sql` (dados de teste).
 
 Cada um deve terminar com "Success. No rows returned".
 
@@ -80,7 +75,8 @@ npm run banco:verificar
 ```
 
 Isso carrega as migrações, o seed e o vínculo de logins num Postgres local e roda os
-testes das regras. Esperado: "22 testes passaram, 0 falharam".
+testes das regras. Esperado: "... testes passaram, 0 falharam". Inclua toda migração
+nova na lista `MIGRACOES` de `verificar/verificar.mjs` e `verificar/perfis.mjs`.
 
 ### Opcional: Supabase CLI
 

@@ -96,27 +96,6 @@ export function Linha({ children }: { children: ReactNode }) {
 
 interface Opcao { valor: string; texto: string; desativada?: boolean; detalhe?: string }
 
-/** Lista de caixas de marcar (várias escolhas) */
-export function Marcadores({ rotulo, opcoes, marcados, onMudar, vazio }: {
-  rotulo: string; opcoes: Opcao[]; marcados: string[]; onMudar: (v: string[]) => void; vazio?: string;
-}) {
-  return (
-    <fieldset className="campo largo marcadores">
-      <legend>{rotulo}</legend>
-      {opcoes.length === 0 && <small>{vazio ?? 'Nenhuma opção.'}</small>}
-      {opcoes.map((o) => (
-        <label key={o.valor} className={o.desativada ? 'desativada' : ''}>
-          <input
-            type="checkbox" checked={marcados.includes(o.valor)} disabled={o.desativada}
-            onChange={(e) => onMudar(e.target.checked ? [...marcados, o.valor] : marcados.filter((m) => m !== o.valor))}
-          />
-          <span>{o.texto}{o.detalhe && <small> · {o.detalhe}</small>}</span>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
-
 export function SeletorMultiplo({ rotulo, opcoes, marcados, onMudar, vazio }: {
   rotulo: string; opcoes: Opcao[]; marcados: string[]; onMudar: (v: string[]) => void; vazio?: string;
 }) {
