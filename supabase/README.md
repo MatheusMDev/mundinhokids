@@ -94,7 +94,34 @@ npx supabase db push
 
 O `db push` aplica só as migrações; o `seed.sql` continua sendo rodado à mão no SQL Editor.
 
-## Ainda não ativado
+## Avisos automáticos no desktop
 
-- **Avisos por push**: o agendamento (pg_cron + Edge Function `enviar-notificacoes`)
-  está comentado no fim do schema. A fila `notificacoes` já é preenchida pelo banco.
+A central de notificações funciona depois da migração `20261107000001_notificacoes_desktop.sql`.
+Para ativar o alerta do navegador:
+
+1. Gere um par VAPID (por exemplo, `npx web-push generate-vapid-keys`).
+2. Publique a função `enviar-notificacoes`: `npx supabase functions deploy enviar-notificacoes --project-ref <project-ref>`.
+3. Em **Edge Functions → Secrets**, configure `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY` e
+   `VAPID_PRIVATE_KEY`. A chave privada nunca vai para o navegador.
+4. No ambiente do app, configure `VITE_VAPID_PUBLIC_KEY` com a chave pública e publique
+   novamente o front-end.
+5. Ative `pg_cron` e `pg_net` no projeto e crie o agendamento a cada cinco minutos. Use a chave
+   **anon public** do projeto no cron; nunca coloque a `service_role` no SQL ou no navegador:
+
+```sql
+select cron.schedule(
+  'enviar-notificacoes', '*/5 * * * *',
+  $$ select net.http_post(
+    url := 'https://<projeto>.supabase.co/functions/v1/enviar-notificacoes',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'apikey', '<anon public>',
+      'Authorization', 'Bearer <anon public>'
+    ),
+    body := '{}'::jsonb
+  ) $$
+);
+```
+
+A fila `notificacoes` continua sendo preenchida automaticamente pelos gatilhos do banco.
+Sem VAPID ou permissão do navegador, a pessoa ainda consulta os avisos na central do sistema.

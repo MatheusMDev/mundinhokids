@@ -34,6 +34,7 @@ export function Financeiro() {
   const [parametros, setParametros] = useSearchParams();
   const [despesa, setDespesa] = useState<{ item?: Despesa } | null>(null);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [valoresOcultos, setValoresOcultos] = useState(true);
   const dados = useMemo(() => resumoDoFinanceiro(db), [db]);
   const aba = SECOES.find((s) => s.id === parametros.get('aba'))?.id ?? 'eventos';
   const busca = parametros.get(`busca_${aba}`) ?? '';
@@ -91,12 +92,17 @@ export function Financeiro() {
   return <Layout>
     <div className="lista-topo financeiro-cabecalho">
       <div><h1>Financeiro</h1><p>Recebimentos, equipe e despesas em um só lugar.</p></div>
-      <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>
+      <div className="financeiro-acoes">
+        <button type="button" className="botao financeiro-visibilidade" onClick={() => setValoresOcultos((atual) => !atual)} aria-label={valoresOcultos ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'} aria-pressed={!valoresOcultos}>
+          <Icone nome={valoresOcultos ? 'olhoFechado' : 'olho'} /> {valoresOcultos ? 'Mostrar valores' : 'Ocultar valores'}
+        </button>
+        <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>
+      </div>
     </div>
     <section className="financeiro-indicadores" aria-label="Resumo financeiro geral">
       {indicadores.map((i) => <article className={`financeiro-indicador ${i.tom}`} key={i.nome}>
         <div className="financeiro-indicador-topo"><span>{i.nome}</span><span className="financeiro-indicador-icone"><Icone nome={i.icone} tamanho={18} /></span></div>
-        <strong>{moeda(i.valor)}</strong><small title={i.detalhe}>{i.detalhe}</small>
+         <strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(i.valor)}</strong><small title={i.detalhe} className={valoresOcultos && i.nome === 'Recebido' ? 'valor-financeiro-oculto' : undefined}>{i.detalhe}</small>
       </article>)}
     </section>
     <nav className="financeiro-abas" aria-label="Seções do financeiro">
@@ -140,19 +146,19 @@ export function Financeiro() {
           return <Link to={`/eventos/${r.evento.id}`} state={{ voltarPara: `/financeiro?${parametros}` }} className="financeiro-evento" key={r.evento.id}>
             <div className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="presente" tamanho={19} /></span><span className={`selo ${r.situacao === 'pago' ? 'ok' : r.situacao === 'parcial' ? 'alerta' : 'neutro'}`}>{SITUACOES[r.situacao]}</span></div>
             <h3>{r.evento.titulo}</h3><p className="financeiro-data"><Icone nome="calendario" tamanho={14} />{dataLonga(r.evento.inicio, false)}</p>
-            <dl className="financeiro-valores"><div><dt>Contratado</dt><dd>{moeda(r.contratado)}</dd></div><div><dt>Recebido</dt><dd className="ok-texto">{moeda(r.recebido)}</dd></div></dl>
+             <dl className="financeiro-valores"><div><dt>Contratado</dt><dd className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(r.contratado)}</dd></div><div><dt>Recebido</dt><dd className={`ok-texto${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(r.recebido)}</dd></div></dl>
             <progress className={r.situacao === 'pago' ? 'pago' : ''} value={percentual} max={100} aria-label={`Recebido de ${r.evento.titulo}`} />
-            <div className="financeiro-restante"><span>A receber</span><strong>{moeda(Math.max(0, r.contratado - r.recebido))}</strong></div>
-            <div className="financeiro-evento-rodape"><div><span>Equipe a pagar</span><strong>{moeda(r.aPagar)}</strong></div><div><span>Despesas</span><strong>{moeda(r.despesas)}</strong></div><Icone nome="direita" tamanho={18} /></div>
+             <div className="financeiro-restante"><span>A receber</span><strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(Math.max(0, r.contratado - r.recebido))}</strong></div>
+             <div className="financeiro-evento-rodape"><div><span>Equipe a pagar</span><strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(r.aPagar)}</strong></div><div><span>Despesas</span><strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(r.despesas)}</strong></div><Icone nome="direita" tamanho={18} /></div>
           </Link>;
         })}
       </div> : <Vazio icone="presente" titulo="Nenhum evento com valores registrados" filtrado={filtrado} limpar={limpar} />)}
       {aba === 'equipe' && (paginaEquipe.itens.length ? <div className="financeiro-grade">
         {paginaEquipe.itens.map((p) => <article className="financeiro-profissional" key={p.id}>
           <div className="financeiro-profissional-topo"><span className="avatar">{iniciais(p.nome)}</span><div><h3>{p.nome}</h3><small>{p.eventos.length} {p.eventos.length === 1 ? 'evento pendente' : 'eventos pendentes'}</small></div><span className="selo alerta">A pagar</span></div>
-          <strong className="financeiro-pagamento-total">{moeda(p.total)}</strong>
+           <strong className={`financeiro-pagamento-total${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(p.total)}</strong>
           <details className="financeiro-profissional-eventos"><summary>Ver eventos<Icone nome="direita" tamanho={15} /></summary>
-            <ul className="financeiro-pagamento-eventos">{p.eventos.map((e) => <li key={e.id}><Link to={`/eventos/${e.id}`} state={{ voltarPara: `/financeiro?${parametros}` }}>{e.titulo}<Icone nome="direita" tamanho={14} /></Link><strong>{moeda(e.valor)}</strong></li>)}</ul>
+             <ul className="financeiro-pagamento-eventos">{p.eventos.map((e) => <li key={e.id}><Link to={`/eventos/${e.id}`} state={{ voltarPara: `/financeiro?${parametros}` }}>{e.titulo}<Icone nome="direita" tamanho={14} /></Link><strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(e.valor)}</strong></li>)}</ul>
           </details>
         </article>)}
       </div> : <Vazio icone="pessoas" titulo="Nenhum pagamento pendente" filtrado={filtrado} limpar={limpar} />)}
@@ -160,7 +166,7 @@ export function Financeiro() {
         {paginaDespesas.itens.map((d) => <button type="button" className="financeiro-despesa" key={d.id} onClick={() => setDespesa({ item: d })} aria-label={`Editar despesa ${d.descricao}`}>
           <span className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="dinheiro" tamanho={19} /></span><span className="selo neutro">{d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra'}</span></span>
           <strong className="financeiro-despesa-titulo">{d.descricao}</strong><span className="financeiro-data">{db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado'}</span>
-          <strong className="financeiro-despesa-valor">{moeda(d.valor)}</strong>
+           <strong className={`financeiro-despesa-valor${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(d.valor)}</strong>
           <span className="financeiro-despesa-rodape"><span className={`selo ${d.aprovacao === 'pendente' ? 'alerta' : d.aprovacao === 'aprovada' ? 'ok' : 'neutro'}`}>{APROVACAO[d.aprovacao]}</span><Icone nome="lapis" tamanho={16} /></span>
         </button>)}
       </div> : <Vazio icone="dinheiro" titulo="Nenhuma despesa geral lançada" filtrado={filtrado} limpar={limpar} />)}

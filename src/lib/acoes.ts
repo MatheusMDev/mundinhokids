@@ -8,6 +8,7 @@ import type {
   ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
   Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
 } from './tipos';
+import type { Notificacao } from './tipos';
 
 type Cliente = SupabaseClient;
 type Resposta<T> = { data: T; error: unknown };
@@ -234,6 +235,30 @@ export async function salvarConfiguracoes(c: Cliente, mudancas: Record<string, s
     const linhas = ok(await c.from('configuracoes').update({ valor }).eq('chave', chave).select('chave')) as unknown[];
     if (!linhas.length) throw new SemPermissao();
   }
+}
+
+export async function salvarPreferenciasNotificacao(
+  c: Cliente,
+  usuarioId: string,
+  preferencias: Pick<Notificacao, 'tipo'>[] | { tipo: Notificacao['tipo']; ativa: boolean }[],
+) {
+  ok(await c.from('notificacao_preferencias').upsert(
+    preferencias.map((p) => ({ usuario_id: usuarioId, tipo: p.tipo, ativa: 'ativa' in p ? p.ativa : true, atualizado_em: new Date().toISOString() })),
+    { onConflict: 'usuario_id,tipo' },
+  ));
+}
+
+export async function marcarNotificacaoLida(c: Cliente, id: string) {
+  ok(await c.from('notificacoes').update({ lida_em: new Date().toISOString() }).eq('id', id));
+}
+
+export async function salvarInscricaoPush(c: Cliente, inscricao: PushSubscriptionJSON) {
+  if (!inscricao.endpoint || !inscricao.keys?.p256dh || !inscricao.keys.auth) throw new Error('Inscrição do navegador inválida.');
+  ok(await c.from('push_inscricoes').upsert({
+    endpoint: inscricao.endpoint,
+    p256dh: inscricao.keys.p256dh,
+    auth: inscricao.keys.auth,
+  }, { onConflict: 'endpoint' }));
 }
 
 // ---------------------------------------------------------------------

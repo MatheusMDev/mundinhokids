@@ -110,6 +110,27 @@ export function DetalheEvento() {
         </div>
       </div>
 
+      <div className="detalhe-contexto so-desktop" aria-label="Resumo do evento">
+        <div>
+          <span className="rotulo">Local</span>
+          <strong>{local?.nome ?? 'Local não informado'}</strong>
+          {local?.endereco && <small>{local.endereco}</small>}
+          {local?.link_localizacao && <a className="link-marca" href={local.link_localizacao} target="_blank" rel="noreferrer">Abrir no mapa</a>}
+        </div>
+        {contratante && (
+          <div>
+            <span className="rotulo">Contratante</span>
+            <strong>{contratante.nome}</strong>
+            <small>{contratante.telefone}</small>
+          </div>
+        )}
+        <div>
+          <span className="rotulo">Horário</span>
+          <strong>{horario}</strong>
+          <small>{dataLonga(evento.inicio, false)}</small>
+        </div>
+      </div>
+
       <div className="detalhe">
         <div className="coluna">
           {cancelado && (
@@ -258,22 +279,6 @@ export function DetalheEvento() {
         </div>
 
         <div className="coluna">
-          <section className="cartao so-desktop">
-            <div className="bloco">
-              <span className="rotulo">Local</span>
-              <strong>{local?.nome}</strong>
-              <p>{local?.endereco}</p>
-              {local?.link_localizacao && <a className="link-marca" href={local.link_localizacao} target="_blank" rel="noreferrer">Abrir no mapa</a>}
-            </div>
-            {contratante && (
-              <div className="bloco">
-                <span className="rotulo">Contratante</span>
-                <strong>{contratante.nome}</strong>
-                <p>{contratante.telefone}</p>
-              </div>
-            )}
-          </section>
-
           <CartaoTransporte evento={evento} />
 
           <section className="cartao">

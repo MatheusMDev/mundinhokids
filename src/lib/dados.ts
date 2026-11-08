@@ -11,7 +11,7 @@ const TABELAS = [
   'usuarios', 'profissionais', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
   'fantasias', 'veiculos', 'eventos', 'evento_escala', 'reservas_veiculo', 'evento_financeiro',
   'recebimentos', 'pagamentos_profissionais', 'despesas', 'substituicoes', 'conferencias_fantasia',
-  'notificacoes', 'profissionais_notas', 'contratantes_notas',
+  'notificacoes', 'notificacao_preferencias', 'profissionais_notas', 'contratantes_notas',
 ] as const;
 
 interface LinhaHistorico {

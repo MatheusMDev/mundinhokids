@@ -215,9 +215,18 @@ export interface Historico {
 export interface Notificacao {
   id: string;
   evento_id: string | null;
-  tipo: 'escalado' | 'lembrete' | 'alterado' | 'cancelado' | 'removido' | 'substituicao';
+  tipo: 'escalado' | 'lembrete' | 'alterado' | 'cancelado' | 'removido' | 'substituicao'
+    | 'despesa_aprovacao' | 'evento_gestao' | 'pendencia_operacional' | 'resumo_diario';
+  mensagem: string | null;
   agendada_para: string;
   enviada_em: string | null;
+  lida_em: string | null;
+}
+
+export interface PreferenciaNotificacao {
+  usuario_id: string;
+  tipo: Notificacao['tipo'];
+  ativa: boolean;
 }
 
 export interface TrocaParaMim {
@@ -258,6 +267,7 @@ export interface BaseDados {
   conferencias_fantasia: ConferenciaFantasia[];
   historico: Historico[];
   notificacoes: Notificacao[];
+  notificacao_preferencias: PreferenciaNotificacao[];
   /** Pedidos de troca em que o login é o substituto (função trocas_para_mim) */
   trocas_para_mim: TrocaParaMim[];
   /** Observações internas: só a operação recebe linhas */

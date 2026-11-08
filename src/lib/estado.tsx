@@ -10,7 +10,7 @@ import { traduzirErro } from './erros';
 import { sairDesteAparelho, supabase } from './supabase';
 import { Login } from '../pages/Login';
 import { TrocarSenha } from '../pages/TrocarSenha';
-import { SkeletonEventos } from '../components/SkeletonEventos';
+import { SkeletonDetalheEvento, SkeletonEventos } from '../components/SkeletonEventos';
 import { SkeletonFinanceiro } from '../components/SkeletonFinanceiro';
 
 interface Estado {
@@ -66,11 +66,11 @@ function calcularPermissoes(perfil: PerfilAcesso, papeis: ReadonlySet<PerfilAces
 }
 
 export type Tela =
-  | 'painel' | 'eventos' | 'profissionais' | 'personagens' | 'fantasias' | 'veiculos'
+  | 'painel' | 'eventos' | 'notificacoes' | 'profissionais' | 'personagens' | 'fantasias' | 'veiculos'
   | 'financeiro' | 'cadastros' | 'usuarios' | 'configuracoes';
 
 export const TODAS: Tela[] = [
-  'painel', 'eventos', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes',
+  'painel', 'eventos', 'notificacoes', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes',
 ];
 
 const GESTAO: PerfilAcesso[] = ['diretora', 'gerente'];
@@ -98,10 +98,10 @@ const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
   diretora: TODAS,
   gerente: TODAS,
   supervisora: TODAS.filter((t) => t !== 'financeiro'),
-  produtor: ['painel', 'eventos', 'veiculos'],
-  artista: ['painel', 'eventos'],
-  maquiador: ['painel', 'eventos'],
-  fantasias: ['eventos', 'fantasias'],
+  produtor: ['painel', 'eventos', 'notificacoes', 'veiculos'],
+  artista: ['painel', 'eventos', 'notificacoes'],
+  maquiador: ['painel', 'eventos', 'notificacoes'],
+  fantasias: ['eventos', 'notificacoes', 'fantasias'],
 };
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {
@@ -188,6 +188,17 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     return () => { recargaAtual.current++; };
   }, [uid, recarregar]);
 
+  useEffect(() => {
+    if (!uid) return;
+    const canal = cliente
+      .channel(`notificacoes-${uid}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notificacoes', filter: `usuario_id=eq.${uid}`,
+      }, () => { void recarregar(); })
+      .subscribe();
+    return () => { void cliente.removeChannel(canal); };
+  }, [cliente, uid, recarregar]);
+
   // Exclusões e desativações feitas em outra aba/aparelho precisam chegar
   // também aos formulários que continuam abertos. O banco valida ao salvar.
   useEffect(() => {
@@ -250,7 +261,8 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   }, [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
 
   const telaFinanceiro = window.location.pathname === '/financeiro';
-  const carregamento = telaFinanceiro ? <SkeletonFinanceiro /> : <SkeletonEventos />;
+  const telaDetalheEvento = /^\/eventos\/[^/]+$/.test(window.location.pathname);
+  const carregamento = telaFinanceiro ? <SkeletonFinanceiro /> : telaDetalheEvento ? <SkeletonDetalheEvento /> : <SkeletonEventos />;
   if (sessao === undefined) return carregamento;
   if (!sessao) return <Login />;
   // Senha provisória, convite ou link de recuperação: a pessoa cria a própria senha primeiro
