@@ -185,7 +185,6 @@ h3 { font-size: 15px; font-weight: 800; }
 
 .rotulo { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--texto-suave); }
 .suave { color: var(--texto-suave); }
-.fraco { color: var(--texto-fraco); }
 .link-marca { color: var(--marca-escura); font-weight: 600; }
 
 .vazio { padding: 14px; border-radius: var(--raio-p); background: var(--fundo); color: var(--texto-suave); text-align: center; }
@@ -380,8 +379,6 @@ h3 { font-size: 15px; font-weight: 800; }
 
 .lista-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .lista-topo p { margin: 4px 0 0; color: var(--texto-suave); }
-.tabela-rolagem { overflow-x: auto; }
-.tabela-cartoes { display: none; }
 .filtros-eventos {
   display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px)); gap: 10px;
   margin-bottom: 14px;
@@ -518,10 +515,6 @@ h3 { font-size: 15px; font-weight: 800; }
 .filtros-conferencias .seletor-data { height: 62px; }
 .filtros-conferencias .seletor-data .seletor-opcao-rotulo { position: absolute; top: 5px; left: 12px; z-index: 1; color: var(--texto-suave); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .filtros-conferencias .seletor-data .seletor-opcao-botao { min-height: 0; height: 62px; padding-top: 17px; }
-.filtro-data-conferencias { display: grid; align-content: center; gap: 2px; min-height: 44px; padding: 5px 11px; border: 1px solid var(--borda); border-radius: 11px; background: var(--cartao); }
-.filtro-data-conferencias:focus-within { border-color: var(--marca-borda); box-shadow: 0 0 0 3px var(--marca-suave); }
-.filtro-data-conferencias span { color: var(--texto-suave); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.filtro-data-conferencias input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--texto); font: inherit; font-size: 13px; }
 .conferencia-cartao { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-width: 0; padding: 12px; border: 1px solid #f0d3a7; border-radius: 11px; background: var(--cartao); }
 .conferencia-cartao-icone { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--laranja-suave); color: var(--laranja-escuro); }
 .conferencia-cartao-corpo { display: grid; min-width: 0; flex: 1; gap: 3px; }
@@ -791,9 +784,6 @@ h3 { font-size: 15px; font-weight: 800; }
   .filtros-eventos { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
   .busca-eventos { grid-column: 1 / -1; }
   .filtro-select { min-width: 0; }
-  .tabela-rolagem { overflow: visible; background: transparent; border: 0; padding: 0; box-shadow: none; }
-  .tabela-desktop { display: none; }
-  .tabela-cartoes { display: grid; gap: 10px; }
   .profissionais-grade { grid-template-columns: 1fr; }
   .personagens-grade { grid-template-columns: 1fr; }
   .cadastros-grade { grid-template-columns: 1fr; }
@@ -811,17 +801,6 @@ h3 { font-size: 15px; font-weight: 800; }
   .conferencias-grade { grid-template-columns: 1fr; }
   .conferencia-cartao { align-items: center; }
   .filtros-conferencias { grid-template-columns: 1fr; }
-  .tabela-card {
-    padding: 14px; background: var(--cartao); border: 1px solid var(--borda);
-    border-radius: var(--raio); box-shadow: var(--sombra);
-  }
-  .tabela-card.clicavel { cursor: pointer; }
-  .tabela-card.clicavel:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
-  .tabela-card-titulo { margin-bottom: 11px; font-size: 15px; font-weight: 700; }
-  .tabela-card dl { display: grid; gap: 8px; margin: 0; }
-  .tabela-card dl > div { display: grid; grid-template-columns: minmax(100px, .65fr) minmax(0, 1.35fr); gap: 10px; align-items: baseline; }
-  .tabela-card dt { color: var(--texto-suave); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
-  .tabela-card dd { min-width: 0; margin: 0; color: var(--texto); overflow-wrap: anywhere; }
 
   .numeros { gap: 10px; }
   .numero strong { font-size: 24px; }
@@ -1086,10 +1065,8 @@ h3 { font-size: 15px; font-weight: 800; }
 .campo input:focus, .campo select:focus, .campo textarea:focus { outline: 2px solid var(--marca); outline-offset: 1px; border-color: transparent; }
 .campo input:disabled, .campo select:disabled { background: var(--fundo); color: var(--texto-suave); }
 
-.marcadores { display: flex; flex-direction: column; gap: 6px; }
-.marcadores label, .marcador { display: flex; align-items: flex-start; gap: 9px; font-weight: 400; cursor: pointer; }
-.marcadores label.desativada { color: var(--texto-fraco); cursor: not-allowed; }
-.marcadores input, .marcador input { width: 17px; height: 17px; min-height: 0; padding: 0; margin: 1px 0 0; accent-color: var(--marca); flex: none; }
+.marcador { display: flex; align-items: flex-start; gap: 9px; font-weight: 400; cursor: pointer; }
+.marcador input { width: 17px; height: 17px; min-height: 0; padding: 0; margin: 1px 0 0; accent-color: var(--marca); flex: none; }
 .seletor-multiplo { position: relative; min-width: 0; border: 0; }
 .seletor-multiplo legend { padding: 0; color: var(--texto-suave); font-size: 13px; font-weight: 700; }
 .seletor-multiplo-botao { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--borda); border-radius: 9px; background: var(--cartao); color: var(--texto); font: inherit; text-align: left; cursor: pointer; }

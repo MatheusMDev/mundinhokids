@@ -9,7 +9,6 @@ import { chaveDia, diaCurto, hora, somarDias } from './formato';
 export type PerfilTela = 'gerente' | 'supervisora';
 
 export const veValores = (perfil: PerfilTela) => perfil === 'gerente';
-export const aprovaTrocas = (perfil: PerfilTela) => perfil === 'gerente';
 
 export const ROTULO_FUNCAO: Record<FuncaoEscala, string> = {
   artista: 'Artista',
@@ -30,7 +29,6 @@ const porId = <T extends { id: string }>(lista: T[], id: string | null) =>
 export const eventoPorId = (db: BaseDados, id: string) => porId(db.eventos, id);
 export const localDe = (db: BaseDados, e: Evento) => porId(db.locais, e.local_id);
 export const contratanteDe = (db: BaseDados, e: Evento) => porId(db.contratantes, e.contratante_id);
-export const profissionalPorId = (db: BaseDados, id: string) => porId(db.profissionais, id);
 
 /** Não filtrar a base histórica: esta regra vale apenas para novas seleções. */
 export const profissionalDisponivel = (db: BaseDados, p: Profissional) =>
