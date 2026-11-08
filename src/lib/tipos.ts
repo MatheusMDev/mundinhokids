@@ -18,6 +18,8 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
+  telefone: string | null;
+  foto_path: string | null;
   perfil: PerfilAcesso;
   ativo: boolean;
   /** Telas escolhidas pela gestão; null = padrão do perfil */

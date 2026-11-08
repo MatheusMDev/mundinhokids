@@ -205,6 +205,41 @@ export async function marcarRealizado(c: Cliente, eventoId: string) {
 }
 
 // ---------------------------------------------------------------------
+// Minha conta
+// ---------------------------------------------------------------------
+
+export async function atualizarMinhaConta(c: Cliente, dados: {
+  nome: string; telefone: string | null; disponibilidade: string | null;
+}) {
+  ok(await c.rpc('atualizar_minha_conta', {
+    p_nome: dados.nome, p_telefone: dados.telefone, p_disponibilidade: dados.disponibilidade,
+  }));
+}
+
+export async function atualizarMeuEmail(c: Cliente, email: string) {
+  const { error } = await c.auth.updateUser({ email });
+  if (error) throw error;
+}
+
+export async function enviarFotoPerfil(c: Cliente, usuarioId: string, arquivo: File, caminhoAnterior: string | null) {
+  const extensao = arquivo.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const caminho = `${usuarioId}/avatar-${Date.now()}.${extensao}`;
+  ok(await c.storage.from('avatares').upload(caminho, arquivo, { cacheControl: '3600', upsert: false }));
+  try {
+    ok(await c.rpc('atualizar_foto_minha_conta', { p_foto_path: caminho }));
+  } catch (erro) {
+    await c.storage.from('avatares').remove([caminho]);
+    throw erro;
+  }
+  if (caminhoAnterior) await c.storage.from('avatares').remove([caminhoAnterior]);
+}
+
+export async function removerFotoPerfil(c: Cliente, caminho: string) {
+  ok(await c.rpc('atualizar_foto_minha_conta', { p_foto_path: null }));
+  await c.storage.from('avatares').remove([caminho]);
+}
+
+// ---------------------------------------------------------------------
 // Troca de artista (pedido, resposta do indicado e desistência)
 // ---------------------------------------------------------------------
 

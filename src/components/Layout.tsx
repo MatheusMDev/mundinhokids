@@ -57,11 +57,16 @@ interface Props {
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
-  const { db, usuario, aviso, sair, telas, inicio } = useEstado();
+  const { db, usuario, cliente, aviso, sair, telas, inicio } = useEstado();
   const idsNotificacoes = useRef<Set<string> | null>(null);
   const [notificacaoToast, setNotificacaoToast] = useState<Notificacao | null>(null);
   const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
   const inicial = iniciais(usuario.nome);
+  const fotoPath = db.usuarios.find((conta) => conta.id === usuario.id)?.foto_path;
+  const fotoUrl = fotoPath ? cliente.storage.from('avatares').getPublicUrl(fotoPath).data.publicUrl : null;
+  const avatar = (className: string) => fotoUrl
+    ? <span className={`${className} avatar-com-foto`}><img src={fotoUrl} alt="" /></span>
+    : <span className={className}>{inicial}</span>;
   const principais = abasDoPerfil(telas);
   const abas = [
     ...principais,
@@ -109,10 +114,10 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
           ))}
         </nav>
         <div className="lateral-rodape">
-          <div className="usuario-cartao">
-            <span className="avatar laranja">{inicial}</span>
-            <span><strong>{usuario.nome}</strong><small>{NOME_PERFIL[usuario.perfil]}</small></span>
-          </div>
+           <Link to="/minha-conta" className="usuario-cartao">
+             {avatar('avatar laranja')}
+             <span><strong>{usuario.nome}</strong><small>{NOME_PERFIL[usuario.perfil]}</small></span>
+           </Link>
           <BotaoMinhaSenha className="link-botao" estilo={{ fontSize: 13, marginBottom: 8 }} />
           <button type="button" className="botao" onClick={sair}>Sair</button>
         </div>
@@ -131,7 +136,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
           <>
             <Logo tamanho={32} />
             <strong>Mundinho Kids</strong>
-            <span className="avatar laranja">{inicial}</span>
+             <Link to="/minha-conta" className="avatar-link" aria-label="Abrir Minha conta">{avatar('avatar laranja')}</Link>
           </>
         )}
       </header>

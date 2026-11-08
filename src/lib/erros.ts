@@ -16,6 +16,9 @@ const TRAVAS: Record<string, string> = {
   reservas_veiculo_check: 'A devolução precisa ser depois da retirada.',
   fantasias_quantidade_check: 'A quantidade precisa ser maior que zero.',
   substituicoes_um_pedido_aberto: 'Já existe um pedido de troca em andamento para esta vaga.',
+  nome_obrigatorio: 'Informe seu nome.',
+  not_authenticated: 'Sua sessão expirou. Entre novamente.',
+  sem_permissao: 'Seu perfil não pode fazer esta alteração.',
 };
 
 interface ErroBanco {
