@@ -125,3 +125,15 @@ select cron.schedule(
 
 A fila `notificacoes` continua sendo preenchida automaticamente pelos gatilhos do banco.
 Sem VAPID ou permissão do navegador, a pessoa ainda consulta os avisos na central do sistema.
+
+## Minha conta e foto de perfil
+
+A migration `20261110000001_minha_conta.sql` adiciona telefone e caminho da foto em
+`usuarios`, cria o bucket público `avatares` e limita envio, troca e remoção ao diretório
+da própria pessoa (`<id-do-usuario>/...`). Também cria as funções usadas pela tela
+`/minha-conta` para alterar nome, telefone, disponibilidade e foto sem liberar edição
+do perfil, das funções ou da situação do acesso.
+
+Para publicar, aplique a migration normalmente com `npx supabase db push` ou rode o
+conteúdo no SQL Editor. A troca de e-mail continua sendo feita pelo Supabase Auth e
+exige a confirmação do link enviado ao novo endereço.

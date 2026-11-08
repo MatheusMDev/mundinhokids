@@ -43,7 +43,7 @@ export function LinhaEvento({ evento, voltarPara }: { evento: Evento; voltarPara
 }
 
 export function Painel() {
-  const { db, hoje, perfil, permissoes, papeis } = useEstado();
+  const { db, hoje, perfil, permissoes, papeis, usuario } = useEstado();
   // Equipe (artista, produção, maquiagem) vê a própria agenda; pendências só para operação e produção
   const daEquipe = !permissoes.operacao;
   const vePendencias = permissoes.operacao || papeis.has('produtor');
@@ -67,6 +67,10 @@ export function Painel() {
   const numeros = useMemo(() => numerosDaSemana(db, hoje, permissoes.conferirFantasias), [db, hoje, permissoes.conferirFantasias]);
   const proximos = proximosEventos(db, hoje, 14).slice(0, 5);
   const dataHoje = dataLonga(hoje, false);
+  const primeiroNome = usuario.nome.trim().split(/\s+/)[0] || usuario.nome;
+  const mensagemInicial = daEquipe
+    ? `Olá, ${primeiroNome}! Aqui estão seus próximos compromissos.`
+    : `Olá, ${primeiroNome}! Vamos deixar a semana do Mundinho em ordem.`;
 
   if (celular) {
     const doDia = eventosDoDia(db, selecionado);
@@ -75,7 +79,7 @@ export function Painel() {
         <div className="cabecalho">
           <div>
             <div className="data">{dataHoje}</div>
-            <h1>{daEquipe ? 'Sua agenda' : 'Agenda da equipe'}</h1>
+            <h1>{mensagemInicial}</h1>
           </div>
         </div>
         <div style={{ marginBottom: 14 }}><TrocasParaMim /></div>
@@ -106,7 +110,7 @@ export function Painel() {
       <div className="cabecalho">
         <div>
           <div className="data">{dataHoje}</div>
-          <h1>{daEquipe ? 'Olá! Esta é a sua agenda.' : 'Olá! Esta é a semana da equipe.'}</h1>
+          <h1>{mensagemInicial}</h1>
         </div>
         {permissoes.operacao && (
           <button type="button" className="botao primario" onClick={() => setNovoEvento(true)}>

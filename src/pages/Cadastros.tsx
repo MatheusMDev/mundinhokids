@@ -888,7 +888,7 @@ function ContaUsuario() {
   return (
     <section className="cartao">
       <span className="rotulo">Conectado como</span>
-      <strong style={{ display: 'block', margin: '4px 0 2px' }}>{usuario.nome}</strong>
+      <Link to="/minha-conta" className="conta-link-nome"><strong>{usuario.nome}</strong></Link>
       <p className="suave" style={{ margin: '0 0 12px' }}>{NOME_PERFIL[usuario.perfil]}</p>
       <BotaoMinhaSenha estilo={{ width: '100%', marginBottom: 8 }} />
       <button type="button" className="botao" onClick={sair} style={{ width: '100%' }}>Sair</button>
