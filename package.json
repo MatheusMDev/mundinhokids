@@ -11,6 +11,7 @@
     "perfis:verificar": "node supabase/verificar/perfis.mjs",
     "pessoas:verificar": "node scripts/verificar-pessoas.mjs",
     "financeiro:verificar": "node scripts/verificar-financeiro.mjs",
+    "agenda:verificar": "node scripts/verificar-minha-agenda.mjs",
     "banco:juntar": "node supabase/juntar.mjs"
   },
   "dependencies": {

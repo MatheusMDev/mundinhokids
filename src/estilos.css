@@ -251,6 +251,31 @@ h3 { font-size: 15px; font-weight: 800; }
 .cabecalho { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .cabecalho .data { color: var(--texto-suave); font-size: 13px; margin-bottom: 2px; }
 
+.minha-agenda-topo { margin-bottom: 18px; }
+.minha-agenda-resumo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.minha-agenda-resumo .numero { min-width: 0; }
+.minha-agenda-resumo strong { overflow-wrap: anywhere; }
+.minha-agenda-abas { margin-top: 18px; }
+.minha-agenda-evento { margin-bottom: 12px; }
+.minha-agenda-evento p { margin: 10px 0; }
+.minha-agenda-evento-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.minha-agenda-evento-topo > a { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 700; color: var(--texto); text-decoration: none; overflow-wrap: anywhere; }
+.minha-agenda-evento-topo > a:hover { color: var(--marca-escura); }
+.minha-agenda-evento-topo > a svg { flex-shrink: 0; }
+.minha-agenda-evento-topo > .selo { flex-shrink: 0; }
+.minha-agenda-data { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.minha-agenda-data svg { flex-shrink: 0; align-self: center; }
+.minha-agenda-funcoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.minha-agenda-funcoes span { border-radius: 7px; background: var(--cinza-suave); padding: 5px 8px; font-size: 12px; }
+.minha-agenda-valor { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; border-top: 1px solid var(--borda); margin-top: 12px; padding-top: 12px; font-size: 13px; }
+.minha-agenda-valor strong { font-size: 18px; }
+@media (max-width: 599px) {
+  .minha-agenda-resumo { gap: 8px; }
+  .minha-agenda-resumo .cartao { padding: 14px; }
+  .minha-agenda-resumo .numero strong { font-size: 23px; }
+  .minha-agenda-evento { padding: 16px; }
+  .minha-agenda-evento-topo { flex-wrap: wrap; }
+}
 .numeros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 18px; }
 .numero span { display: block; color: var(--texto-suave); font-size: 13px; }
 .numero strong { display: block; font-family: var(--fonte-titulo); font-size: 28px; font-weight: 900; line-height: 1.3; }

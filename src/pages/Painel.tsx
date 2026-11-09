@@ -12,6 +12,7 @@ import {
   ROTULO_SITUACAO, veValores, type Pendencia,
 } from '../lib/consultas';
 import type { Evento } from '../lib/tipos';
+import { MinhaAgenda } from './MinhaAgenda';
 
 export function ListaPendencias({ pendencias }: { pendencias: Pendencia[] }) {
   if (!pendencias.length) return <div className="vazio">Nenhuma pendência nesta semana.</div>;
@@ -43,6 +44,11 @@ export function LinhaEvento({ evento, voltarPara }: { evento: Evento; voltarPara
 }
 
 export function Painel() {
+  const { permissoes } = useEstado();
+  return permissoes.operacao ? <PainelOperacao /> : <MinhaAgenda />;
+}
+
+function PainelOperacao() {
   const { db, hoje, perfil, permissoes, papeis, usuario } = useEstado();
   // Equipe (artista, produção, maquiagem) vê a própria agenda; pendências só para operação e produção
   const daEquipe = !permissoes.operacao;

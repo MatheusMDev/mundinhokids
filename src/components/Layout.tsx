@@ -57,7 +57,7 @@ interface Props {
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
-  const { db, usuario, cliente, aviso, sair, telas, inicio } = useEstado();
+  const { db, usuario, cliente, aviso, sair, telas, inicio, permissoes } = useEstado();
   const idsNotificacoes = useRef<Set<string> | null>(null);
   const [notificacaoToast, setNotificacaoToast] = useState<Notificacao | null>(null);
   const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
@@ -67,7 +67,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
   const avatar = (className: string) => fotoUrl
     ? <span className={`${className} avatar-com-foto`}><img src={fotoUrl} alt="" /></span>
     : <span className={className}>{inicial}</span>;
-  const principais = abasDoPerfil(telas);
+  const principais = abasDoPerfil(telas).map(item => item.tela === 'painel' && !permissoes.operacao ? { ...item, texto: 'Minha agenda' } : item);
   const abas = [
     ...principais,
     { para: '/mais', texto: 'Mais', icone: 'menu' as NomeIcone },
@@ -109,7 +109,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         <nav className="nav" aria-label="Menu principal">
           {MENU.filter((item) => telas.has(item.tela)).map((item) => (
             <NavLink key={item.para} to={item.para} className={() => (ativo(item.para) ? 'ativo' : '')}>
-               <Icone nome={item.icone} /> <span>{item.texto}</span>{item.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
+               <Icone nome={item.icone} /> <span>{item.tela === 'painel' && !permissoes.operacao ? 'Minha agenda' : item.texto}</span>{item.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
           ))}
         </nav>
