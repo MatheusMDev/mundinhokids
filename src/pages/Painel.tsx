@@ -48,11 +48,9 @@ export function Painel() {
   return permissoes.operacao ? <PainelOperacao /> : <MinhaAgenda />;
 }
 
+/** Painel da gestão (Direção, Gerente e Supervisora). A equipe abre a Minha agenda. */
 function PainelOperacao() {
-  const { db, hoje, perfil, permissoes, papeis, usuario } = useEstado();
-  // Equipe (artista, produção, maquiagem) vê a própria agenda; pendências só para operação e produção
-  const daEquipe = !permissoes.operacao;
-  const vePendencias = permissoes.operacao || papeis.has('produtor');
+  const { db, hoje, perfil, permissoes, usuario } = useEstado();
   const [novoEvento, setNovoEvento] = useState(false);
   const celular = useCelular();
   const p = partes(hoje);
@@ -74,9 +72,7 @@ function PainelOperacao() {
   const proximos = proximosEventos(db, hoje, 14).slice(0, 5);
   const dataHoje = dataLonga(hoje, false);
   const primeiroNome = usuario.nome.trim().split(/\s+/)[0] || usuario.nome;
-  const mensagemInicial = daEquipe
-    ? `Olá, ${primeiroNome}! Aqui estão seus próximos compromissos.`
-    : `Olá, ${primeiroNome}! Vamos deixar a semana do Mundinho em ordem.`;
+  const mensagemInicial = `Olá, ${primeiroNome}! Vamos deixar a semana do Mundinho em ordem.`;
 
   if (celular) {
     const doDia = eventosDoDia(db, selecionado);
@@ -95,17 +91,11 @@ function PainelOperacao() {
         />
         <h2 className="secao-titulo">{dataLongaDaChave(selecionado)}</h2>
         {doDia.length ? doDia.map((e) => <LinhaEvento key={e.id} evento={e} />) : <div className="vazio">Nenhum evento neste dia.</div>}
-        {vePendencias && (
-          <>
-            <h2 className="secao-titulo">Pendências da semana</h2>
-            <ListaPendencias pendencias={pendencias} />
-          </>
-        )}
-        {permissoes.operacao && (
-          <button type="button" className="botao primario" style={{ width: '100%', marginTop: 18 }} onClick={() => setNovoEvento(true)}>
-            <Icone nome="mais" /> Novo evento
-          </button>
-        )}
+        <h2 className="secao-titulo">Pendências da semana</h2>
+        <ListaPendencias pendencias={pendencias} />
+        <button type="button" className="botao primario" style={{ width: '100%', marginTop: 18 }} onClick={() => setNovoEvento(true)}>
+          <Icone nome="mais" /> Novo evento
+        </button>
         {novoEvento && <FormEvento onFechar={() => setNovoEvento(false)} />}
       </Layout>
     );
@@ -118,14 +108,12 @@ function PainelOperacao() {
           <div className="data">{dataHoje}</div>
           <h1>{mensagemInicial}</h1>
         </div>
-        {permissoes.operacao && (
-          <button type="button" className="botao primario" onClick={() => setNovoEvento(true)}>
-            <Icone nome="mais" /> Novo evento
-          </button>
-        )}
+        <button type="button" className="botao primario" onClick={() => setNovoEvento(true)}>
+          <Icone nome="mais" /> Novo evento
+        </button>
       </div>
 
-      {!daEquipe && <div className="numeros">
+      <div className="numeros">
         <div className="cartao numero">
           <span>Eventos nesta semana</span>
           <strong>{numeros.eventosSemana}</strong>
@@ -153,20 +141,18 @@ function PainelOperacao() {
             <p>Valores ocultos para este perfil.</p>
           </div>
         )}
-      </div>}
+      </div>
 
       <div className="painel">
         <CalendarioMes mes={mes} onMudar={setMes} hoje={chaveDia(hoje)} eventosPorDia={eventosPorDia} />
         <div className="coluna">
           <TrocasParaMim />
-          {vePendencias && (
-            <section className="cartao">
-              <h2>Pendências da semana</h2>
-              <ListaPendencias pendencias={pendencias} />
-            </section>
-          )}
           <section className="cartao">
-            <h2>{daEquipe ? 'Seus próximos eventos' : 'Próximos eventos'}</h2>
+            <h2>Pendências da semana</h2>
+            <ListaPendencias pendencias={pendencias} />
+          </section>
+          <section className="cartao">
+            <h2>Próximos eventos</h2>
             <div className="proximos">
               {proximos.map((e) => (
                 <Link key={e.id} to={`/eventos/${e.id}`}>

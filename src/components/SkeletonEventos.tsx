@@ -60,3 +60,20 @@ export function SkeletonDetalheEvento() {
     </main>
   );
 }
+
+export function SkeletonConfiguracoes() {
+  return (
+    <main className="skeleton-tela" aria-busy="true" aria-label="Carregando configurações">
+      <div className="skeleton-cabecalho">
+        <div><span className="skeleton-linha skeleton-titulo" /><span className="skeleton-linha skeleton-detalhe-meta" /></div>
+        <span className="skeleton-botao" />
+      </div>
+      <div className="skeleton-configuracoes-resumo">
+        {[1, 2, 3].map((item) => <div className="skeleton-bloco" key={item}><span className="skeleton-linha skeleton-label" /><span className="skeleton-linha skeleton-valor" /></div>)}
+      </div>
+      <div className="skeleton-configuracoes-lista">
+        {[1, 2, 3, 4].map((item) => <div className="skeleton-bloco skeleton-lista" key={item}><span className="skeleton-linha skeleton-subtitulo" /><span className="skeleton-evento" /><span className="skeleton-evento" /></div>)}
+      </div>
+    </main>
+  );
+}

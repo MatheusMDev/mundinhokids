@@ -73,19 +73,51 @@ export function Configuracoes() {
   }
 
   const desativado = !podeEditar || salvando;
+  const temConfiguracoes = Object.values(atual).some((valor) => valor !== '');
+  const resumoAprovacao = exigeAprovacao && lerValor(limite) !== null
+    ? `Acima de ${moeda(lerValor(limite)!)} passa por aprovação.`
+    : exigeAprovacao ? 'Aprovação de despesas ativada.' : 'Lançamentos entram direto.';
 
   return (
     <Layout>
-      <div className="lista-topo">
+      <div className="configuracoes-cabecalho">
         <div>
           <h1>Configurações</h1>
-          <p>{podeEditar ? 'Regras do dia a dia. Valem para todo o sistema assim que você salva.' : 'Só a direção e a gerente alteram estas regras.'}</p>
+          <p>{podeEditar ? 'Regras do dia a dia para toda a operação.' : 'Consulte as regras do sistema. Só a direção e a gerente podem editar.'}</p>
+        </div>
+        <span className={`configuracoes-status ${podeEditar ? 'editavel' : 'leitura'}`}>
+          <i aria-hidden="true" /> {podeEditar ? 'Você pode editar' : 'Somente leitura'}
+        </span>
+      </div>
+
+      <div className="configuracoes-resumo" aria-label="Resumo das configurações">
+        <div className="configuracao-resumo-item">
+          <span className="configuracao-resumo-icone">↗</span>
+          <div><small>Feedback</small><strong>{feedback.trim() ? 'Formulário configurado' : 'Ainda não configurado'}</strong></div>
+        </div>
+        <div className="configuracao-resumo-item">
+          <span className="configuracao-resumo-icone">◷</span>
+          <div><small>Avisos</small><strong>{comAtual(ANTECEDENCIAS_LEMBRETE, lembrete).find((opcao) => opcao.valor === lembrete)?.texto ?? `${lembrete} minutos antes`}</strong></div>
+        </div>
+        <div className="configuracao-resumo-item">
+          <span className="configuracao-resumo-icone">R$</span>
+          <div><small>Despesas</small><strong>{resumoAprovacao}</strong></div>
         </div>
       </div>
 
+      {!temConfiguracoes && (
+        <div className="configuracoes-vazio" role="status">
+          <strong>As configurações ainda não foram preenchidas.</strong>
+          <span>Complete os campos abaixo para deixar as regras prontas para a equipe.</span>
+        </div>
+      )}
+
       <form className="configuracoes" onSubmit={salvar}>
-        <section className="cartao">
-          <h2>Feedback do produtor</h2>
+        <section className="cartao configuracao-secao">
+          <div className="configuracao-secao-cabecalho">
+            <span className="configuracao-secao-numero">01</span>
+            <div><h2>Feedback do produtor</h2><p>Links usados pela equipe para enviar e acompanhar os vídeos.</p></div>
+          </div>
           <Campo rotulo="Link do formulário de feedback" dica="Aparece em cada evento e no PDF da equipe. É o formulário que já existe (com o envio do vídeo).">
             {(id) => <input id={id} type="url" value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="https://forms.gle/..." disabled={desativado} />}
           </Campo>
@@ -99,8 +131,11 @@ export function Configuracoes() {
           )}
         </section>
 
-        <section className="cartao">
-          <h2>Avisos e trocas</h2>
+        <section className="cartao configuracao-secao">
+          <div className="configuracao-secao-cabecalho">
+            <span className="configuracao-secao-numero">02</span>
+            <div><h2>Avisos e trocas</h2><p>Defina os prazos que orientam a agenda e as substituições.</p></div>
+          </div>
           <div className="linha-campos">
             <Campo rotulo="Último aviso antes do evento" dica="Vale para os próximos escalados; avisos já agendados não mudam.">
               {(id) => (
@@ -119,8 +154,11 @@ export function Configuracoes() {
           </div>
         </section>
 
-        <section className="cartao">
-          <h2>Despesas</h2>
+        <section className="cartao configuracao-secao">
+          <div className="configuracao-secao-cabecalho">
+            <span className="configuracao-secao-numero">03</span>
+            <div><h2>Despesas</h2><p>Controle quando um lançamento precisa ser revisado pela gestão.</p></div>
+          </div>
           <Marcador
             texto="Despesas acima de um valor precisam de aprovação"
             dica="Quem lança vê a despesa como “aguardando aprovação” até a direção ou a gerente decidir."
@@ -133,9 +171,12 @@ export function Configuracoes() {
           )}
         </section>
 
-        <section className="cartao">
-          <h2>O que a supervisora pode fazer</h2>
-          <p className="suave" style={{ margin: '-6px 0 12px', fontSize: 13 }}>Ela sempre cadastra, monta a escala, remarca e confere fantasias. Nunca vê valores.</p>
+        <section className="cartao configuracao-secao">
+          <div className="configuracao-secao-cabecalho">
+            <span className="configuracao-secao-numero">04</span>
+            <div><h2>Permissões da supervisora</h2><p>Escolha ações extras sem liberar acesso a valores.</p></div>
+          </div>
+          <p className="suave configuracao-nota">Ela sempre cadastra, monta a escala, remarca e confere fantasias. Nunca vê valores.</p>
           <div className="acoes-coluna">
             <Marcador texto="Cancelar eventos" marcado={supCancela} onMudar={setSupCancela} desativado={desativado} />
             <Marcador texto="Tirar alguém de uma equipe já escalada" marcado={supEquipe} onMudar={setSupEquipe} desativado={desativado} />

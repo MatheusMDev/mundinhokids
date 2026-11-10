@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { Campo, Linha } from '../components/Formulario';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { Icone } from '../components/Icone';
+import { PreferenciasNotificacao } from '../components/PreferenciasNotificacao';
 import { useEstado } from '../lib/estado';
 import { atualizarMeuEmail, atualizarMinhaConta, enviarFotoPerfil, removerFotoPerfil } from '../lib/acoes';
 import { iniciais } from '../lib/formato';
@@ -136,7 +137,9 @@ export function MinhaConta() {
           <p className="suave conta-dica">Troque sua senha sempre que quiser. O perfil e as permissões continuam sob controle da gestão.</p>
           <BotaoMinhaSenha className="botao" />
         </section>
+
       </div>
+      <PreferenciasNotificacao />
     </Layout>
   );
 }
