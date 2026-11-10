@@ -289,7 +289,10 @@ export async function marcarNotificacaoLida(c: Cliente, id: string) {
 
 export async function salvarInscricaoPush(c: Cliente, inscricao: PushSubscriptionJSON) {
   if (!inscricao.endpoint || !inscricao.keys?.p256dh || !inscricao.keys.auth) throw new Error('Inscrição do navegador inválida.');
+  const { data: sessao } = await c.auth.getUser();
+  if (!sessao.user) throw new Error('Sua sessão expirou. Entre novamente para ativar as notificações.');
   ok(await c.from('push_inscricoes').upsert({
+    usuario_id: sessao.user.id,
     endpoint: inscricao.endpoint,
     p256dh: inscricao.keys.p256dh,
     auth: inscricao.keys.auth,

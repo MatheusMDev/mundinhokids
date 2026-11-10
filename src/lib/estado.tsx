@@ -10,7 +10,7 @@ import { traduzirErro } from './erros';
 import { sairDesteAparelho, supabase } from './supabase';
 import { Login } from '../pages/Login';
 import { TrocarSenha } from '../pages/TrocarSenha';
-import { SkeletonDetalheEvento, SkeletonEventos } from '../components/SkeletonEventos';
+import { SkeletonConfiguracoes, SkeletonDetalheEvento, SkeletonEventos } from '../components/SkeletonEventos';
 import { SkeletonFinanceiro } from '../components/SkeletonFinanceiro';
 
 interface Estado {
@@ -261,8 +261,9 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
   }, [db, eu, hoje, decidirTroca, cliente, executar, aviso, avisar, sair]);
 
   const telaFinanceiro = window.location.pathname === '/financeiro';
+  const telaConfiguracoes = window.location.pathname === '/configuracoes';
   const telaDetalheEvento = /^\/eventos\/[^/]+$/.test(window.location.pathname);
-  const carregamento = telaFinanceiro ? <SkeletonFinanceiro /> : telaDetalheEvento ? <SkeletonDetalheEvento /> : <SkeletonEventos />;
+  const carregamento = telaFinanceiro ? <SkeletonFinanceiro /> : telaConfiguracoes ? <SkeletonConfiguracoes /> : telaDetalheEvento ? <SkeletonDetalheEvento /> : <SkeletonEventos />;
   if (sessao === undefined) return carregamento;
   if (!sessao) return <Login />;
   // Senha provisória, convite ou link de recuperação: a pessoa cria a própria senha primeiro
