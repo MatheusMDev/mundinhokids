@@ -106,12 +106,15 @@ Regras importantes:
 | Comando | O que faz |
 | --- | --- |
 | `npm run dev` | Sobe o app em http://localhost:5173 com recarga automática |
-| `npm run build` | Confere os tipos (TypeScript) e gera a versão de produção em `dist/` |
+| `npm run build` | Roda o `npm test`, confere os tipos (TypeScript) e gera a versão de produção em `dist/`. Se um teste falhar, o build para |
 | `npm run preview` | Serve o `dist/` localmente, para conferir o build |
+| `npm test` | Roda os testes do front (os quatro abaixo marcados com ✓), em poucos segundos |
+| `npm run calculos:verificar` ✓ | Testa os cálculos das telas: datas no fuso de São Paulo, números e pendências da semana, conflitos, transporte, fantasias e financeiro do evento |
+| `npm run financeiro:verificar` ✓ | Testa os totais da tela Financeiro (recebido, a receber, equipe e despesas) |
+| `npm run agenda:verificar` ✓ | Testa a Minha agenda (próximos, histórico, valores e privacidade) |
+| `npm run pessoas:verificar` ✓ | Testa telas de pessoas e acessos renderizando os componentes reais |
 | `npm run banco:verificar` | Testa migrações, seed e permissões do banco num Postgres local |
 | `npm run perfis:verificar` | Testa o que cada perfil (gerente, supervisora, equipe, fantasias) pode ler e gravar |
-| `npm run pessoas:verificar` | Testa telas de pessoas e acessos renderizando os componentes reais |
-| `npm run financeiro:verificar` | Testa os cálculos do Financeiro (totais, a pagar, despesas) |
 | `npm run banco:juntar` | Gera `supabase/subir_tudo.sql` para colar de uma vez no SQL Editor |
 
 ## Testes e validações
@@ -122,12 +125,16 @@ Antes de abrir um PR, rode:
 npm run build
 npm run banco:verificar
 npm run perfis:verificar
-npm run pessoas:verificar
-npm run financeiro:verificar
 ```
 
-Todos devem terminar com "0 falharam" (ou "passaram", nos que não contam falhas).
-Nenhum deles conecta ao Supabase nem altera dados reais.
+O `npm run build` já roda o `npm test`. Todos devem terminar com "0 falharam" (ou
+"passaram", nos que não contam falhas). Nenhum deles conecta ao Supabase nem altera
+dados reais.
+
+Os testes dos cálculos rodam com o aparelho em quatro fusos (UTC, São Paulo, Tóquio e Los
+Angeles): as telas precisam mostrar sempre o dia e a hora de São Paulo, esteja o celular
+onde estiver. Mudou uma regra de cálculo de propósito? Ajuste o teste correspondente em
+`scripts/verificar-calculos.mjs` no mesmo PR.
 
 ## Estrutura de pastas
 
@@ -162,7 +169,7 @@ src/
     erros.ts               erros do banco traduzidos para português
     formato.ts             datas, horas, dinheiro e textos
 public/                  ícone, imagem de erro e service worker das notificações
-scripts/                 testes de telas e do Financeiro (Node)
+scripts/                 testes do front (cálculos, Financeiro, Minha agenda, telas)
 supabase/                banco, Edge Functions, e-mails e testes do banco (ver acima)
 docs/                    anotações de entregas específicas (tasks #57, #63, #64)
 ```
