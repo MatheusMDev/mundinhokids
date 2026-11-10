@@ -280,7 +280,7 @@ h3 { font-size: 15px; font-weight: 800; }
 .numero span { display: block; color: var(--texto-suave); font-size: 13px; }
 .numero strong { display: block; font-family: var(--fonte-titulo); font-size: 28px; font-weight: 900; line-height: 1.3; }
 .numero strong.laranja { color: var(--laranja-escuro); }
-.numero strong.marca { color: var(--marca-escura); }
+.numero strong.marca { padding: 0; color: var(--marca-escura); }
 .numero small { color: var(--texto-suave); font-size: 12px; }
 
 .painel { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }

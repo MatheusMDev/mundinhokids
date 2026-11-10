@@ -19,10 +19,15 @@ export function MinhaAgenda() {
   const pagina = Math.max(1, Math.floor(Number(params.get('pagina')) || 1));
   const eventos = aba === 'historico' ? dados.historico : dados.proximos;
   const lista = paginar(eventos, pagina, 10);
+  // Pendentes primeiro, do mais antigo (o que já devia ter sido pago) ao mais novo;
+  // depois os recebidos, do mais recente ao mais antigo.
   const valores = paginar([...dados.pagamentos].sort((a, b) => {
-    const ea = db.eventos.find(e => e.id === a.evento_id);
-    const eb = db.eventos.find(e => e.id === b.evento_id);
-    return Number(a.situacao === 'pago') - Number(b.situacao === 'pago') || (eb?.inicio ?? '').localeCompare(ea?.inicio ?? '');
+    const pagoA = a.situacao === 'pago';
+    const pagoB = b.situacao === 'pago';
+    if (pagoA !== pagoB) return Number(pagoA) - Number(pagoB);
+    const ia = db.eventos.find(e => e.id === a.evento_id)?.inicio ?? '';
+    const ib = db.eventos.find(e => e.id === b.evento_id)?.inicio ?? '';
+    return pagoA ? ib.localeCompare(ia) : ia.localeCompare(ib);
   }), pagina, 10);
   const mudar = (chave: string, valor: string) => {
     const novos = new URLSearchParams(params);
@@ -31,7 +36,7 @@ export function MinhaAgenda() {
     setParams(novos);
   };
   const linkEvento = (id: string, titulo: string) => telas.has('eventos')
-    ? <Link to={`/eventos/${id}`} state={{ voltarPara: `/${params.size ? `?${params}` : ''}` }}>{titulo}<Icone nome="direita" tamanho={16} /></Link>
+    ? <Link to={`/eventos/${id}`} state={{ voltarPara: `/${params.toString() ? `?${params}` : ''}` }}>{titulo}<Icone nome="direita" tamanho={16} /></Link>
     : <strong>{titulo}</strong>;
 
   return <Layout>
