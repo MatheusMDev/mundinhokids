@@ -108,7 +108,9 @@ function resumirHistorico(h: LinhaHistorico, base: Omit<BaseDados, 'configuracoe
       descricao = `Recebimento de ${moeda(Number(depois.valor ?? 0))}`;
       break;
     case 'pagamentos_profissionais':
-      descricao = `Pagamento de ${nomeProfissional(depois.profissional_id)}: ${moeda(Number(depois.valor_combinado ?? 0))} · ${texto(depois.situacao)}`;
+      descricao = depois.cancelado_em && !antes.cancelado_em
+        ? `Pagamento pendente de ${nomeProfissional(depois.profissional_id)} cancelado ao sair da escala: ${moeda(Number(depois.valor_combinado ?? 0))}`
+        : `Pagamento de ${nomeProfissional(depois.profissional_id)}: ${moeda(Number(depois.valor_combinado ?? 0))} · ${texto(depois.situacao)}`;
       break;
     case 'despesas':
       descricao = `Despesa: ${texto(depois.descricao)} (${moeda(Number(depois.valor ?? 0))})`;

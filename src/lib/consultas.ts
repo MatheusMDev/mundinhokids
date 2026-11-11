@@ -220,7 +220,7 @@ export function financeiroDoEvento(db: BaseDados, eventoId: string) {
   const recebido = db.recebimentos.filter((r) => r.evento_id === eventoId).reduce((s, r) => s + r.valor, 0);
   const situacao: 'pendente' | 'parcial' | 'pago' = recebido === 0 ? 'pendente' : recebido < contratado ? 'parcial' : 'pago';
   const pagamentos = db.pagamentos_profissionais
-    .filter((p) => p.evento_id === eventoId)
+    .filter((p) => p.evento_id === eventoId && !p.cancelado_em)
     .map((p) => ({ ...p, profissional: porId(db.profissionais, p.profissional_id) }));
   const despesas = db.despesas.filter((d) => d.evento_id === eventoId).reduce((s, d) => s + d.valor, 0);
   return { contratado, recebido, situacao, pagamentos, despesas };
@@ -347,7 +347,9 @@ export function numerosDaSemana(db: BaseDados, hojeIso: string, verConferencias 
 
   const pendencias = pendenciasDaSemana(db, hojeIso, verConferencias);
   const trocas = trocasPendentes(db).filter((t) => t.troca.situacao === 'aguardando_aprovacao');
-  const aPagar = new Set(db.pagamentos_profissionais.filter((p) => p.situacao === 'pendente').map((p) => p.profissional_id));
+  const aPagar = new Set(db.pagamentos_profissionais
+    .filter((p) => p.situacao === 'pendente' && !p.cancelado_em)
+    .map((p) => p.profissional_id));
 
   const tipos = [...new Set(pendencias.map((p) => p.tipo))];
   const nomesTipo: Record<TipoPendencia, string> = { troca: 'troca', veiculo: 'veículo', escala: 'escala', fantasia: 'fantasia', conferencia: 'conferência' };

@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -1819,6 +1819,254 @@ create trigger sincronizar_email_usuario
   after update of email on auth.users
   for each row execute function public.sincronizar_email_usuario();
 
+-- >>>>> migrations/20261110000002_aviso_conferencia_fantasias.sql
+
+-- =====================================================================
+-- Mundinho Kids — aviso de conferência para quem cuida das fantasias
+--
+-- Quando uma festa termina e alguma fantasia usada nela ainda não foi
+-- conferida (devolução, limpeza, reparo), quem cuida das fantasias recebe
+-- um aviso para conferir. "Quem cuida" = login com perfil Fantasias ou
+-- ligado a um profissional com a função Fantasias.
+--
+-- O aviso é gerado pela mesma rotina que já roda a cada 5 minutos
+-- (gerar_notificacoes_gestao, chamada pela Edge Function enviar-notificacoes),
+-- então não é preciso publicar a função de novo.
+--
+-- Cada festa gera no máximo um aviso por pessoa. Festas canceladas não avisam.
+-- Só olha festas que terminaram nos últimos 3 dias, para não avisar sobre
+-- festas antigas quando esta migração for aplicada.
+-- =====================================================================
+
+alter table notificacoes drop constraint if exists notificacoes_tipo_check;
+alter table notificacoes add constraint notificacoes_tipo_check check (tipo in
+  ('escalado', 'lembrete', 'alterado', 'cancelado', 'removido', 'substituicao',
+   'despesa_aprovacao', 'evento_gestao', 'pendencia_operacional', 'resumo_diario',
+   'conferencia_fantasias'));
+
+alter table notificacao_preferencias drop constraint if exists notificacao_preferencias_tipo_check;
+alter table notificacao_preferencias add constraint notificacao_preferencias_tipo_check check (tipo in
+  ('escalado', 'lembrete', 'alterado', 'cancelado', 'removido', 'substituicao',
+   'despesa_aprovacao', 'evento_gestao', 'pendencia_operacional', 'resumo_diario',
+   'conferencia_fantasias'));
+
+create function gerar_avisos_conferencia() returns void
+language sql security definer set search_path = public as $$
+  insert into notificacoes (usuario_id, evento_id, tipo, mensagem)
+  select u.id, e.id, 'conferencia_fantasias',
+         'Festa encerrada: confira as fantasias da ' || e.titulo
+  from eventos e
+  cross join usuarios u
+  where e.situacao <> 'cancelado'
+    and e.fim <= now()
+    and e.fim > now() - interval '3 days'
+    -- alguma fantasia da festa ainda sem conferência
+    and exists (
+      select 1 from evento_escala es
+      where es.evento_id = e.id and es.ativo and es.fantasia_id is not null
+        and not exists (
+          select 1 from conferencias_fantasia c
+          where c.evento_id = e.id and c.fantasia_id = es.fantasia_id
+        )
+    )
+    -- quem cuida das fantasias
+    and u.ativo
+    and (
+      u.perfil = 'fantasias'
+      or exists (
+        select 1 from profissionais p
+        where p.usuario_id = u.id and p.ativo and 'fantasias'::funcao_profissional = any (p.funcoes)
+      )
+    )
+    -- um aviso por festa e por pessoa
+    and not exists (
+      select 1 from notificacoes n
+      where n.usuario_id = u.id and n.evento_id = e.id and n.tipo = 'conferencia_fantasias'
+    );
+$$;
+
+-- Só a rotina do servidor gera avisos
+revoke execute on function gerar_avisos_conferencia() from public, anon, authenticated;
+
+-- Mesma rotina de antes (avisos da gestão), agora também com o aviso de conferência
+create or replace function gerar_notificacoes_gestao() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into notificacoes (usuario_id, evento_id, tipo, mensagem)
+  select u.id, e.id, 'pendencia_operacional',
+         'Evento sem equipe escalada nas próximas 48 horas: ' || e.titulo
+  from usuarios u
+  cross join eventos e
+  where u.ativo and u.perfil in ('diretora', 'gerente')
+    and e.situacao not in ('cancelado', 'realizado')
+    and e.inicio between now() and now() + interval '48 hours'
+    and not exists (select 1 from evento_escala es where es.evento_id = e.id and es.ativo)
+    and not exists (
+      select 1 from notificacoes n
+      where n.usuario_id = u.id and n.evento_id = e.id and n.tipo = 'pendencia_operacional'
+        and n.criado_em >= date_trunc('day', now())
+    );
+
+  insert into notificacoes (usuario_id, tipo, mensagem)
+  select u.id, 'resumo_diario',
+         'Resumo diário: ' || count(e.id)::text || ' evento(s) previsto(s) para os próximos 7 dias.'
+  from usuarios u
+  left join eventos e on e.situacao not in ('cancelado', 'realizado')
+                       and e.inicio between now() and now() + interval '7 days'
+  where u.ativo and u.perfil in ('diretora', 'gerente')
+    and not exists (
+      select 1 from notificacoes n
+      where n.usuario_id = u.id and n.tipo = 'resumo_diario'
+        and n.criado_em >= date_trunc('day', now())
+    )
+  group by u.id;
+
+  perform gerar_avisos_conferencia();
+end;
+$$;
+
+-- >>>>> migrations/20261110000002_notificacao_remocao_evento.sql
+
+-- Guarda o título no próprio aviso porque, após a remoção, a RLS deixa de
+-- permitir que o profissional consulte o evento pela participação ativa.
+create or replace function notificar_escala() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_usuario  uuid;
+  v_evento   eventos%rowtype;
+  v_minutos  int := coalesce(nullif(config_texto('lembrete_antecedencia_minutos'), '')::int, 120);
+begin
+  select usuario_id into v_usuario from profissionais where id = new.profissional_id;
+  if v_usuario is null then
+    return null;
+  end if;
+  select * into v_evento from eventos where id = new.evento_id;
+
+  if tg_op = 'INSERT' and new.ativo then
+    insert into notificacoes (usuario_id, evento_id, tipo)
+    values (v_usuario, new.evento_id, 'escalado');
+    insert into notificacoes (usuario_id, evento_id, tipo, agendada_para)
+    values (v_usuario, new.evento_id, 'lembrete', v_evento.inicio - make_interval(mins => v_minutos));
+
+  elsif tg_op = 'UPDATE' and old.ativo and not new.ativo then
+    update notificacoes
+    set mensagem = case tipo
+      when 'escalado' then 'Você foi escalado: ' || v_evento.titulo
+      when 'lembrete' then 'Lembrete de evento: ' || v_evento.titulo
+      when 'alterado' then 'Evento alterado: ' || v_evento.titulo
+      when 'cancelado' then 'Evento cancelado: ' || v_evento.titulo
+      when 'removido' then 'Você saiu da escala: ' || v_evento.titulo
+      when 'substituicao' then 'Atualização de troca: ' || v_evento.titulo
+      else 'Evento: ' || v_evento.titulo
+    end
+    where usuario_id = v_usuario and evento_id = new.evento_id and mensagem is null;
+
+    delete from notificacoes
+    where usuario_id = v_usuario and evento_id = new.evento_id and tipo = 'lembrete' and enviada_em is null;
+    insert into notificacoes (usuario_id, evento_id, tipo, mensagem)
+    values (
+      v_usuario,
+      new.evento_id,
+      case when v_evento.situacao = 'cancelado' then 'cancelado' else 'removido' end,
+      case when v_evento.situacao = 'cancelado'
+        then 'Evento cancelado: ' || v_evento.titulo
+        else 'Você saiu da escala: ' || v_evento.titulo
+      end
+    );
+  end if;
+
+  return null;
+end;
+$$;
+
+-- Preenche avisos antigos que foram criados antes do título ser armazenado.
+update notificacoes n
+set mensagem = case n.tipo
+  when 'escalado' then 'Você foi escalado: ' || e.titulo
+  when 'lembrete' then 'Lembrete de evento: ' || e.titulo
+  when 'alterado' then 'Evento alterado: ' || e.titulo
+  when 'cancelado' then 'Evento cancelado: ' || e.titulo
+  when 'removido' then 'Você saiu da escala: ' || e.titulo
+  when 'substituicao' then 'Atualização de troca: ' || e.titulo
+  else 'Evento: ' || e.titulo
+end
+from eventos e
+where n.evento_id = e.id
+  and n.mensagem is null;
+
+-- >>>>> migrations/20261110000003_despesas_so_producao.sql
+
+-- =====================================================================
+-- Mundinho Kids — só a produção lança despesas do evento
+--
+-- Antes, qualquer pessoa escalada no evento (inclusive artista e
+-- maquiagem) podia lançar uma despesa nele. Agora lança:
+--   * a gestão (Direção e Gerente), em qualquer evento ou sem evento;
+--   * quem tem a função Produção (pelo perfil ou pelo cadastro do
+--     profissional) e está escalado no evento, sempre em nome próprio.
+-- Quem é artista e também produtor continua podendo lançar.
+-- As despesas já lançadas não mudam.
+-- =====================================================================
+
+drop policy desp_criar on despesas;
+create policy desp_criar on despesas for insert to authenticated
+  with check (
+    eh_gestao()
+    or (
+      criado_por = auth.uid()
+      and evento_id is not null
+      and tenho_funcao('produtor')
+      and participa_do_evento(evento_id)
+    )
+  );
+
+-- >>>>> migrations/20261110000004_abas_mobile.sql
+
+-- =====================================================================
+-- Mundinho Kids — abas do celular escolhidas por cada pessoa
+--
+-- RECUPERADA do banco em 2026-11-10: esta mudança foi aplicada direto no
+-- projeto Supabase e não está em nenhuma branch do repositório (nem a
+-- migração nem o código do app que a usa). O conteúdo abaixo é a definição
+-- exata que está no banco. A data no nome é a da recuperação, não a original.
+--
+-- Cada login pode escolher 3 menus para a barra de baixo do celular.
+-- null = abas padrão do perfil.
+-- =====================================================================
+
+alter table usuarios add column abas_mobile text[];
+alter table usuarios add constraint usuarios_abas_mobile_validas check (
+  abas_mobile is null or (
+    cardinality(abas_mobile) = 3
+    and abas_mobile <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+                             '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]
+  )
+);
+
+create function atualizar_abas_mobile(p_abas text[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_usuario uuid := auth.uid();
+begin
+  if v_usuario is null then raise exception 'not_authenticated'; end if;
+  if coalesce(array_length(p_abas, 1), 0) <> 3 then
+    raise exception 'Escolha exatamente três menus.';
+  end if;
+  if (select count(distinct aba) from unnest(p_abas) as aba) <> 3 then
+    raise exception 'Escolha três menus diferentes.';
+  end if;
+  if not (p_abas <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+    '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]) then
+    raise exception 'Menu mobile inválido.';
+  end if;
+
+  update usuarios set abas_mobile = p_abas where id = v_usuario and ativo;
+  if not found then raise exception 'sem_permissao'; end if;
+end;
+$$;
+revoke execute on function atualizar_abas_mobile(text[]) from public, anon;
+grant execute on function atualizar_abas_mobile(text[]) to authenticated;
+
 -- >>>>> migrations/20261111000001_abas_mobile.sql
 
 -- Preferência pessoal das três abas principais exibidas no celular.
@@ -1903,6 +2151,102 @@ $$;
 
 revoke execute on function public.atualizar_abas_mobile(text[]) from public, anon;
 grant execute on function public.atualizar_abas_mobile(text[]) to authenticated;
+
+-- >>>>> migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql
+
+-- Ao retirar alguém da escala, encerra os vínculos operacionais daquela
+-- pessoa com o evento e preserva os registros necessários para auditoria.
+
+alter table public.pagamentos_profissionais
+  add column cancelado_em timestamptz;
+
+comment on column public.pagamentos_profissionais.cancelado_em is
+  'Quando um valor pendente foi cancelado porque o profissional saiu da escala. Mantém o histórico financeiro sem contar como obrigação ativa.';
+
+create function public.limpar_vinculos_ao_sair_da_escala() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- O cancelamento completo do evento tem regras próprias e não deve ser
+  -- confundido com a remoção individual de uma pessoa da equipe.
+  if exists (
+    select 1 from public.eventos e
+    where e.id = new.evento_id and e.situacao <> 'cancelado'
+  ) then
+    -- A maquiagem, personagem e fantasia pertencem à linha da escala. Ela
+    -- fica inativa como histórico e deixa de aparecer nas consultas atuais.
+    -- Uma obrigação pendente vira cancelada, sem apagar valores já pagos.
+    update public.pagamentos_profissionais
+       set cancelado_em = clock_timestamp(),
+           observacoes = concat_ws(E'\n', nullif(observacoes, ''),
+             'Valor pendente cancelado ao remover o profissional da escala.')
+     where evento_id = new.evento_id
+       and profissional_id = new.profissional_id
+       and situacao = 'pendente'
+       and cancelado_em is null;
+
+    -- Pedidos de troca em andamento não podem continuar apontando para uma
+    -- vaga que já não está ativa.
+    update public.substituicoes
+       set situacao = 'cancelada',
+           respondido_em = coalesce(respondido_em, clock_timestamp())
+     where escala_id = new.id
+       and situacao in ('aguardando_aceite', 'aguardando_aprovacao');
+
+    -- O veículo é uma associação operacional do mesmo evento. Preserva-se
+    -- a linha inativa no histórico e libera-se a reserva atual.
+    update public.reservas_veiculo
+       set ativo = false
+     where evento_id = new.evento_id
+       and responsavel_id = new.profissional_id
+       and ativo;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.limpar_vinculos_ao_sair_da_escala() from public, anon, authenticated;
+
+create trigger escala_limpar_vinculos_ao_sair
+  after update of ativo on public.evento_escala
+  for each row
+  when (old.ativo and not new.ativo)
+  execute function public.limpar_vinculos_ao_sair_da_escala();
+
+-- Uma gravação atrasada da tela não pode reabrir o valor pendente depois que
+-- a pessoa saiu. Um novo pagamento só volta a ficar pendente após nova escala.
+create function public.proteger_pagamento_de_escala_encerrada() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.situacao = 'pendente'
+     and new.cancelado_em is null
+     and not exists (
+       select 1 from public.evento_escala e
+       where e.evento_id = new.evento_id
+         and e.profissional_id = new.profissional_id
+         and e.ativo
+     ) then
+    if tg_op = 'INSERT' then
+      raise exception 'Não é possível criar um pagamento pendente sem uma escala ativa para este evento.';
+    elsif old.cancelado_em is not null then
+      raise exception 'Não é possível criar ou reabrir um pagamento pendente sem uma escala ativa para este evento.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.proteger_pagamento_de_escala_encerrada() from public, anon, authenticated;
+
+create trigger pagamento_exige_escala_ativa
+  before insert or update on public.pagamentos_profissionais
+  for each row execute function public.proteger_pagamento_de_escala_encerrada();
 
 -- >>>>> seed.sql
 

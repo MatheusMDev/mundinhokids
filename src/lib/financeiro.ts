@@ -4,7 +4,8 @@ import { eventosOrdenados, financeiroDoEvento } from './consultas';
 /** Consolida os registros existentes; não depende dos filtros de apresentação. */
 export function resumoDoFinanceiro(db: BaseDados) {
   const eventos = eventosOrdenados(db).filter((e) => e.situacao !== 'cancelado'
-    && (db.evento_financeiro.some((f) => f.evento_id === e.id) || db.pagamentos_profissionais.some((p) => p.evento_id === e.id)))
+    && (db.evento_financeiro.some((f) => f.evento_id === e.id)
+      || db.pagamentos_profissionais.some((p) => p.evento_id === e.id && !p.cancelado_em)))
     .map((evento) => {
       const financeiro = financeiroDoEvento(db, evento.id);
       const aPagar = financeiro.pagamentos.filter((p) => p.situacao === 'pendente').reduce((s, p) => s + p.valor_combinado, 0);
@@ -18,7 +19,7 @@ export function resumoDoFinanceiro(db: BaseDados) {
   }), { contratado: 0, recebido: 0, aPagar: 0, despesas: despesasGerais.reduce((s, d) => s + d.valor, 0) });
 
   const equipe = new Map<string, { id: string; nome: string; total: number; eventos: { id: string; titulo: string; valor: number }[] }>();
-  for (const p of db.pagamentos_profissionais.filter((x) => x.situacao === 'pendente')) {
+  for (const p of db.pagamentos_profissionais.filter((x) => x.situacao === 'pendente' && !x.cancelado_em)) {
     const atual = equipe.get(p.profissional_id)
       ?? { id: p.profissional_id, nome: db.profissionais.find((x) => x.id === p.profissional_id)?.nome ?? 'Profissional', total: 0, eventos: [] };
     atual.total += p.valor_combinado;

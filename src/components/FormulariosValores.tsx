@@ -188,7 +188,7 @@ export function FormPagamentos({ evento, onFechar }: { evento: Evento; onFechar:
 
   const [linhas, setLinhas] = useState<LinhaPagamento[]>(() => {
     const equipe = equipeDoEvento(db, evento.id);
-    const existentes = db.pagamentos_profissionais.filter((p) => p.evento_id === evento.id);
+    const existentes = db.pagamentos_profissionais.filter((p) => p.evento_id === evento.id && !p.cancelado_em);
     const nome = (id: string) => db.profissionais.find((p) => p.id === id)?.nome ?? 'Profissional';
     const daEquipe = equipe.map((m) => m.escala.profissional_id);
     const ids = [...new Set([...daEquipe, ...existentes.map((p) => p.profissional_id)])];
