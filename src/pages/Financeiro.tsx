@@ -204,7 +204,7 @@ export function Financeiro() {
       <div><h1>Financeiro</h1><p>Recebimentos, equipe e despesas em um só lugar.</p></div>
       <div className="financeiro-acoes">
         <button type="button" className="botao financeiro-visibilidade" onClick={() => setValoresOcultos((atual) => !atual)} aria-label={valoresOcultos ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'} aria-pressed={!valoresOcultos}>
-          <Icone nome={valoresOcultos ? 'olhoFechado' : 'olho'} /> {valoresOcultos ? 'Mostrar valores' : 'Ocultar valores'}
+          <Icone nome={valoresOcultos ? 'olhoFechado' : 'olho'} /><span className="financeiro-visibilidade-texto">{valoresOcultos ? 'Mostrar valores' : 'Ocultar valores'}</span>
         </button>
         <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>
       </div>

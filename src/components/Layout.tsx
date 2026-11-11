@@ -6,6 +6,7 @@ import { NOME_PAINEL, nomeDosPapeis, tipoDoPainel, useEstado, type Tela } from '
 import { hora, iniciais } from '../lib/formato';
 import type { Notificacao } from '../lib/tipos';
 import { prepararSom, tocarSomNotificacao } from '../lib/som';
+import { textoNotificacao } from '../lib/notificacoes';
 
 interface ItemMenu { para: string; texto: string; icone: NomeIcone; tela: Tela }
 
@@ -36,7 +37,7 @@ export const abasDoPerfil = (telas: ReadonlySet<Tela>, escolhidas?: readonly str
   return [...selecionadas, ...restantes].slice(0, 3);
 };
 
-function MenuNotificacoes({ notificacoes }: { notificacoes: Notificacao[] }) {
+function MenuNotificacoes({ notificacoes, eventos }: { notificacoes: Notificacao[]; eventos: { id: string; titulo: string }[] }) {
   const [aberto, setAberto] = useState(false);
   const referencia = useRef<HTMLDivElement>(null);
   const naoLidas = notificacoes.filter((notificacao) => !notificacao.lida_em).length;
@@ -89,7 +90,7 @@ function MenuNotificacoes({ notificacoes }: { notificacoes: Notificacao[] }) {
             >
               <span className="menu-notificacao-icone"><Icone nome="sino" tamanho={15} /></span>
               <span className="menu-notificacao-texto">
-                <strong>{notificacao.mensagem ?? 'Você recebeu uma nova notificação.'}</strong>
+                <strong>{textoNotificacao(notificacao, eventos.find((evento) => evento.id === notificacao.evento_id)?.titulo ?? '')}</strong>
                 <small>{hora(notificacao.agendada_para)}</small>
               </span>
             </Link>
@@ -201,7 +202,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
            <span>Mundinho Kids</span>
            <strong>{itemAtual ? nomeItem(itemAtual) : 'Gestão de eventos'}</strong>
          </div>
-         <MenuNotificacoes notificacoes={db.notificacoes} />
+          <MenuNotificacoes notificacoes={db.notificacoes} eventos={db.eventos} />
        </header>
 
        <header className="topo-mobile">
@@ -211,14 +212,14 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
                <Icone nome="esquerda" tamanho={22} />
              </button>
              <strong style={{ fontFamily: 'var(--fonte)', fontWeight: 600 }}>{tituloMobile}</strong>
-             <MenuNotificacoes notificacoes={db.notificacoes} />
+              <MenuNotificacoes notificacoes={db.notificacoes} eventos={db.eventos} />
              <Logo tamanho={30} />
            </>
          ) : (
            <>
              <Logo tamanho={32} />
              <strong>Mundinho Kids</strong>
-             <MenuNotificacoes notificacoes={db.notificacoes} />
+              <MenuNotificacoes notificacoes={db.notificacoes} eventos={db.eventos} />
              <Link to="/minha-conta" className="avatar-link" aria-label="Abrir Minha conta">{avatar('avatar laranja')}</Link>
            </>
         )}
@@ -240,7 +241,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         <span className="notificacao-icone"><Icone nome="sino" /></span>
         <Link to={notificacaoToast.evento_id ? `/eventos/${notificacaoToast.evento_id}` : '/notificacoes'} onClick={() => setNotificacaoToast(null)}>
           <strong>Nova notificação</strong>
-          <span>{notificacaoToast.mensagem ?? 'Você recebeu um novo aviso.'}</span>
+          <span>{textoNotificacao(notificacaoToast, db.eventos.find((evento) => evento.id === notificacaoToast.evento_id)?.titulo ?? '')}</span>
         </Link>
         <button type="button" onClick={() => setNotificacaoToast(null)} aria-label="Fechar notificação">×</button>
       </div>}
