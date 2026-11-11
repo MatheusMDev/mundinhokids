@@ -79,7 +79,7 @@ export function CartaoTransporte({ evento }: { evento: Evento }) {
   const podeMexer = !!reserva && (permissoes.operacao || reserva.responsavel_id === usuario.profissionalId);
 
   return (
-    <section className="cartao">
+    <section className="cartao cartao-transporte">
       <div className="cartao-topo">
         <h2>Transporte</h2>
         {!reserva && podeReservar && db.veiculos.some((v) => v.ativo) && (
@@ -280,14 +280,7 @@ export function CartaoDespesas({ evento }: { evento: Evento }) {
 export function CartaoMeuValor({ evento }: { evento: Evento }) {
   const { db, usuario } = useEstado();
   const meu = db.pagamentos_profissionais.find((p) => p.evento_id === evento.id && p.profissional_id === usuario.profissionalId);
-  if (!usuario.profissionalId) {
-    return (
-      <section className="cartao oculto">
-        <h3>Valores ocultos para este perfil</h3>
-        <p>Seu perfil não tem acesso ao valor da festa nem aos pagamentos da equipe.</p>
-      </section>
-    );
-  }
+  if (!usuario.profissionalId) return null;
   return (
     <section className="cartao">
       <h2>Seu valor neste evento</h2>

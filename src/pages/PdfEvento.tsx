@@ -1,8 +1,8 @@
 // Folha operacional do evento: salvar em PDF (pela impressão do navegador) e
-// mandar o resumo no WhatsApp. Nunca mostra valores nem dados do contratante:
+// copiar o resumo para compartilhar. Nunca mostra valores nem dados do contratante:
 // vai para a equipe inteira.
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icone, Logo } from '../components/Icone';
@@ -28,32 +28,68 @@ function detalheDoMembro(db: BaseDados, evento: Evento, m: MembroEquipe) {
   return 'Responsável pelo evento';
 }
 
-/** Texto curto para colar no grupo do WhatsApp */
-function resumoWhatsApp(db: BaseDados, evento: Evento) {
+/** Texto estruturado para colar em qualquer canal de comunicação. */
+function resumoParaCompartilhar(db: BaseDados, evento: Evento) {
   const local = localDe(db, evento);
   const equipe = equipeDoEvento(db, evento.id);
   const transporte = transporteDoEvento(db, evento);
+  const orientacoes = linhasDe(evento.orientacoes);
+  const separador = '--------------------';
   const linhas = [
-    `*${tituloEvento(evento)}*`,
-    `${dataLonga(evento.inicio, false)} · ${hora(evento.inicio)} às ${hora(evento.fim)}`,
-    '',
-    `*Local:* ${local?.nome ?? ''}${local?.endereco ? ` · ${local.endereco}` : ''}`,
-    local?.link_localizacao ? `Mapa: ${local.link_localizacao}` : '',
-    '',
-    '*Equipe*',
-    ...equipe.map((m) => `- ${ROTULO_FUNCAO[m.escala.funcao]}: ${m.profissional?.nome ?? ''}${m.escala.funcao === 'artista' && m.personagem ? ` (${m.personagem.nome})` : ''}`),
+    `🎉 ${tituloEvento(evento)}`,
+    `📅 ${dataLonga(evento.inicio, false)} · ${hora(evento.inicio)} às ${hora(evento.fim)}`,
+    separador,
+    '📍 LOCAL',
+    `- ${local?.nome ?? 'Não informado'}${local?.endereco ? ` · ${local.endereco}` : ''}`,
+    ...(local?.link_localizacao ? [`🗺️ Mapa: ${local.link_localizacao}`] : []),
+    separador,
+    '👥 EQUIPE',
+    ...(equipe.length
+      ? equipe.map((m) => `- ${ROTULO_FUNCAO[m.escala.funcao]}: ${m.profissional?.nome ?? ''}${m.escala.funcao === 'artista' && m.personagem ? ` (${m.personagem.nome})` : ''}`)
+      : ['- Equipe ainda não escalada.']),
+    separador,
+    '🚗 TRANSPORTE',
     transporte.reserva
-      ? `\n*Transporte:* ${transporte.veiculoNome} com ${transporte.responsavel?.nome ?? ''}, retirada ${hora(transporte.reserva.retirada)}`
-      : '',
-    ...(linhasDe(evento.orientacoes).length ? ['', '*Orientações*', ...linhasDe(evento.orientacoes).map((o) => `- ${o}`)] : []),
+      ? `- ${transporte.veiculoNome} com ${transporte.responsavel?.nome ?? ''}, retirada ${hora(transporte.reserva.retirada)}`
+      : '- Sem veículo reservado.',
+    ...(orientacoes.length ? [separador, '📝 ORIENTAÇÕES', ...orientacoes.map((o) => `- ${o}`)] : []),
   ];
   return linhas.filter((l, i, todas) => l !== '' || todas[i - 1] !== '').join('\n').trim();
+}
+
+async function copiarTexto(texto: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      return;
+    } catch {
+      // Alguns navegadores bloqueiam a Clipboard API fora de contexto seguro.
+    }
+  }
+
+  const area = document.createElement('textarea');
+  area.value = texto;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+  area.select();
+  const copiou = document.execCommand('copy');
+  area.remove();
+  if (!copiou) throw new Error('A cópia foi bloqueada pelo navegador.');
 }
 
 export function PdfEvento() {
   const { id = '' } = useParams();
   const { db, hoje, usuario, permissoes, papeis } = useEstado();
+  const [copiando, setCopiando] = useState(false);
+  const [feedbackCopia, setFeedbackCopia] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
+  const timerFeedback = useRef<number | null>(null);
   const evento = eventoPorId(db, id);
+
+  useEffect(() => () => {
+    if (timerFeedback.current) window.clearTimeout(timerFeedback.current);
+  }, []);
 
   // O nome do arquivo salvo vem do título da página
   useEffect(() => {
@@ -79,19 +115,37 @@ export function PdfEvento() {
   // Formulário de feedback: só produção (escalada no evento) e acima
   const feedback = producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis)
     ? db.configuracoes.link_formulario_produtor : undefined;
-  const linkWhatsApp = `https://wa.me/?text=${encodeURIComponent(resumoWhatsApp(db, evento))}`;
+  const resumo = resumoParaCompartilhar(db, evento);
   const geradoEm = `${dataLonga(hoje, false).toLowerCase()}, ${hora(hoje)}`;
+
+  async function copiarResumo() {
+    setCopiando(true);
+    setFeedbackCopia(null);
+    if (timerFeedback.current) window.clearTimeout(timerFeedback.current);
+    try {
+      await copiarTexto(resumo);
+      setFeedbackCopia({ tipo: 'sucesso', texto: 'Resumo copiado. Agora é só colar onde quiser.' });
+    } catch {
+      setFeedbackCopia({ tipo: 'erro', texto: 'Não foi possível copiar. Verifique a permissão da área de transferência e tente novamente.' });
+    } finally {
+      setCopiando(false);
+      timerFeedback.current = window.setTimeout(() => setFeedbackCopia(null), 3500);
+    }
+  }
 
   return (
     <Layout tituloMobile="PDF da equipe">
       <div className="folha-acoes">
         <Link to={`/eventos/${evento.id}`} className="botao"><Icone nome="esquerda" /> Voltar</Link>
-        <a className="botao" href={linkWhatsApp} target="_blank" rel="noreferrer">Enviar resumo no WhatsApp</a>
+        <button type="button" className="botao" onClick={() => void copiarResumo()} disabled={copiando}>
+          <Icone nome="copiar" /> {copiando ? 'Copiando...' : 'Copiar o resumo'}
+        </button>
         <button type="button" className="botao primario" onClick={() => window.print()}>
           <Icone nome="impressora" /> Salvar PDF
         </button>
       </div>
-      <p className="folha-dica so-tela">No “Salvar PDF”, escolha <strong>Salvar como PDF</strong> no destino da impressão. Depois é só anexar o arquivo no WhatsApp.</p>
+      <p className="folha-dica so-tela">Copie o resumo para enviar no WhatsApp, e-mail ou qualquer outro canal. No “Salvar PDF”, escolha <strong>Salvar como PDF</strong> no destino da impressão.</p>
+      {feedbackCopia && <p className={`folha-feedback ${feedbackCopia.tipo === 'erro' ? 'erro' : ''}`} role="status" aria-live="polite">{feedbackCopia.texto}</p>}
 
       <article className="folha">
         <header className="folha-topo">

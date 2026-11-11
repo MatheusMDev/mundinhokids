@@ -206,7 +206,7 @@ perfil sem permissão não recebe os dados, mesmo que tente chamar a API direto.
 
 | Caminho | Tela |
 | --- | --- |
-| `/` | Calendário e painel (no celular, Agenda) |
+| `/` | Calendário (no celular, Agenda) |
 | `/eventos`, `/eventos/:id`, `/eventos/:id/pdf` | Lista, detalhe e folha em PDF do evento |
 | `/notificacoes` | Central de avisos |
 | `/profissionais` | Equipe (só visualização; o cadastro é feito em Usuários e acessos) |

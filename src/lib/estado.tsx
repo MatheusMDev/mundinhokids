@@ -18,7 +18,7 @@ interface Estado {
   hoje: string;
   /** Perfil usado pelas telas: com valores (gerente) ou sem valores (supervisora) */
   perfil: PerfilTela;
-  usuario: { id: string; nome: string; perfil: PerfilAcesso; profissionalId: string | null };
+  usuario: { id: string; nome: string; perfil: PerfilAcesso; profissionalId: string | null; abasMobile: string[] | null };
   decidirTroca: (substituicaoId: string, aprova: boolean) => void;
   /** O que o perfil do login pode fazer (as mesmas regras do banco, para a tela não oferecer o que vai ser recusado) */
   permissoes: Permissoes;
@@ -289,7 +289,7 @@ function ProvedorSupabase({ cliente, children }: { cliente: SupabaseClient; chil
     return {
       db, hoje,
       perfil: perfilDaTela(eu.perfil),
-      usuario: { id: eu.id, nome: eu.nome, perfil: eu.perfil, profissionalId: profissional?.id ?? null },
+      usuario: { id: eu.id, nome: eu.nome, perfil: eu.perfil, profissionalId: profissional?.id ?? null, abasMobile: eu.abas_mobile },
       decidirTroca: (id, aprova) => { void decidirTroca(id, aprova); },
       permissoes: calcularPermissoes(eu.perfil, papeis, db.configuracoes),
       papeis, telas,

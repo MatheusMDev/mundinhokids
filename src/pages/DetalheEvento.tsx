@@ -3,11 +3,12 @@ import { Layout } from '../components/Layout';
 import { useState } from 'react';
 import { Icone } from '../components/Icone';
 import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala } from '../components/FormulariosEvento';
+import { Dialogo } from '../components/Formulario';
 import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
 import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Trocas';
 import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
 import { producaoDoEvento, tipoDoPainel, useEstado } from '../lib/estado';
-import { marcarRealizado } from '../lib/acoes';
+import { adicionarOrientacaoEvento, marcarRealizado } from '../lib/acoes';
 import { dataLonga, diaCurto, hora, iniciais, quando } from '../lib/formato';
 import {
   avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
@@ -24,7 +25,7 @@ function situacaoMembro(m: MembroEquipe) {
 }
 
 type Janela =
-  | { tipo: 'editar' | 'escalar' | 'remarcar' | 'cancelar' | 'conferir' }
+  | { tipo: 'editar' | 'escalar' | 'remarcar' | 'cancelar' | 'conferir' | 'orientacao' }
   | { tipo: 'tirar'; escalaId: string; nome: string }
   | { tipo: 'trocar'; membro: MembroEquipe };
 
@@ -44,6 +45,7 @@ export function DetalheEvento() {
     : origem?.startsWith('/fantasias') ? 'Voltar às fantasias'
     : tipoDoPainel(permissoes, papeis) === 'agenda' ? 'Voltar à minha agenda' : 'Voltar ao calendário';
   const [janela, setJanela] = useState<Janela | null>(null);
+  const [novaOrientacao, setNovaOrientacao] = useState('');
   const evento = eventoPorId(db, id);
 
   if (!evento) {
@@ -239,7 +241,14 @@ export function DetalheEvento() {
           </section>
 
           <section className="cartao">
-            <h2>Orientações para a equipe</h2>
+            <div className="cartao-topo">
+              <h2>Orientações para a equipe</h2>
+              {podeEditar && (
+                <button type="button" className="botao pequeno" onClick={() => { setNovaOrientacao(''); setJanela({ tipo: 'orientacao' }); }}>
+                  <Icone nome="mais" tamanho={15} /> Adicionar
+                </button>
+              )}
+            </div>
             {orientacoes.length ? (
               <ul className="orientacoes">{orientacoes.map((o) => <li key={o}>{o}</li>)}</ul>
             ) : (
@@ -335,14 +344,16 @@ export function DetalheEvento() {
               <div className="acoes-coluna">
                 {terminou && (
                   <button type="button" className="botao" onClick={() => void executar(() => marcarRealizado(cliente, evento.id), 'Evento marcado como realizado.').then((r) => { if (r !== true) avisar(r); })}>
-                    Marcar como realizado
+                    <Icone nome="concluido" tamanho={16} /> Marcar como realizado
                   </button>
                 )}
                 <button type="button" className="botao" onClick={() => setJanela({ tipo: 'remarcar' })}>
                   <Icone nome="calendario" tamanho={16} /> Remarcar data ou horário
                 </button>
                 {permissoes.cancelarEvento && (
-                  <button type="button" className="botao texto-perigo" onClick={() => setJanela({ tipo: 'cancelar' })}>Cancelar evento</button>
+                  <button type="button" className="botao texto-perigo" onClick={() => setJanela({ tipo: 'cancelar' })}>
+                    <Icone nome="cancelar" tamanho={16} /> Cancelar evento
+                  </button>
                 )}
               </div>
             </section>
@@ -359,6 +370,21 @@ export function DetalheEvento() {
       )}
       {janela?.tipo === 'conferir' && <FormConferencia evento={evento} onFechar={fechar} />}
       {janela?.tipo === 'tirar' && <FormTirarDaEscala escalaId={janela.escalaId} nome={janela.nome} onFechar={fechar} />}
+      {janela?.tipo === 'orientacao' && (
+        <Dialogo
+          titulo="Adicionar orientação"
+          textoSalvar="Adicionar orientação"
+          onFechar={fechar}
+          validar={() => novaOrientacao.trim() ? null : 'Escreva uma orientação antes de salvar.'}
+          onSalvar={() => executar(() => adicionarOrientacaoEvento(cliente, evento.id, evento.orientacoes, novaOrientacao), 'Orientação adicionada.')}
+        >
+          <div className="campo largo">
+            <label htmlFor="nova-orientacao">Nova orientação</label>
+            <textarea id="nova-orientacao" value={novaOrientacao} onChange={(e) => setNovaOrientacao(e.target.value)} rows={4} placeholder="Ex.: levar o material de apoio." />
+            <small>A orientação será adicionada ao final da lista existente.</small>
+          </div>
+        </Dialogo>
+      )}
 
       <div className="barra-acoes">
         <Link to={`/eventos/${evento.id}/pdf`} className="botao">Gerar PDF</Link>
