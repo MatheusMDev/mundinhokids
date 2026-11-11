@@ -8,7 +8,7 @@ import { SeletorFiltro } from '../components/SeletorFiltro';
 import { useEstado } from '../lib/estado';
 import { resumoDoFinanceiro } from '../lib/financeiro';
 import { veValores } from '../lib/consultas';
-import { dataLonga, iniciais, mesAno, moeda, partes, semAcentos } from '../lib/formato';
+import { dataLonga, hora, iniciais, mesAno, moeda, partes, semAcentos } from '../lib/formato';
 import type { Despesa } from '../lib/tipos';
 
 const SECOES = [
@@ -20,6 +20,101 @@ const SITUACOES = { pendente: 'Pendente', parcial: 'Parcial', pago: 'Pago' };
 const APROVACAO = { nao_requer: 'Sem aprovação necessária', pendente: 'Aguardando aprovação', aprovada: 'Aprovada', recusada: 'Recusada' };
 const mesDoEvento = (inicio: string) => { const { ano, mes } = partes(inicio); return `${ano}-${String(mes).padStart(2, '0')}`; };
 
+type ValorPlanilha = string | number;
+
+async function logoComoPng() {
+  const svg = await fetch('/logo.svg').then((resposta) => resposta.text());
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try {
+    const imagem = new Image();
+    const carregou = new Promise<void>((resolve, reject) => {
+      imagem.onload = () => resolve();
+      imagem.onerror = () => reject(new Error('Não foi possível carregar a logo.'));
+    });
+    imagem.src = url;
+    await carregou;
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    canvas.getContext('2d')?.drawImage(imagem, 0, 0, 128, 128);
+    return canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function baixarPlanilha(
+  nome: string, titulo: string, cabecalhos: string[], linhas: ValorPlanilha[][], colunasMoeda: number[],
+) {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const planilha = workbook.addWorksheet('Financeiro', { views: [{ state: 'frozen', ySplit: 5 }] });
+  const ultimaColuna = cabecalhos.length;
+  const rosa = 'FFC8177E';
+  const rosaClaro = 'FFFCE8F3';
+  const borda = { style: 'thin' as const, color: { argb: 'FFE8C8DB' } };
+
+  planilha.mergeCells(1, 1, 3, 2);
+  planilha.mergeCells(1, 3, 1, ultimaColuna);
+  planilha.mergeCells(2, 3, 2, ultimaColuna);
+  planilha.mergeCells(3, 3, 3, ultimaColuna);
+  planilha.getCell('C1').value = 'Mundinho Kids';
+  planilha.getCell('C2').value = titulo;
+  planilha.getCell('C3').value = `Exportado em ${dataLonga(new Date().toISOString())}`;
+  planilha.getCell('C1').font = { name: 'Arial', size: 18, bold: true, color: { argb: rosa } };
+  planilha.getCell('C2').font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF3D3040' } };
+  planilha.getCell('C3').font = { name: 'Arial', size: 9, color: { argb: 'FF776B78' } };
+  planilha.getCell('C1').alignment = { vertical: 'middle' };
+  planilha.getCell('C2').alignment = { vertical: 'middle' };
+  planilha.getCell('C3').alignment = { vertical: 'middle' };
+  planilha.getRow(1).height = 24;
+  planilha.getRow(2).height = 20;
+  planilha.getRow(3).height = 18;
+
+  const imagem = await logoComoPng();
+  const imagemId = workbook.addImage({ base64: imagem, extension: 'png' });
+  planilha.addImage(imagemId, { tl: { col: 0.2, row: 0.2 }, ext: { width: 52, height: 52 } });
+
+  const cabecalho = planilha.addRow([]);
+  cabecalho.height = 8;
+  const linhaCabecalho = planilha.addRow(cabecalhos);
+  linhaCabecalho.height = 28;
+  linhaCabecalho.eachCell((celula) => {
+    celula.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rosa } };
+    celula.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    celula.alignment = { vertical: 'middle', wrapText: true };
+    celula.border = { top: borda, bottom: borda, left: borda, right: borda };
+  });
+
+  linhas.forEach((linha, indice) => {
+    const linhaPlanilha = planilha.addRow(linha);
+    linhaPlanilha.eachCell((celula, coluna) => {
+      celula.font = { name: 'Arial', size: 10, color: { argb: 'FF3D3040' } };
+      celula.alignment = { vertical: 'middle', wrapText: coluna === 1 || coluna === 2 };
+      celula.border = { top: borda, bottom: borda, left: borda, right: borda };
+      if (indice % 2 === 1) celula.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rosaClaro } };
+      if (colunasMoeda.includes(coluna) && typeof celula.value === 'number') {
+        celula.numFmt = 'R$ #,##0.00';
+        celula.alignment = { vertical: 'middle', horizontal: 'right' };
+      }
+    });
+  });
+
+  planilha.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5 + linhas.length, column: ultimaColuna } };
+  planilha.columns.forEach((coluna, indice) => {
+    const maior = Math.max(cabecalhos[indice].length, ...linhas.map((linha) => String(linha[indice] ?? '').length));
+    coluna.width = Math.min(42, Math.max(14, maior + 2));
+  });
+
+  const arquivo = await workbook.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([arquivo], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nome;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function Vazio({ icone, titulo, filtrado, limpar }: { icone: NomeIcone; titulo: string; filtrado: boolean; limpar: () => void }) {
   return <div className="financeiro-vazio" role="status">
     <span className="financeiro-vazio-icone"><Icone nome={icone} tamanho={24} /></span>
@@ -30,7 +125,7 @@ function Vazio({ icone, titulo, filtrado, limpar }: { icone: NomeIcone; titulo: 
 }
 
 export function Financeiro() {
-  const { db, perfil } = useEstado();
+  const { db, perfil, avisar } = useEstado();
   const [parametros, setParametros] = useSearchParams();
   const [despesa, setDespesa] = useState<{ item?: Despesa } | null>(null);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
@@ -70,7 +165,8 @@ export function Financeiro() {
   const meses = new Map<string, string>();
   for (const { evento } of dados.eventos) { const { ano, mes } = partes(evento.inicio); meses.set(mesDoEvento(evento.inicio), mesAno(ano, mes)); }
   const eventos = dados.eventos.filter((r) => (!termo || semAcentos(`${r.evento.titulo} ${r.evento.aniversariante ?? ''}`).includes(termo))
-    && (!mes || mesDoEvento(r.evento.inicio) === mes) && (!situacao || r.situacao === situacao));
+    && (!mes || mesDoEvento(r.evento.inicio) === mes) && (!situacao || r.situacao === situacao))
+    .sort((a, b) => b.evento.inicio.localeCompare(a.evento.inicio));
   const equipe = dados.equipe.filter((p) => !termo || semAcentos(`${p.nome} ${p.eventos.map((e) => e.titulo).join(' ')}`).includes(termo));
   const despesas = dados.despesasGerais.filter((d) => (!termo || semAcentos(`${d.descricao} ${db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? ''}`).includes(termo))
     && (!tipo || d.tipo === tipo) && (!aprovacao || d.aprovacao === aprovacao));
@@ -82,6 +178,20 @@ export function Financeiro() {
   const encontrados = aba === 'eventos' ? eventos.length : aba === 'equipe' ? equipe.length : despesas.length;
   const filtrado = !!termo || (aba === 'eventos' ? !!mes || !!situacao : aba === 'despesas' ? !!tipo || !!aprovacao : false);
   const filtrosSelecionados = aba === 'eventos' ? Number(!!mes) + Number(!!situacao) : aba === 'despesas' ? Number(!!tipo) + Number(!!aprovacao) : 0;
+  const exportarPlanilha = async () => {
+    try {
+      if (aba === 'eventos') {
+        await baixarPlanilha('mundinho-kids-financeiro-por-evento.xlsx', 'Financeiro por evento', ['Evento', 'Aniversariante', 'Data do evento', 'Situação', 'Valor contratado', 'Valor recebido', 'Valor a receber', 'Equipe a pagar', 'Despesas'], eventos.map((r) => [r.evento.titulo, r.evento.aniversariante ?? 'Não informado', `${dataLonga(r.evento.inicio)} · ${hora(r.evento.inicio)}`, SITUACOES[r.situacao], r.contratado, r.recebido, Math.max(0, r.contratado - r.recebido), r.aPagar, r.despesas]), [5, 6, 7, 8, 9]);
+      } else if (aba === 'equipe') {
+        await baixarPlanilha('mundinho-kids-financeiro-equipe.xlsx', 'Equipe a pagar', ['Profissional', 'Total a pagar', 'Eventos pendentes'], equipe.map((p) => [p.nome, p.total, p.eventos.map((e) => e.titulo).join(', ')]), [2]);
+      } else {
+        await baixarPlanilha('mundinho-kids-financeiro-despesas.xlsx', 'Despesas gerais e insumos', ['Descrição', 'Tipo', 'Valor', 'Responsável', 'Aprovação'], despesas.map((d) => [d.descricao, d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra', d.valor, db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado', APROVACAO[d.aprovacao]]), [3]);
+      }
+      avisar('Planilha Excel exportada.');
+    } catch {
+      avisar('Não foi possível gerar a planilha Excel.');
+    }
+  };
   const indicadores: { nome: string; valor: number; detalhe: string; icone: NomeIcone; tom: string }[] = [
     { nome: 'Contratado', valor: totais.contratado, detalhe: `${dados.eventos.length} ${dados.eventos.length === 1 ? 'evento' : 'eventos'} com valores`, icone: 'arquivo', tom: 'rosa' },
     { nome: 'Recebido', valor: totais.recebido, detalhe: `${moeda(Math.max(0, totais.contratado - totais.recebido))} a receber`, icone: 'dinheiro', tom: 'verde' },
@@ -115,10 +225,13 @@ export function Financeiro() {
       })}
     </nav>
     <section className="financeiro-secao" id="financeiro-lista" aria-labelledby="financeiro-titulo">
-      <div className="financeiro-secao-topo"><div>
-        <h2 id="financeiro-titulo">{aba === 'eventos' ? 'Resumo por evento' : aba === 'equipe' ? 'Pagamentos pendentes' : 'Despesas gerais e insumos'}</h2>
-        <p>{encontrados} de {total} {aba === 'eventos' ? 'eventos' : aba === 'equipe' ? 'profissionais' : 'despesas'}</p>
-      </div>{filtrado && <button type="button" className="link-botao" onClick={limpar}>Limpar filtros</button>}</div>
+       <div className="financeiro-secao-topo"><div>
+         <h2 id="financeiro-titulo">{aba === 'eventos' ? 'Resumo por evento' : aba === 'equipe' ? 'Pagamentos pendentes' : 'Despesas gerais e insumos'}</h2>
+         <p>{encontrados} de {total} {aba === 'eventos' ? 'eventos · mais recentes primeiro' : aba === 'equipe' ? 'profissionais' : 'despesas'}</p>
+       </div><div className="financeiro-lista-acoes">
+         {filtrado && <button type="button" className="link-botao" onClick={limpar}>Limpar filtros</button>}
+         <button type="button" className="botao pequeno primario" onClick={() => void exportarPlanilha()}><Icone nome="arquivo" tamanho={15} /> Exportar Excel</button>
+       </div></div>
       <div className={`financeiro-filtros ${aba === 'equipe' ? 'somente-busca' : ''}${filtrosAbertos ? ' aberto' : ''}`}>
         <div className="financeiro-busca-linha">
         <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">{aba === 'eventos' ? 'Buscar evento' : aba === 'equipe' ? 'Buscar profissional ou evento' : 'Buscar despesa'}</span>

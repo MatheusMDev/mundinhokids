@@ -1,18 +1,18 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Layout } from '../components/Layout';
+import { ABAS_CANDIDATAS, Layout } from '../components/Layout';
 import { Campo, Linha } from '../components/Formulario';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { Icone } from '../components/Icone';
 import { PreferenciasNotificacao } from '../components/PreferenciasNotificacao';
-import { useEstado } from '../lib/estado';
-import { atualizarMeuEmail, atualizarMinhaConta, enviarFotoPerfil, removerFotoPerfil } from '../lib/acoes';
+import { NOME_PAINEL, tipoDoPainel, useEstado } from '../lib/estado';
+import { atualizarAbasMobile, atualizarMeuEmail, atualizarMinhaConta, enviarFotoPerfil, removerFotoPerfil } from '../lib/acoes';
 import { iniciais } from '../lib/formato';
 
 const LIMITE_FOTO = 5 * 1024 * 1024;
 
 export function MinhaConta() {
-  const { db, usuario, cliente, executar, avisar } = useEstado();
+  const { db, usuario, cliente, telas, permissoes, papeis, executar, avisar } = useEstado();
   const conta = db.usuarios.find((item) => item.id === usuario.id);
   const profissional = db.profissionais.find((item) => item.usuario_id === usuario.id && item.ativo);
   const [nome, setNome] = useState(conta?.nome ?? usuario.nome);
@@ -24,6 +24,13 @@ export function MinhaConta() {
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [salvandoFoto, setSalvandoFoto] = useState(false);
   const [salvandoEmail, setSalvandoEmail] = useState(false);
+  const opcoesAbasMobile = ABAS_CANDIDATAS.filter((aba) => telas.has(aba.tela));
+  const nomePainel = NOME_PAINEL[tipoDoPainel(permissoes, papeis)];
+  const padraoAbasMobile = opcoesAbasMobile.slice(0, 3).map((aba) => aba.para);
+  const [abasSelecionadas, setAbasSelecionadas] = useState<string[]>(() => {
+    const salvas = (usuario.abasMobile ?? []).filter((para) => opcoesAbasMobile.some((aba) => aba.para === para));
+    return salvas.length === 3 ? salvas : padraoAbasMobile;
+  });
 
   useEffect(() => () => { if (previsao) URL.revokeObjectURL(previsao); }, [previsao]);
 
@@ -90,6 +97,21 @@ export function MinhaConta() {
     if (resultado !== true) avisar(resultado);
   }
 
+  function alternarAbaMobile(para: string) {
+    setAbasSelecionadas((atuais) => atuais.includes(para)
+      ? atuais.filter((atual) => atual !== para)
+      : atuais.length < 3 ? [...atuais, para] : atuais);
+  }
+
+  async function salvarAbasMobile() {
+    if (abasSelecionadas.length !== 3) {
+      avisar('Escolha exatamente três menus para o celular.');
+      return;
+    }
+    const resultado = await executar(() => atualizarAbasMobile(cliente, abasSelecionadas), 'Atalhos do celular atualizados.');
+    if (resultado !== true) avisar(resultado);
+  }
+
   return (
     <Layout tituloMobile="Minha conta">
       <Link to="/" className="voltar"><Icone nome="esquerda" /> Voltar ao calendário</Link>
@@ -137,6 +159,32 @@ export function MinhaConta() {
           <p className="suave conta-dica">Troque sua senha sempre que quiser. O perfil e as permissões continuam sob controle da gestão.</p>
           <BotaoMinhaSenha className="botao" />
         </section>
+
+        {opcoesAbasMobile.length >= 3 && <section className="cartao conta-abas-mobile so-mobile">
+          <div className="cartao-topo">
+            <div><h2>Atalhos do celular</h2><p>Escolha quais três menus ficam na barra inferior.</p></div>
+            <span className={`selo ${abasSelecionadas.length === 3 ? 'ok' : 'alerta'}`}>{abasSelecionadas.length}/3</span>
+          </div>
+          <div className="abas-mobile-opcoes" role="group" aria-label="Menus da barra inferior">
+            {opcoesAbasMobile.map((aba) => {
+              const selecionada = abasSelecionadas.includes(aba.para);
+              return <label key={aba.para} className={`aba-mobile-opcao${selecionada ? ' selecionada' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={selecionada}
+                  disabled={!selecionada && abasSelecionadas.length >= 3}
+                  onChange={() => alternarAbaMobile(aba.para)}
+                />
+                <Icone nome={aba.icone} tamanho={18} />
+                <span>{aba.tela === 'painel' && nomePainel ? nomePainel : aba.texto}</span>
+              </label>;
+            })}
+          </div>
+          <div className="conta-abas-mobile-rodape">
+            <small>Você pode trocar os atalhos quando quiser.</small>
+            <button type="button" className="botao primario pequeno" onClick={() => void salvarAbasMobile()} disabled={abasSelecionadas.length !== 3}>Salvar atalhos</button>
+          </div>
+        </section>}
 
       </div>
       <PreferenciasNotificacao />
