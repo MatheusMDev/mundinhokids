@@ -7,20 +7,9 @@ import { useEstado } from '../lib/estado';
 import { marcarNotificacaoLida } from '../lib/acoes';
 import type { Notificacao } from '../lib/tipos';
 import { dataLonga, hora } from '../lib/formato';
+import { textoNotificacao } from '../lib/notificacoes';
 
 type Filtro = 'todas' | 'nao_lidas' | 'gestao' | 'equipe';
-
-function textoNotificacao(notificacao: Notificacao, tituloEvento: string) {
-  if (notificacao.mensagem) return notificacao.mensagem;
-  const nomes: Record<Notificacao['tipo'], string> = {
-    escalado: 'Você foi escalado', lembrete: 'Lembrete de evento', alterado: 'Evento alterado',
-    cancelado: 'Evento cancelado', removido: 'Você saiu da escala', substituicao: 'Atualização de troca',
-    despesa_aprovacao: 'Despesa aguardando aprovação', evento_gestao: 'Mudança em evento',
-    pendencia_operacional: 'Pendência operacional', resumo_diario: 'Resumo diário',
-    conferencia_fantasias: 'Conferir fantasias',
-  };
-  return `${nomes[notificacao.tipo]}${tituloEvento ? `: ${tituloEvento}` : '.'}`;
-}
 
 export function Notificacoes() {
   const { db, cliente, executar } = useEstado();
@@ -32,7 +21,7 @@ export function Notificacoes() {
     if (filtro === 'gestao') return TIPOS_GESTAO_IDS.has(notificacao.tipo);
     if (filtro === 'equipe') return !TIPOS_GESTAO_IDS.has(notificacao.tipo);
     return true;
-  }), [db.notificacoes, filtro]);
+  }).sort((a, b) => new Date(b.agendada_para).getTime() - new Date(a.agendada_para).getTime()), [db.notificacoes, filtro]);
   const grupos = useMemo(() => {
     const hoje = new Date();
     const ontem = new Date(hoje);

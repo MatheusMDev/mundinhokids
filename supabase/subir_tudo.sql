@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -1924,6 +1924,75 @@ begin
   perform gerar_avisos_conferencia();
 end;
 $$;
+
+-- >>>>> migrations/20261110000002_notificacao_remocao_evento.sql
+
+-- Guarda o título no próprio aviso porque, após a remoção, a RLS deixa de
+-- permitir que o profissional consulte o evento pela participação ativa.
+create or replace function notificar_escala() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_usuario  uuid;
+  v_evento   eventos%rowtype;
+  v_minutos  int := coalesce(nullif(config_texto('lembrete_antecedencia_minutos'), '')::int, 120);
+begin
+  select usuario_id into v_usuario from profissionais where id = new.profissional_id;
+  if v_usuario is null then
+    return null;
+  end if;
+  select * into v_evento from eventos where id = new.evento_id;
+
+  if tg_op = 'INSERT' and new.ativo then
+    insert into notificacoes (usuario_id, evento_id, tipo)
+    values (v_usuario, new.evento_id, 'escalado');
+    insert into notificacoes (usuario_id, evento_id, tipo, agendada_para)
+    values (v_usuario, new.evento_id, 'lembrete', v_evento.inicio - make_interval(mins => v_minutos));
+
+  elsif tg_op = 'UPDATE' and old.ativo and not new.ativo then
+    update notificacoes
+    set mensagem = case tipo
+      when 'escalado' then 'Você foi escalado: ' || v_evento.titulo
+      when 'lembrete' then 'Lembrete de evento: ' || v_evento.titulo
+      when 'alterado' then 'Evento alterado: ' || v_evento.titulo
+      when 'cancelado' then 'Evento cancelado: ' || v_evento.titulo
+      when 'removido' then 'Você saiu da escala: ' || v_evento.titulo
+      when 'substituicao' then 'Atualização de troca: ' || v_evento.titulo
+      else 'Evento: ' || v_evento.titulo
+    end
+    where usuario_id = v_usuario and evento_id = new.evento_id and mensagem is null;
+
+    delete from notificacoes
+    where usuario_id = v_usuario and evento_id = new.evento_id and tipo = 'lembrete' and enviada_em is null;
+    insert into notificacoes (usuario_id, evento_id, tipo, mensagem)
+    values (
+      v_usuario,
+      new.evento_id,
+      case when v_evento.situacao = 'cancelado' then 'cancelado' else 'removido' end,
+      case when v_evento.situacao = 'cancelado'
+        then 'Evento cancelado: ' || v_evento.titulo
+        else 'Você saiu da escala: ' || v_evento.titulo
+      end
+    );
+  end if;
+
+  return null;
+end;
+$$;
+
+-- Preenche avisos antigos que foram criados antes do título ser armazenado.
+update notificacoes n
+set mensagem = case n.tipo
+  when 'escalado' then 'Você foi escalado: ' || e.titulo
+  when 'lembrete' then 'Lembrete de evento: ' || e.titulo
+  when 'alterado' then 'Evento alterado: ' || e.titulo
+  when 'cancelado' then 'Evento cancelado: ' || e.titulo
+  when 'removido' then 'Você saiu da escala: ' || e.titulo
+  when 'substituicao' then 'Atualização de troca: ' || e.titulo
+  else 'Evento: ' || e.titulo
+end
+from eventos e
+where n.evento_id = e.id
+  and n.mensagem is null;
 
 -- >>>>> migrations/20261110000003_despesas_so_producao.sql
 

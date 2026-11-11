@@ -101,7 +101,7 @@ export function CartaoTransporte({ evento }: { evento: Evento }) {
         <div className="vazio">
           {podeReservar ? 'Sem reserva de veículo.'
             : temProdutor ? 'Sem reserva de veículo. O produtor do evento faz a reserva.'
-            : 'Sem reserva de veículo. Este evento ainda não tem produtor: a gestão faz a reserva.'}
+              : 'Sem reserva de veículo. Este evento ainda não tem produtor: a gestão faz a reserva.'}
         </div>
       )}
       {transporte.bloqueioAnterior && (
@@ -143,7 +143,7 @@ export function CartaoFinanceiro({ evento }: { evento: Evento }) {
 
   return (
     <section className="cartao">
-      <div className="cartao-topo"><h2>Financeiro</h2><small>Só direção e gerente</small></div>
+      <div className="cartao-topo"><h2>Financeiro</h2></div>
       <div className="valores">
         <div><span>Valor contratado</span><strong>{moeda(f.contratado)}</strong>{f.contratado === 0 && <small>Defina em “Editar evento”</small>}</div>
         <div>
