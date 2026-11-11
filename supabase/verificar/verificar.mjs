@@ -4,7 +4,7 @@
 //
 //   npm run banco:verificar
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
@@ -506,7 +506,11 @@ const criarMatheusDeTeste = (tx) => tx.exec(`insert into profissionais (id, nome
   insert into pagamentos_profissionais (evento_id, profissional_id, valor_combinado) values
     ('${EVENTO}', '${MATHEUS_PRINCIPAL}', 100), ('${EVENTO}', '${MATHEUS_DUPLICADO}', 100)`);
 
-await teste('regularização mantém um espaço ativo e preserva pagamentos dos dois IDs', () => isolado(async (tx) => {
+// regularizar_matheus.sql foi uma correção única de dados da produção e o arquivo
+// não está no repositório: sem ele, os dois testes abaixo ficam como "pulados".
+const temRegularizacao = existsSync(pasta('regularizar_matheus.sql'));
+if (!temRegularizacao) console.log('  pulado regularização do cadastro duplicado (supabase/regularizar_matheus.sql não está no repositório)');
+if (temRegularizacao) await teste('regularização mantém um espaço ativo e preserva pagamentos dos dois IDs', () => isolado(async (tx) => {
   await criarMatheusDeTeste(tx);
   await tx.exec(readFileSync(pasta('regularizar_matheus.sql'), 'utf8'));
   if (await qtd(tx, `select count(*) as n from profissionais where id = '${MATHEUS_PRINCIPAL}' and ativo`) !== 1) throw new Error('Principal não ficou ativo');
@@ -514,7 +518,7 @@ await teste('regularização mantém um espaço ativo e preserva pagamentos dos 
   if (await qtd(tx, `select count(*) as n from pagamentos_profissionais where profissional_id in ('${MATHEUS_PRINCIPAL}', '${MATHEUS_DUPLICADO}')`) !== 2) throw new Error('Pagamento perdido');
 }));
 
-await teste('regularização não altera nenhum cadastro se o principal já foi excluído', () => isolado(async (tx) => {
+if (temRegularizacao) await teste('regularização não altera nenhum cadastro se o principal já foi excluído', () => isolado(async (tx) => {
   await criarMatheusDeTeste(tx);
   await tx.exec(`select excluir_profissional('${MATHEUS_PRINCIPAL}')`);
   await tx.exec(readFileSync(pasta('regularizar_matheus.sql'), 'utf8'));

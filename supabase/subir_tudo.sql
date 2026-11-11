@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -1376,6 +1376,224 @@ alter table usuarios add constraint usuarios_telas_validas check (
   ]::text[]
 );
 
+-- >>>>> migrations/20261106000001_profissionais_disponiveis.sql
+
+-- =====================================================================
+-- Mundinho Kids — só profissionais disponíveis entram em novos vínculos
+-- (tasks #63/#64)
+--
+-- RECUPERADA do banco em 2026-11-10: esta migração foi aplicada no
+-- projeto Supabase, mas o arquivo nunca foi commitado. O conteúdo abaixo
+-- é a definição exata que está no banco (pg_get_functiondef/triggerdef).
+--
+-- "Disponível" = profissional ativo e, se tiver login, com o login ativo.
+-- Escalas, reservas, despesas e trocas novas recusam quem não está
+-- disponível; o histórico (escalas e pagamentos antigos) é preservado.
+-- =====================================================================
+
+-- O login só "é" um profissional enquanto os dois estão ativos
+create or replace function meu_profissional_id() returns uuid
+language sql stable security definer set search_path = public as $$
+  select p.id from profissionais p
+  join usuarios u on u.id = p.usuario_id and u.ativo
+  where p.usuario_id = auth.uid() and p.ativo
+$$;
+
+create function profissional_disponivel(p_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from profissionais p
+    where p.id = p_id and p.ativo
+      and (p.usuario_id is null or exists (
+        select 1 from usuarios u where u.id = p.usuario_id and u.ativo
+      ))
+  )
+$$;
+revoke execute on function profissional_disponivel(uuid) from public, anon, authenticated;
+
+-- Lista para as telas: só quem o login pode ver e que está disponível
+create function profissionais_disponiveis() returns table (id uuid)
+language sql stable security definer set search_path = public as $$
+  select p.id from profissionais p
+  where meu_perfil() is not null
+    and (eh_operacao() or p.usuario_id = auth.uid() or colega_de_evento(p.id))
+    and profissional_disponivel(p.id)
+$$;
+revoke execute on function profissionais_disponiveis() from public, anon;
+grant execute on function profissionais_disponiveis() to authenticated;
+
+create or replace function substitutos_disponiveis(p_escala_id uuid)
+returns table (profissional_id uuid, nome text)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.nome
+  from evento_escala e
+  join profissional_personagens pp on pp.personagem_id = e.personagem_id
+  join profissionais p on p.id = pp.profissional_id
+  where e.id = p_escala_id and e.ativo
+    and (eh_operacao() or e.profissional_id = meu_profissional_id())
+    and profissional_disponivel(p.id)
+    and 'artista' = any (p.funcoes)
+    and p.id <> e.profissional_id
+    and not exists (
+      select 1 from evento_escala x
+      where x.profissional_id = p.id and x.ativo and x.periodo && e.periodo
+    )
+  order by p.nome
+$$;
+
+-- Novos vínculos (escala, reserva, despesa, troca) exigem profissional disponível
+create function validar_profissional_novo_vinculo() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id uuid;
+  v_validar boolean := false;
+begin
+  if tg_table_name = 'evento_escala' then
+    v_id := new.profissional_id;
+    if new.ativo then
+      if tg_op = 'INSERT' then v_validar := true;
+      else v_validar := not old.ativo
+        or (new.profissional_id, new.funcao, new.personagem_id, new.fantasia_id)
+          is distinct from (old.profissional_id, old.funcao, old.personagem_id, old.fantasia_id);
+      end if;
+    end if;
+  elsif tg_table_name = 'reservas_veiculo' then
+    v_id := new.responsavel_id;
+    if new.ativo then
+      if tg_op = 'INSERT' then v_validar := true;
+      else v_validar := not old.ativo
+        or (new.responsavel_id, new.veiculo_id, new.evento_id, new.retirada, new.devolucao_prevista)
+          is distinct from (old.responsavel_id, old.veiculo_id, old.evento_id, old.retirada, old.devolucao_prevista);
+      end if;
+    end if;
+  elsif tg_table_name = 'despesas' then
+    v_id := new.responsavel_id;
+    if tg_op = 'INSERT' then v_validar := true;
+    else v_validar := new.responsavel_id is distinct from old.responsavel_id;
+    end if;
+  elsif tg_table_name = 'substituicoes' then
+    v_id := new.substituto_id;
+    if tg_op = 'INSERT' then v_validar := true;
+    else v_validar := new.substituto_id is distinct from old.substituto_id
+      or (new.situacao in ('aguardando_aprovacao', 'aprovada') and new.situacao is distinct from old.situacao);
+    end if;
+  end if;
+
+  if v_validar and v_id is not null then
+    -- Serializa a seleção com a exclusão/desativação do profissional e do login.
+    perform 1 from profissionais where id = v_id for share;
+    perform 1 from usuarios where id = (select usuario_id from profissionais where id = v_id) for share;
+    if not profissional_disponivel(v_id) then
+      raise exception 'Este profissional não está mais disponível. Atualize a lista e escolha outra pessoa.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function validar_profissional_novo_vinculo() from public, anon, authenticated;
+
+create trigger escala_profissional_disponivel before insert or update on evento_escala
+  for each row execute function validar_profissional_novo_vinculo();
+create trigger reserva_profissional_disponivel before insert or update on reservas_veiculo
+  for each row execute function validar_profissional_novo_vinculo();
+create trigger despesa_profissional_disponivel before insert or update on despesas
+  for each row execute function validar_profissional_novo_vinculo();
+create trigger substituicao_profissional_disponivel before insert or update on substituicoes
+  for each row execute function validar_profissional_novo_vinculo();
+
+-- Tirar o login de um profissional também o desativa (não fica um cadastro "órfão" ativo)
+create function proteger_desvinculo_profissional() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if old.usuario_id is not null and new.usuario_id is null then
+    new.ativo := false;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger profissional_desvincular before update of usuario_id on profissionais
+  for each row execute function proteger_desvinculo_profissional();
+
+-- Apagar um login desliga o profissional, mas preserva escalas e pagamentos
+create function desligar_profissional_do_usuario() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update profissionais set usuario_id = null, ativo = false where usuario_id = old.id;
+  return old;
+end;
+$$;
+revoke execute on function desligar_profissional_do_usuario() from public, anon, authenticated;
+
+create trigger usuario_desligar_profissional before delete on usuarios
+  for each row execute function desligar_profissional_do_usuario();
+
+-- >>>>> migrations/20261106000002_excluir_profissional.sql
+
+-- =====================================================================
+-- Mundinho Kids — excluir profissional sem perder o histórico (task #63)
+--
+-- RECUPERADA do banco em 2026-11-10: esta migração foi aplicada no
+-- projeto Supabase, mas o arquivo nunca foi commitado. O conteúdo abaixo
+-- é a definição exata que está no banco. Ver docs/exclusao-profissionais.md.
+--
+-- A exclusão é lógica: excluido_em marca quando ocorreu, o profissional
+-- fica inativo e perde o vínculo com o login. Escalas e pagamentos ficam.
+-- Só Direção e Gerente excluem; só a Direção exclui quem tem acesso de Direção.
+-- =====================================================================
+
+alter table profissionais add column excluido_em timestamptz;
+alter table profissionais add constraint profissional_excluido_inativo
+  check (excluido_em is null or (not ativo and usuario_id is null));
+
+-- Barra a exclusão por update direto de quem não pode, e impede reativar um excluído
+create function proteger_exclusao_profissional() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.excluido_em is distinct from old.excluido_em then
+    if not eh_gestao() then
+      raise exception 'Só a direção e a gerência podem excluir profissionais.' using errcode = '42501';
+    end if;
+    if old.excluido_em is not null then
+      raise exception 'Este profissional já foi excluído. Crie um novo cadastro se necessário.';
+    end if;
+    if exists (select 1 from usuarios where id = old.usuario_id and perfil = 'diretora')
+      and meu_perfil() <> 'diretora' then
+      raise exception 'Só a Direção pode excluir um profissional ligado a um acesso de Direção.';
+    end if;
+  end if;
+  if new.excluido_em is not null then
+    new.ativo := false;
+    new.usuario_id := null;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function proteger_exclusao_profissional() from public, anon, authenticated;
+
+create trigger profissional_proteger_exclusao before update on profissionais
+  for each row execute function proteger_exclusao_profissional();
+
+create function excluir_profissional(p_profissional_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_profissional profissionais%rowtype;
+begin
+  if not eh_gestao() then
+    raise exception 'Só a direção e a gerência podem excluir profissionais.' using errcode = '42501';
+  end if;
+  select * into v_profissional from profissionais where id = p_profissional_id for update;
+  if not found or v_profissional.excluido_em is not null then
+    raise exception 'Profissional não encontrado ou já excluído.';
+  end if;
+  update profissionais
+    set excluido_em = clock_timestamp(), ativo = false, usuario_id = null
+    where id = p_profissional_id;
+end;
+$$;
+revoke execute on function excluir_profissional(uuid) from public, anon;
+grant execute on function excluir_profissional(uuid) to authenticated;
+
 -- >>>>> migrations/20261107000001_notificacoes_desktop.sql
 
 -- Preferências individuais e leitura da central de notificações.
@@ -1600,75 +1818,6 @@ drop trigger if exists sincronizar_email_usuario on auth.users;
 create trigger sincronizar_email_usuario
   after update of email on auth.users
   for each row execute function public.sincronizar_email_usuario();
-
--- >>>>> migrations/20261110000002_notificacao_remocao_evento.sql
-
--- Guarda o título no próprio aviso porque, após a remoção, a RLS deixa de
--- permitir que o profissional consulte o evento pela participação ativa.
-create or replace function notificar_escala() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare
-  v_usuario  uuid;
-  v_evento   eventos%rowtype;
-  v_minutos  int := coalesce(nullif(config_texto('lembrete_antecedencia_minutos'), '')::int, 120);
-begin
-  select usuario_id into v_usuario from profissionais where id = new.profissional_id;
-  if v_usuario is null then
-    return null;
-  end if;
-  select * into v_evento from eventos where id = new.evento_id;
-
-  if tg_op = 'INSERT' and new.ativo then
-    insert into notificacoes (usuario_id, evento_id, tipo)
-    values (v_usuario, new.evento_id, 'escalado');
-    insert into notificacoes (usuario_id, evento_id, tipo, agendada_para)
-    values (v_usuario, new.evento_id, 'lembrete', v_evento.inicio - make_interval(mins => v_minutos));
-
-  elsif tg_op = 'UPDATE' and old.ativo and not new.ativo then
-    update notificacoes
-    set mensagem = case tipo
-      when 'escalado' then 'Você foi escalado: ' || v_evento.titulo
-      when 'lembrete' then 'Lembrete de evento: ' || v_evento.titulo
-      when 'alterado' then 'Evento alterado: ' || v_evento.titulo
-      when 'cancelado' then 'Evento cancelado: ' || v_evento.titulo
-      when 'removido' then 'Você saiu da escala: ' || v_evento.titulo
-      when 'substituicao' then 'Atualização de troca: ' || v_evento.titulo
-      else 'Evento: ' || v_evento.titulo
-    end
-    where usuario_id = v_usuario and evento_id = new.evento_id and mensagem is null;
-
-    delete from notificacoes
-    where usuario_id = v_usuario and evento_id = new.evento_id and tipo = 'lembrete' and enviada_em is null;
-    insert into notificacoes (usuario_id, evento_id, tipo, mensagem)
-    values (
-      v_usuario,
-      new.evento_id,
-      case when v_evento.situacao = 'cancelado' then 'cancelado' else 'removido' end,
-      case when v_evento.situacao = 'cancelado'
-        then 'Evento cancelado: ' || v_evento.titulo
-        else 'Você saiu da escala: ' || v_evento.titulo
-      end
-    );
-  end if;
-
-  return null;
-end;
-$$;
-
--- Preenche avisos antigos que foram criados antes do título ser armazenado.
-update notificacoes n
-set mensagem = case n.tipo
-  when 'escalado' then 'Você foi escalado: ' || e.titulo
-  when 'lembrete' then 'Lembrete de evento: ' || e.titulo
-  when 'alterado' then 'Evento alterado: ' || e.titulo
-  when 'cancelado' then 'Evento cancelado: ' || e.titulo
-  when 'removido' then 'Você saiu da escala: ' || e.titulo
-  when 'substituicao' then 'Atualização de troca: ' || e.titulo
-  else 'Evento: ' || e.titulo
-end
-from eventos e
-where n.evento_id = e.id
-  and n.mensagem is null;
 
 -- >>>>> migrations/20261111000001_abas_mobile.sql
 
