@@ -175,7 +175,7 @@ src/
 public/                  ícone, imagem de erro e service worker das notificações
 scripts/                 testes do front (cálculos, Financeiro, Minha agenda, telas)
 supabase/                banco, Edge Functions, e-mails e testes do banco (ver acima)
-docs/                    anotações de entregas específicas (tasks #57, #63, #64)
+docs/                    anotações de entregas (tasks #57, #63, #64) e o sandbox do cliente (sandbox.md)
 ```
 
 ## Perfis e telas
