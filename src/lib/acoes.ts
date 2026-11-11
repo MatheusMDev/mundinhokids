@@ -171,7 +171,7 @@ export type DadosPagamento = Pick<PagamentoProfissional, 'profissional_id' | 'va
 export async function salvarPagamentos(c: Cliente, eventoId: string, linhas: DadosPagamento[]) {
   if (!linhas.length) return;
   ok(await c.from('pagamentos_profissionais')
-    .upsert(linhas.map((l) => ({ ...l, evento_id: eventoId })), { onConflict: 'evento_id,profissional_id' }));
+    .upsert(linhas.map((l) => ({ ...l, evento_id: eventoId, cancelado_em: null })), { onConflict: 'evento_id,profissional_id' }));
 }
 
 export type DadosDespesa = Pick<Despesa, 'evento_id' | 'tipo' | 'descricao' | 'valor' | 'responsavel_id' | 'comprovante' | 'observacoes'>;

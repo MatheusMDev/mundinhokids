@@ -293,7 +293,7 @@ export function FormTirarDaEscala({ escalaId, nome, onFechar }: { escalaId: stri
       titulo={`Tirar ${nome} da equipe?`} onFechar={onFechar} perigo textoSalvar="Tirar da equipe"
       onSalvar={() => executar(() => tirarDaEscala(cliente, escalaId), `${nome} saiu da equipe.`)}
     >
-      <p style={{ margin: 0 }}>A vaga fica registrada no histórico e a pessoa recebe o aviso. O pagamento combinado não muda sozinho.</p>
+      <p style={{ margin: 0 }}>A vaga fica no histórico e a pessoa recebe o aviso. Valores pendentes e reservas de veículo do evento serão cancelados; pagamentos já realizados e outros eventos permanecem no histórico.</p>
     </Dialogo>
   );
 }

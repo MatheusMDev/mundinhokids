@@ -279,7 +279,8 @@ export function CartaoDespesas({ evento }: { evento: Evento }) {
 /** Para quem não é da gestão: o próprio valor neste evento (o banco só envia o dele) */
 export function CartaoMeuValor({ evento }: { evento: Evento }) {
   const { db, usuario } = useEstado();
-  const meu = db.pagamentos_profissionais.find((p) => p.evento_id === evento.id && p.profissional_id === usuario.profissionalId);
+  const meu = db.pagamentos_profissionais.find((p) => p.evento_id === evento.id
+    && p.profissional_id === usuario.profissionalId && !p.cancelado_em);
   if (!usuario.profissionalId) return null;
   return (
     <section className="cartao">

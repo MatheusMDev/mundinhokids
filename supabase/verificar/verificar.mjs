@@ -20,6 +20,7 @@ const MIGRACOES = [
   'migrations/20261110000001_minha_conta.sql',
   'migrations/20261111000001_abas_mobile.sql',
   'migrations/20261111000002_abas_mobile_todos_menus.sql',
+  'migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));

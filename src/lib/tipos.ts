@@ -166,6 +166,7 @@ export interface PagamentoProfissional {
   valor_combinado: number;
   situacao: SituacaoPagamento;
   pago_em: string | null;
+  cancelado_em: string | null;
   observacoes: string | null;
 }
 
