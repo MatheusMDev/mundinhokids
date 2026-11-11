@@ -133,16 +133,11 @@ function PainelOperacao() {
           <strong className="marca">{numeros.trocas}</strong>
           <small>{numeros.trocaDescricao}</small>
         </div>
-        {veValores(perfil) ? (
+        {veValores(perfil) && (
           <div className="cartao numero">
             <span>Pagamentos pendentes</span>
             <strong>{numeros.profissionaisAPagar}</strong>
             <small>profissionais a pagar</small>
-          </div>
-        ) : (
-          <div className="cartao numero oculto">
-            <span>Pagamentos pendentes</span>
-            <p>Valores ocultos para este perfil.</p>
           </div>
         )}
       </div>

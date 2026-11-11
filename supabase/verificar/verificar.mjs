@@ -17,6 +17,9 @@ const MIGRACOES = [
   'migrations/20261104000002_telas_do_usuario.sql',
   'migrations/20261106000001_profissionais_disponiveis.sql',
   'migrations/20261106000002_excluir_profissional.sql',
+  'migrations/20261110000001_minha_conta.sql',
+  'migrations/20261111000001_abas_mobile.sql',
+  'migrations/20261111000002_abas_mobile_todos_menus.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));

@@ -111,6 +111,13 @@ export async function salvarEvento(
   return eventoId;
 }
 
+export async function adicionarOrientacaoEvento(c: Cliente, id: string, atuais: string | null, nova: string) {
+  const orientacao = nova.trim();
+  const existentes = (atuais ?? '').split('\n').map((linha) => linha.trim()).filter(Boolean);
+  const linhas = ok(await c.from('eventos').update({ orientacoes: [...existentes, orientacao].join('\n') }).eq('id', id).select('id')) as unknown[];
+  if (!linhas.length) throw new SemPermissao();
+}
+
 export async function remarcarEvento(c: Cliente, id: string, inicio: string, fim: string, motivo: string) {
   ok(await c.rpc('remarcar_evento', { p_evento_id: id, p_inicio: inicio, p_fim: fim, p_motivo: motivo }));
 }
@@ -214,6 +221,10 @@ export async function atualizarMinhaConta(c: Cliente, dados: {
   ok(await c.rpc('atualizar_minha_conta', {
     p_nome: dados.nome, p_telefone: dados.telefone, p_disponibilidade: dados.disponibilidade,
   }));
+}
+
+export async function atualizarAbasMobile(c: Cliente, abas: string[]) {
+  ok(await c.rpc('atualizar_abas_mobile', { p_abas: abas }));
 }
 
 export async function atualizarMeuEmail(c: Cliente, email: string) {

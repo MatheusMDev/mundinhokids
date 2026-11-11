@@ -97,10 +97,10 @@ function BotaoNovo({ texto, onClick }: { texto: string; onClick: () => void }) {
   return <button type="button" className="botao primario" onClick={onClick}><Icone nome="mais" /> {texto}</button>;
 }
 
-function Pagina({ titulo, descricao, acao, children }: { titulo: string; descricao: string; acao?: ReactNode; children: ReactNode }) {
+function Pagina({ titulo, descricao, acao, classe, children }: { titulo: string; descricao: string; acao?: ReactNode; classe?: string; children: ReactNode }) {
   return (
     <Layout>
-      <div className="lista-topo">
+      <div className={`lista-topo${classe ? ` ${classe}` : ''}`}>
         <div><h1>{titulo}</h1><p>{descricao}</p></div>
         {acao}
       </div>
@@ -520,7 +520,7 @@ export function Fantasias() {
 
   return (
     <Pagina
-      titulo="Fantasias" descricao={`${listaFiltrada.length} de ${lista.length} fantasias · situação e previsão de volta da limpeza`}
+      titulo="Fantasias" descricao={`${listaFiltrada.length} de ${lista.length} fantasias · situação e previsão de volta da limpeza`} classe="fantasias-pagina"
       acao={<BotaoNovo texto="Nova fantasia" onClick={form.novo} />}
     >
       <div className="fantasias-resumo" aria-label="Resumo das fantasias">
@@ -867,19 +867,18 @@ export function CadastrosGerais() {
 }
 
 export function Mais() {
-  const { telas, db } = useEstado();
-  const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
+  const { telas, usuario } = useEstado();
   // O que o perfil enxerga e ainda não está nas abas de baixo
-  const nasAbas = new Set(abasDoPerfil(telas).map((a) => a.para));
+  const nasAbas = new Set(abasDoPerfil(telas, usuario.abasMobile).map((a) => a.para));
   const itens = MENU
-    .filter((i) => telas.has(i.tela) && !nasAbas.has(i.para))
+    .filter((i) => i.tela !== 'notificacoes' && telas.has(i.tela) && !nasAbas.has(i.para))
     .map((i) => (i.tela === 'cadastros' ? { ...i, texto: 'Contratantes e locais' } : i));
   return (
     <Layout>
       <h1 style={{ marginBottom: 14 }}>Mais</h1>
       {itens.length > 0 && (
         <section className="cartao proximos" style={{ marginBottom: 18 }}>
-           {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto}{i.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>} <Icone nome="direita" /></Link>)}
+           {itens.map((i) => <Link key={i.para} to={i.para}>{i.texto} <Icone nome="direita" /></Link>)}
         </section>
       )}
       <ContaUsuario />

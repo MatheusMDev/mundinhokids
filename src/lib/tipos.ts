@@ -24,6 +24,8 @@ export interface Usuario {
   ativo: boolean;
   /** Telas escolhidas pela gestão; null = padrão do perfil */
   telas: string[] | null;
+  /** Três atalhos escolhidos pela própria pessoa para a navegação mobile */
+  abas_mobile: string[] | null;
 }
 
 /** Situação do login no Supabase Auth (só a gestão vê, pela função "usuarios") */

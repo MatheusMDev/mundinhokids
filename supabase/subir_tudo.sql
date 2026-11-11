@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -1512,6 +1512,7 @@ insert into storage.buckets (id, name, public)
 values ('avatares', 'avatares', true)
 on conflict (id) do update set public = true;
 
+drop policy if exists avatares_inserir_proprio on storage.objects;
 create policy avatares_inserir_proprio
   on storage.objects for insert to authenticated
   with check (
@@ -1519,6 +1520,7 @@ create policy avatares_inserir_proprio
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists avatares_alterar_proprio on storage.objects;
 create policy avatares_alterar_proprio
   on storage.objects for update to authenticated
   using (
@@ -1530,6 +1532,7 @@ create policy avatares_alterar_proprio
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists avatares_apagar_proprio on storage.objects;
 create policy avatares_apagar_proprio
   on storage.objects for delete to authenticated
   using (
@@ -1597,6 +1600,91 @@ drop trigger if exists sincronizar_email_usuario on auth.users;
 create trigger sincronizar_email_usuario
   after update of email on auth.users
   for each row execute function public.sincronizar_email_usuario();
+
+-- >>>>> migrations/20261111000001_abas_mobile.sql
+
+-- Preferência pessoal das três abas principais exibidas no celular.
+-- Diferente de usuarios.telas, esta configuração não altera permissões.
+alter table usuarios add column if not exists abas_mobile text[];
+
+alter table usuarios drop constraint if exists usuarios_abas_mobile_validas;
+alter table usuarios add constraint usuarios_abas_mobile_validas check (
+  abas_mobile is null
+  or (
+    cardinality(abas_mobile) = 3
+    and abas_mobile <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+      '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]
+  )
+);
+
+create or replace function public.atualizar_abas_mobile(p_abas text[]) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_usuario uuid := auth.uid();
+begin
+  if v_usuario is null then raise exception 'not_authenticated'; end if;
+  if coalesce(array_length(p_abas, 1), 0) <> 3 then
+    raise exception 'Escolha exatamente três menus.';
+  end if;
+  if (select count(distinct aba) from unnest(p_abas) as aba) <> 3 then
+    raise exception 'Escolha três menus diferentes.';
+  end if;
+  if not (p_abas <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+    '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]) then
+    raise exception 'Menu mobile inválido.';
+  end if;
+
+  update usuarios set abas_mobile = p_abas where id = v_usuario and ativo;
+  if not found then raise exception 'sem_permissao'; end if;
+end;
+$$;
+
+revoke execute on function public.atualizar_abas_mobile(text[]) from public, anon;
+grant execute on function public.atualizar_abas_mobile(text[]) to authenticated;
+
+-- >>>>> migrations/20261111000002_abas_mobile_todos_menus.sql
+
+-- Permite escolher qualquer menu acessível como atalho mobile.
+alter table usuarios drop constraint if exists usuarios_abas_mobile_validas;
+alter table usuarios add constraint usuarios_abas_mobile_validas check (
+  abas_mobile is null
+  or (
+    cardinality(abas_mobile) = 3
+    and abas_mobile <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+      '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]
+  )
+);
+
+create or replace function public.atualizar_abas_mobile(p_abas text[]) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_usuario uuid := auth.uid();
+begin
+  if v_usuario is null then raise exception 'not_authenticated'; end if;
+  if coalesce(array_length(p_abas, 1), 0) <> 3 then
+    raise exception 'Escolha exatamente três menus.';
+  end if;
+  if (select count(distinct aba) from unnest(p_abas) as aba) <> 3 then
+    raise exception 'Escolha três menus diferentes.';
+  end if;
+  if not (p_abas <@ array['/', '/eventos', '/profissionais', '/personagens', '/fantasias', '/veiculos',
+    '/financeiro', '/cadastros', '/usuarios', '/configuracoes']::text[]) then
+    raise exception 'Menu mobile inválido.';
+  end if;
+
+  update usuarios set abas_mobile = p_abas where id = v_usuario and ativo;
+  if not found then raise exception 'sem_permissao'; end if;
+end;
+$$;
+
+revoke execute on function public.atualizar_abas_mobile(text[]) from public, anon;
+grant execute on function public.atualizar_abas_mobile(text[]) to authenticated;
 
 -- >>>>> seed.sql
 
