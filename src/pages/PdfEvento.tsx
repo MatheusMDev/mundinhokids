@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icone, Logo } from '../components/Icone';
-import { useEstado } from '../lib/estado';
+import { producaoDoEvento, useEstado } from '../lib/estado';
 import { dataLonga, hora, paraCampos } from '../lib/formato';
 import {
   descricaoMaquiagem, equipeDoEvento, eventoPorId, localDe, ROTULO_FUNCAO, transporteDoEvento, type MembroEquipe,
@@ -52,7 +52,7 @@ function resumoWhatsApp(db: BaseDados, evento: Evento) {
 
 export function PdfEvento() {
   const { id = '' } = useParams();
-  const { db, hoje } = useEstado();
+  const { db, hoje, usuario, permissoes, papeis } = useEstado();
   const evento = eventoPorId(db, id);
 
   // O nome do arquivo salvo vem do título da página
@@ -76,7 +76,9 @@ export function PdfEvento() {
   const personagens = [...new Map(equipe.flatMap((m) => (m.personagem ? [[m.personagem.id, m.personagem] as const] : []))).values()];
   const orientacoes = linhasDe(evento.orientacoes);
   const acesso = local?.orientacoes_acesso && !evento.orientacoes?.includes(local.orientacoes_acesso) ? local.orientacoes_acesso : null;
-  const feedback = db.configuracoes.link_formulario_produtor;
+  // Formulário de feedback: só produção (escalada no evento) e acima
+  const feedback = producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis)
+    ? db.configuracoes.link_formulario_produtor : undefined;
   const linkWhatsApp = `https://wa.me/?text=${encodeURIComponent(resumoWhatsApp(db, evento))}`;
   const geradoEm = `${dataLonga(hoje, false).toLowerCase()}, ${hora(hoje)}`;
 

@@ -5,7 +5,7 @@ import { CalendarioMes, MiniCalendario, type Mes } from '../components/Calendari
 import { Icone } from '../components/Icone';
 import { FormEvento } from '../components/FormulariosEvento';
 import { TrocasParaMim } from '../components/Trocas';
-import { useEstado } from '../lib/estado';
+import { tipoDoPainel, useEstado } from '../lib/estado';
 import { chaveDia, dataLonga, dataLongaDaChave, diaCurto, hora, partes } from '../lib/formato';
 import {
   eventosDoDia, eventosOrdenados, localDe, numerosDaSemana, pendenciasDaSemana, proximosEventos,
@@ -13,6 +13,7 @@ import {
 } from '../lib/consultas';
 import type { Evento } from '../lib/tipos';
 import { MinhaAgenda } from './MinhaAgenda';
+import { PainelFantasias } from './PainelFantasias';
 
 export function ListaPendencias({ pendencias }: { pendencias: Pendencia[] }) {
   if (!pendencias.length) return <div className="vazio">Nenhuma pendência nesta semana.</div>;
@@ -44,8 +45,11 @@ export function LinhaEvento({ evento, voltarPara }: { evento: Evento; voltarPara
 }
 
 export function Painel() {
-  const { permissoes } = useEstado();
-  return permissoes.operacao ? <PainelOperacao /> : <MinhaAgenda />;
+  const { permissoes, papeis } = useEstado();
+  const tipo = tipoDoPainel(permissoes, papeis);
+  if (tipo === 'operacao') return <PainelOperacao />;
+  if (tipo === 'fantasias') return <PainelFantasias />;
+  return <MinhaAgenda />;
 }
 
 /** Painel da gestão (Direção, Gerente e Supervisora). A equipe abre a Minha agenda. */

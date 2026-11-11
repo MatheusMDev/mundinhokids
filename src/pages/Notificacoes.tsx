@@ -17,6 +17,7 @@ function textoNotificacao(notificacao: Notificacao, tituloEvento: string) {
     cancelado: 'Evento cancelado', removido: 'Você saiu da escala', substituicao: 'Atualização de troca',
     despesa_aprovacao: 'Despesa aguardando aprovação', evento_gestao: 'Mudança em evento',
     pendencia_operacional: 'Pendência operacional', resumo_diario: 'Resumo diário',
+    conferencia_fantasias: 'Conferir fantasias',
   };
   return `${nomes[notificacao.tipo]}${tituloEvento ? `: ${tituloEvento}` : '.'}`;
 }

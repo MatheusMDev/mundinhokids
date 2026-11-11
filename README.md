@@ -115,6 +115,7 @@ Regras importantes:
 | `npm run pessoas:verificar` ✓ | Testa telas de pessoas e acessos renderizando os componentes reais |
 | `npm run banco:verificar` | Testa migrações, seed e permissões do banco num Postgres local |
 | `npm run perfis:verificar` | Testa o que cada perfil (gerente, supervisora, equipe, fantasias) pode ler e gravar |
+| `npm run notificacoes:verificar` | Testa os avisos automáticos (ex.: conferir fantasias depois da festa) num Postgres local |
 | `npm run banco:juntar` | Gera `supabase/subir_tudo.sql` para colar de uma vez no SQL Editor |
 
 ## Testes e validações
@@ -125,6 +126,7 @@ Antes de abrir um PR, rode:
 npm run build
 npm run banco:verificar
 npm run perfis:verificar
+npm run notificacoes:verificar
 ```
 
 O `npm run build` já roda o `npm test`. Todos devem terminar com "0 falharam" (ou
@@ -144,7 +146,9 @@ src/
   App.tsx                rotas; cada tela fica dentro de <Restrita> (checa a permissão)
   estilos.css            todo o visual (cores, componentes, celular)
   pages/                 uma tela por arquivo
-    Painel.tsx             calendário, pendências e agenda da equipe
+    Painel.tsx             tela inicial: escolhe o painel do perfil (gestão, Minha agenda ou fantasias)
+    MinhaAgenda.tsx        equipe: calendário, compromissos, quem maquiar e valores a receber
+    PainelFantasias.tsx    fantasias: calendário das festas, o que conferir e o que precisa estar pronto
     DetalheEvento.tsx      evento: equipe, fantasias, transporte, trocas, financeiro, histórico
     PdfEvento.tsx          folha operacional para salvar em PDF (sem valores)
     Cadastros.tsx          Eventos, Profissionais, Personagens, Fantasias, Veículos, Cadastros, Mais
@@ -184,9 +188,18 @@ as telas de cada pessoa em **Usuários e acessos → Permissões**.
 | --- | --- |
 | Direção e Gerente geral | Tudo, inclusive valores, Financeiro e Usuários e acessos |
 | Supervisora | Tudo, menos Financeiro e valores |
-| Produtor | Só a própria agenda, os eventos em que está escalado e Veículos |
-| Artista e Maquiador | Só a própria agenda e os eventos em que está escalado |
-| Fantasias | Só Fantasias |
+| Produtor | **Minha agenda** (calendário, eventos em que está escalado e os próprios valores), Eventos e Veículos. Nos eventos em que está escalado: reserva o veículo, lança despesas e vê o formulário de feedback |
+| Artista | **Minha agenda** e Eventos, sem Veículos. Vê só o próprio valor. Não lança despesas nem vê o formulário de feedback |
+| Maquiador | **Minha agenda** e Eventos. Em cada festa vê quantas pessoas maquia, o horário e quem maquiar. Não vê o cartão de fantasias |
+| Fantasias | **Calendário** das festas com fantasia (o que conferir e o que precisa estar pronto), Eventos e Fantasias. Não vê nenhum valor |
+
+Avisos de cada perfil (tela **Notificações** e celular, se a pessoa ativar):
+
+| Quem | Recebe aviso quando |
+| --- | --- |
+| Artista, produtor e maquiador | É escalado, o evento muda ou é cancelado, sai da escala, há troca e antes do evento (lembrete) |
+| Fantasias | Uma festa termina com fantasias ainda sem conferência |
+| Direção e Gerente | Despesa para aprovar, evento cancelado ou remarcado, evento sem equipe e resumo diário |
 
 A tela esconde o que o perfil não pode ver, mas a proteção de verdade está no banco: um
 perfil sem permissão não recebe os dados, mesmo que tente chamar a API direto.

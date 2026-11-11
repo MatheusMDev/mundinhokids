@@ -82,7 +82,7 @@ export function equipeDoEvento(db: BaseDados, eventoId: string): MembroEquipe[] 
 }
 
 /** "Maquia os 2 artistas · 14h" */
-export function descricaoMaquiagem(db: BaseDados, evento: Evento, membro: MembroEquipe): string {
+export function descricaoMaquiagem(db: BaseDados, evento: Evento, membro: Pick<MembroEquipe, 'escala'>): string {
   const quantos = evento.maquiagem_pessoas
     || db.evento_escala.filter((x) => x.evento_id === evento.id && x.ativo && x.maquiar).length;
   const quando = membro.escala.horario_maquiagem ? ` · ${hora(membro.escala.horario_maquiagem)}` : '';

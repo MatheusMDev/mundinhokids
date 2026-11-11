@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icone, Logo, type NomeIcone } from './Icone';
 import { BotaoMinhaSenha } from './MinhaSenha';
-import { NOME_PERFIL, useEstado, type Tela } from '../lib/estado';
+import { NOME_PAINEL, nomeDosPapeis, tipoDoPainel, useEstado, type Tela } from '../lib/estado';
 import { iniciais } from '../lib/formato';
 import type { Notificacao } from '../lib/tipos';
 import { prepararSom, tocarSomNotificacao } from '../lib/som';
@@ -57,7 +57,10 @@ interface Props {
 }
 
 export function Layout({ children, tituloMobile, comBarra }: Props) {
-  const { db, usuario, cliente, aviso, sair, telas, inicio, permissoes } = useEstado();
+  const { db, usuario, cliente, aviso, sair, telas, inicio, permissoes, papeis } = useEstado();
+  // Operação mantém os nomes do menu; equipe e fantasias veem o nome do próprio painel
+  const nomePainel = NOME_PAINEL[tipoDoPainel(permissoes, papeis)];
+  const nomeItem = (item: ItemMenu) => (item.tela === 'painel' && nomePainel) || item.texto;
   const idsNotificacoes = useRef<Set<string> | null>(null);
   const [notificacaoToast, setNotificacaoToast] = useState<Notificacao | null>(null);
   const naoLidas = db.notificacoes.filter((notificacao) => !notificacao.lida_em).length;
@@ -67,7 +70,7 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
   const avatar = (className: string) => fotoUrl
     ? <span className={`${className} avatar-com-foto`}><img src={fotoUrl} alt="" /></span>
     : <span className={className}>{inicial}</span>;
-  const principais = abasDoPerfil(telas).map(item => item.tela === 'painel' && !permissoes.operacao ? { ...item, texto: 'Minha agenda' } : item);
+  const principais = abasDoPerfil(telas).map((item) => ({ ...item, texto: nomeItem(item) }));
   const abas = [
     ...principais,
     { para: '/mais', texto: 'Mais', icone: 'menu' as NomeIcone },
@@ -109,14 +112,14 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         <nav className="nav" aria-label="Menu principal">
           {MENU.filter((item) => telas.has(item.tela)).map((item) => (
             <NavLink key={item.para} to={item.para} className={() => (ativo(item.para) ? 'ativo' : '')}>
-               <Icone nome={item.icone} /> <span>{item.tela === 'painel' && !permissoes.operacao ? 'Minha agenda' : item.texto}</span>{item.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
+               <Icone nome={item.icone} /> <span>{nomeItem(item)}</span>{item.tela === 'notificacoes' && naoLidas > 0 && <span className="menu-contador">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
           ))}
         </nav>
         <div className="lateral-rodape">
            <Link to="/minha-conta" className="usuario-cartao">
              {avatar('avatar laranja')}
-             <span><strong>{usuario.nome}</strong><small>{NOME_PERFIL[usuario.perfil]}</small></span>
+             <span><strong>{usuario.nome}</strong><small>{nomeDosPapeis(usuario.perfil, papeis)}</small></span>
            </Link>
           <BotaoMinhaSenha className="link-botao" estilo={{ fontSize: 13, marginBottom: 8 }} />
           <button type="button" className="botao" onClick={sair}>Sair</button>

@@ -10,6 +10,7 @@ import {
 } from '../components/FormulariosCadastro';
 import { FormEvento } from '../components/FormulariosEvento';
 import { FormReserva } from '../components/FormulariosValores';
+import { ReservaNoCard } from '../components/CartoesEvento';
 import { FormConferencia } from '../components/FormularioConferencia';
 import { Dialogo, SeletorData } from '../components/Formulario';
 import { excluirProfissional } from '../lib/acoes';
@@ -17,7 +18,7 @@ import type { Profissional } from '../lib/tipos';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Paginacao } from '../components/Paginacao';
-import { NOME_PERFIL, useEstado } from '../lib/estado';
+import { nomeDosPapeis, useEstado } from '../lib/estado';
 import { dataLonga, diaCurto, hora, MESES, mesAno, partes, semAcentos } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, localDe, ROTULO_SITUACAO,
@@ -258,22 +259,25 @@ export function Eventos() {
       {eventos.length ? (
         <div className="eventos-grade">
           {eventosDaPagina.map((e) => (
-            <Link key={e.id} to={`/eventos/${e.id}`} state={{ voltarPara }} className="evento-cartao">
-              <div className={`evento-cartao-data ${e.situacao}`}>
-                <strong>{partes(e.inicio).dia}</strong>
-                <small className="evento-cartao-mes">{MESES[partes(e.inicio).mes - 1]}</small>
-                <small>{diaCurto(e.inicio).split(' ')[0]}</small>
-              </div>
-              <div className="evento-cartao-corpo">
-                <div className="evento-cartao-topo">
-                  <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>
-                  <Icone nome="direita" tamanho={16} />
+            <div key={e.id} className="evento-cartao-bloco">
+              <Link to={`/eventos/${e.id}`} state={{ voltarPara }} className="evento-cartao">
+                <div className={`evento-cartao-data ${e.situacao}`}>
+                  <strong>{partes(e.inicio).dia}</strong>
+                  <small className="evento-cartao-mes">{MESES[partes(e.inicio).mes - 1]}</small>
+                  <small>{diaCurto(e.inicio).split(' ')[0]}</small>
                 </div>
-                <strong className="evento-cartao-titulo">{e.titulo}</strong>
-                <span className="evento-cartao-info">{hora(e.inicio)} · {localDe(db, e)?.nome ?? 'Local não informado'}</span>
-                {e.aniversariante && <span className="evento-cartao-aniversariante">Aniversariante: {e.aniversariante}</span>}
-              </div>
-            </Link>
+                <div className="evento-cartao-corpo">
+                  <div className="evento-cartao-topo">
+                    <span className={`selo ${e.situacao}`}>{ROTULO_SITUACAO[e.situacao]}</span>
+                    <Icone nome="direita" tamanho={16} />
+                  </div>
+                  <strong className="evento-cartao-titulo">{e.titulo}</strong>
+                  <span className="evento-cartao-info">{hora(e.inicio)} · {localDe(db, e)?.nome ?? 'Local não informado'}</span>
+                  {e.aniversariante && <span className="evento-cartao-aniversariante">Aniversariante: {e.aniversariante}</span>}
+                </div>
+              </Link>
+              <ReservaNoCard evento={e} />
+            </div>
           ))}
         </div>
       ) : <div className="vazio">{vazio}</div>}
@@ -884,12 +888,12 @@ export function Mais() {
 }
 
 function ContaUsuario() {
-  const { usuario, sair } = useEstado();
+  const { usuario, papeis, sair } = useEstado();
   return (
     <section className="cartao">
       <span className="rotulo">Conectado como</span>
       <Link to="/minha-conta" className="conta-link-nome"><strong>{usuario.nome}</strong></Link>
-      <p className="suave" style={{ margin: '0 0 12px' }}>{NOME_PERFIL[usuario.perfil]}</p>
+      <p className="suave" style={{ margin: '0 0 12px' }}>{nomeDosPapeis(usuario.perfil, papeis)}</p>
       <BotaoMinhaSenha estilo={{ width: '100%', marginBottom: 8 }} />
       <button type="button" className="botao" onClick={sair} style={{ width: '100%' }}>Sair</button>
     </section>

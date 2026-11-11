@@ -218,7 +218,8 @@ export interface Notificacao {
   id: string;
   evento_id: string | null;
   tipo: 'escalado' | 'lembrete' | 'alterado' | 'cancelado' | 'removido' | 'substituicao'
-    | 'despesa_aprovacao' | 'evento_gestao' | 'pendencia_operacional' | 'resumo_diario';
+    | 'despesa_aprovacao' | 'evento_gestao' | 'pendencia_operacional' | 'resumo_diario'
+    | 'conferencia_fantasias';
   mensagem: string | null;
   agendada_para: string;
   enviada_em: string | null;

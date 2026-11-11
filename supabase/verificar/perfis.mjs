@@ -15,6 +15,7 @@ const MIGRACOES = [
   'migrations/20261021000001_trocas_para_mim.sql',
   'migrations/20261104000001_funcoes_do_login.sql',
   'migrations/20261104000002_telas_do_usuario.sql',
+  'migrations/20261110000003_despesas_so_producao.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -156,7 +157,23 @@ for (const [i, [nome, perfil, profissional]] of perfis26.entries()) {
       if (await qtd(tx, "select count(*) as n from despesas where descricao='Teste produção'") !== 1) throw Error('Despesa não gravada');
     }));
   }
+  if (perfil === 'artista') {
+    const lancar = `insert into despesas(evento_id,descricao,valor)
+      select evento_id,'Teste artista',20 from evento_escala where profissional_id='${profissional}' and ativo limit 1`;
+    await teste('Júlia (artista) não lança despesa no evento em que está escalada', () => como(uid, tx =>
+      esperaErro(tx.exec(lancar), 'row-level security')));
+    await teste('Júlia lança despesa se também tiver a função Produção no cadastro', async () => {
+      await db.transaction(async (tx) => {
+        await tx.exec(`update profissionais set funcoes='{artista,produtor}' where id='${profissional}';
+          set local role authenticated; set local app.uid = '${uid}'; ${lancar}`);
+        if (await qtd(tx, "select count(*) as n from despesas where descricao='Teste artista'") !== 1) throw Error('Despesa não gravada');
+        await tx.rollback();
+      }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+    });
+  }
   if (perfil === 'fantasias') {
+    await teste('Paula (fantasias) não lança despesa', () => como(uid, tx => esperaErro(tx.exec(`
+      insert into despesas(evento_id,descricao,valor) select id,'Teste fantasias',20 from eventos limit 1`), 'row-level security')));
     await teste('#26 Paula: edita fantasia e registra conferência', () => como(uid, async tx => {
       const f = (await tx.query('select id from fantasias limit 1')).rows[0].id;
       const e = (await tx.query('select id from eventos limit 1')).rows[0].id;

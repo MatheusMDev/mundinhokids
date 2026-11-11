@@ -22,6 +22,11 @@ const TIPOS_GESTAO: { tipo: Notificacao['tipo']; titulo: string; texto: string }
   { tipo: 'resumo_diario', titulo: 'Resumo diário', texto: 'Uma visão diária dos eventos previstos para a semana.' },
 ];
 
+/** Para quem cuida das fantasias (perfil Fantasias ou função Fantasias no cadastro) */
+const TIPOS_FANTASIAS: { tipo: Notificacao['tipo']; titulo: string; texto: string }[] = [
+  { tipo: 'conferencia_fantasias', titulo: 'Conferir fantasias', texto: 'Quando uma festa terminar com fantasias para conferir.' },
+];
+
 export const TIPOS_GESTAO_IDS = new Set(TIPOS_GESTAO.map(({ tipo }) => tipo));
 const CHAVE_VAPID = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
 
@@ -32,8 +37,12 @@ function chaveVapid(chave: string) {
 }
 
 export function PreferenciasNotificacao() {
-  const { db, usuario, cliente, executar } = useEstado();
-  const tipos = [...TIPOS_EQUIPE, ...(usuario.perfil === 'diretora' || usuario.perfil === 'gerente' ? TIPOS_GESTAO : [])];
+  const { db, usuario, papeis, cliente, executar } = useEstado();
+  const tipos = [
+    ...TIPOS_EQUIPE,
+    ...(papeis.has('fantasias') ? TIPOS_FANTASIAS : []),
+    ...(usuario.perfil === 'diretora' || usuario.perfil === 'gerente' ? TIPOS_GESTAO : []),
+  ];
   const [preferencias, setPreferencias] = useState<Record<Notificacao['tipo'], boolean>>(() =>
     Object.fromEntries(tipos.map(({ tipo }) => [tipo, db.notificacao_preferencias.find((p) => p.tipo === tipo)?.ativa ?? true])) as Record<Notificacao['tipo'], boolean>,
   );

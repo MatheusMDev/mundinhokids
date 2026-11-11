@@ -29,7 +29,7 @@ interface Estado {
   papeis: ReadonlySet<PerfilAcesso>;
   /** Telas que o login enxerga, somando todos os papéis (menu, abas e acesso pelo endereço) */
   telas: ReadonlySet<Tela>;
-  /** Primeira tela do perfil: o calendário, ou Fantasias para quem só cuida delas */
+  /** Primeira tela do login: o painel (calendário) ou, se a gestão tirou o painel, Fantasias */
   inicio: string;
   cliente: SupabaseClient;
   /** Roda uma gravação: se der certo recarrega os dados, avisa e devolve true; se não, devolve o erro em português */
@@ -80,6 +80,45 @@ const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora'];
  * Telas que podem ser liberadas para o perfil (as mesmas travas da função do
  * servidor): Financeiro só gestão; Usuários e Configurações só operação.
  */
+/**
+ * Qual painel a tela inicial ("/") mostra:
+ * - operacao: Direção, Gerente e Supervisora (calendário completo, pendências e números);
+ * - fantasias: quem só cuida das fantasias (calendário das festas com fantasias e conferências);
+ * - agenda: artista, produção e maquiagem (Minha agenda: calendário, compromissos e valores).
+ * Quem cuida das fantasias e também trabalha nas festas fica com a Minha agenda.
+ */
+export type TipoPainel = 'operacao' | 'fantasias' | 'agenda';
+export function tipoDoPainel(permissoes: Pick<Permissoes, 'operacao'>, papeis: ReadonlySet<PerfilAcesso>): TipoPainel {
+  if (permissoes.operacao) return 'operacao';
+  const trabalhaNasFestas = papeis.has('artista') || papeis.has('produtor') || papeis.has('maquiador');
+  return papeis.has('fantasias') && !trabalhaNasFestas ? 'fantasias' : 'agenda';
+}
+
+/**
+ * "Produção ou acima" num evento: Direção, Gerente e Supervisora, ou quem tem a
+ * função Produção (perfil ou cadastro) e está escalado nele, em qualquer função.
+ * Usado no formulário de feedback e na reserva do veículo (mesma regra do banco).
+ */
+export function producaoDoEvento(
+  db: BaseDados, eventoId: string, profissionalId: string | null,
+  permissoes: Pick<Permissoes, 'operacao'>, papeis: ReadonlySet<PerfilAcesso>,
+): boolean {
+  if (permissoes.operacao) return true;
+  if (!profissionalId || !papeis.has('produtor')) return false;
+  return db.evento_escala.some((s) => s.evento_id === eventoId && s.ativo && s.profissional_id === profissionalId);
+}
+
+const ORDEM_PAPEIS: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'];
+
+/** "Artista · Produção": o perfil do login primeiro, depois as outras funções do cadastro */
+export function nomeDosPapeis(perfil: PerfilAcesso, papeis: ReadonlySet<PerfilAcesso>): string {
+  const outros = ORDEM_PAPEIS.filter((p) => p !== perfil && papeis.has(p));
+  return [perfil, ...outros].map((p) => NOME_PERFIL[p]).join(' · ');
+}
+
+/** Nome do item do menu que abre o painel */
+export const NOME_PAINEL: Record<TipoPainel, string | null> = { operacao: null, fantasias: 'Calendário', agenda: 'Minha agenda' };
+
 export function telaPermitida(tela: Tela, perfil: PerfilAcesso) {
   if (tela === 'financeiro') return GESTAO.includes(perfil);
   if (tela === 'usuarios' || tela === 'configuracoes') return OPERACAO.includes(perfil);
@@ -101,7 +140,7 @@ const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
   produtor: ['painel', 'eventos', 'notificacoes', 'veiculos'],
   artista: ['painel', 'eventos', 'notificacoes'],
   maquiador: ['painel', 'eventos', 'notificacoes'],
-  fantasias: ['eventos', 'notificacoes', 'fantasias'],
+  fantasias: ['painel', 'eventos', 'notificacoes', 'fantasias'],
 };
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {

@@ -23,6 +23,7 @@ const cabecalhos: Record<string, string> = {
   evento_gestao: 'Mudança em evento',
   pendencia_operacional: 'Pendência operacional',
   resumo_diario: 'Resumo diário',
+  conferencia_fantasias: 'Conferir fantasias',
 };
 
 function resposta(body: Record<string, unknown>, status = 200) {

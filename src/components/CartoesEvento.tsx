@@ -7,7 +7,7 @@ import { Icone } from './Icone';
 import {
   FormCancelarReserva, FormDespesa, FormDevolucao, FormPagamentos, FormRecebimento, FormReserva,
 } from './FormulariosValores';
-import { useEstado } from '../lib/estado';
+import { producaoDoEvento, useEstado } from '../lib/estado';
 import { decidirDespesa } from '../lib/acoes';
 import { dataCurta, hora, moeda, quando } from '../lib/formato';
 import { equipeDoEvento, financeiroDoEvento, transporteDoEvento } from '../lib/consultas';
@@ -18,21 +18,64 @@ const ativo = (e: Evento) => e.situacao === 'agendado' || e.situacao === 'confir
 /** O login é de alguém escalado neste evento? */
 function useEscalado(evento: Evento) {
   const { db, usuario } = useEstado();
-  if (!usuario.profissionalId) return { escalado: false, produtor: false };
+  if (!usuario.profissionalId) return { escalado: false };
   const minhas = equipeDoEvento(db, evento.id).filter((m) => m.escala.profissional_id === usuario.profissionalId);
-  return { escalado: minhas.length > 0, produtor: minhas.some((m) => m.escala.funcao === 'produtor') };
+  return { escalado: minhas.length > 0 };
+}
+
+/**
+ * Quem pode reservar o veículo de um evento, só com ele agendado ou confirmado:
+ * gestão e supervisora, ou quem tem a função Produção e está escalado no evento
+ * (em qualquer função, ex.: artista que também é produtor). É a mesma regra do
+ * banco (política res_criar).
+ */
+function usePodeReservar(evento: Evento) {
+  const { db, usuario, permissoes, papeis } = useEstado();
+  return ativo(evento) && producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis);
+}
+
+/**
+ * Reserva do veículo direto no card do evento (lista de Eventos e Minha agenda):
+ * mostra a reserva feita ou o botão "Reservar veículo". Não aparece para quem não pode reservar.
+ */
+export function ReservaNoCard({ evento }: { evento: Evento }) {
+  const { db } = useEstado();
+  const podeReservar = usePodeReservar(evento);
+  const [aberto, setAberto] = useState(false);
+  const transporte = transporteDoEvento(db, evento);
+  const reserva = transporte.reserva;
+  if (!podeReservar || (!reserva && !db.veiculos.some((v) => v.ativo))) return null;
+
+  return (
+    <div className="reserva-no-card">
+      {reserva ? (
+        <span className="reserva-no-card-feita">
+          <Icone nome="carro" tamanho={15} />
+          {transporte.veiculoNome} · {hora(reserva.retirada)} às {hora(reserva.devolucao_prevista)}
+        </span>
+      ) : (
+        <>
+          <span className="suave">Sem veículo reservado</span>
+          <button type="button" className="botao pequeno" onClick={() => setAberto(true)}>
+            <Icone nome="carro" tamanho={15} /> Reservar veículo
+          </button>
+        </>
+      )}
+      {aberto && <FormReserva evento={evento} onFechar={() => setAberto(false)} />}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------
 
 export function CartaoTransporte({ evento }: { evento: Evento }) {
   const { db, permissoes, usuario } = useEstado();
-  const { produtor } = useEscalado(evento);
   const [janela, setJanela] = useState<'reservar' | 'alterar' | 'cancelar' | 'devolver' | null>(null);
   const transporte = transporteDoEvento(db, evento);
   const reserva = transporte.reserva;
 
-  const podeReservar = ativo(evento) && (permissoes.operacao || produtor);
+  const podeReservar = usePodeReservar(evento);
+  const temProdutor = equipeDoEvento(db, evento.id).some((m) => m.escala.funcao === 'produtor');
   const podeMexer = !!reserva && (permissoes.operacao || reserva.responsavel_id === usuario.profissionalId);
 
   return (
@@ -55,7 +98,11 @@ export function CartaoTransporte({ evento }: { evento: Evento }) {
           {reserva.observacoes && <p className="suave" style={{ margin: '4px 0 0' }}>{reserva.observacoes}</p>}
         </>
       ) : (
-        <div className="vazio">{podeReservar ? 'Sem reserva de veículo.' : 'Sem reserva de veículo. O produtor do evento faz a reserva.'}</div>
+        <div className="vazio">
+          {podeReservar ? 'Sem reserva de veículo.'
+            : temProdutor ? 'Sem reserva de veículo. O produtor do evento faz a reserva.'
+            : 'Sem reserva de veículo. Este evento ainda não tem produtor: a gestão faz a reserva.'}
+        </div>
       )}
       {transporte.bloqueioAnterior && (
         <div className="trava">
@@ -166,12 +213,13 @@ const ROTULO_APROVACAO: Record<Despesa['aprovacao'], string> = {
 };
 
 export function CartaoDespesas({ evento }: { evento: Evento }) {
-  const { db, permissoes, cliente, executar, avisar, hoje } = useEstado();
+  const { db, permissoes, papeis, cliente, executar, avisar, hoje } = useEstado();
   const { escalado } = useEscalado(evento);
   const [janela, setJanela] = useState<{ item?: Despesa } | null>(null);
   // O banco já filtra: a gestão recebe todas, os demais só as que lançaram
   const despesas = db.despesas.filter((d) => d.evento_id === evento.id).sort((a, b) => a.criado_em.localeCompare(b.criado_em));
-  const podeLancar = evento.situacao !== 'cancelado' && (permissoes.gestao || escalado);
+  // Lança: gestão, ou quem tem a função Produção e está escalado (regra desp_criar do banco)
+  const podeLancar = evento.situacao !== 'cancelado' && (permissoes.gestao || (escalado && papeis.has('produtor')));
 
   if (!podeLancar && despesas.length === 0) return null;
 

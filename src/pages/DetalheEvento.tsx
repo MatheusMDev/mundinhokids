@@ -6,9 +6,9 @@ import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala }
 import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
 import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Trocas';
 import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
-import { useEstado } from '../lib/estado';
+import { producaoDoEvento, tipoDoPainel, useEstado } from '../lib/estado';
 import { marcarRealizado } from '../lib/acoes';
-import { dataLonga, hora, iniciais, quando } from '../lib/formato';
+import { dataLonga, diaCurto, hora, iniciais, quando } from '../lib/formato';
 import {
   avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
   historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
@@ -36,10 +36,13 @@ function personagemDoMembro(db: ReturnType<typeof useEstado>['db'], evento: Even
 export function DetalheEvento() {
   const { id = '' } = useParams();
   const location = useLocation();
-  const { db, hoje, perfil, decidirTroca, permissoes, executar, cliente, avisar, usuario } = useEstado();
+  const { db, hoje, perfil, decidirTroca, permissoes, papeis, executar, cliente, avisar, usuario } = useEstado();
   const origem = (location.state as { voltarPara?: string } | null)?.voltarPara;
   const voltarPara = origem ?? '/';
-  const textoVoltar = origem?.startsWith('/financeiro') ? 'Voltar ao financeiro' : origem?.startsWith('/eventos') ? 'Voltar aos eventos' : !permissoes.operacao ? 'Voltar à minha agenda' : 'Voltar ao calendário';
+  const textoVoltar = origem?.startsWith('/financeiro') ? 'Voltar ao financeiro'
+    : origem?.startsWith('/eventos') ? 'Voltar aos eventos'
+    : origem?.startsWith('/fantasias') ? 'Voltar às fantasias'
+    : tipoDoPainel(permissoes, papeis) === 'agenda' ? 'Voltar à minha agenda' : 'Voltar ao calendário';
   const [janela, setJanela] = useState<Janela | null>(null);
   const evento = eventoPorId(db, id);
 
@@ -61,7 +64,9 @@ export function DetalheEvento() {
   const historico = historicoDoEvento(db, evento.id, perfil);
   const orientacoes = (evento.orientacoes ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
   const fantasias = equipe.flatMap((m) => (m.fantasia ? [m.fantasia] : []));
-  const linkFeedback = db.configuracoes.link_formulario_produtor;
+  // Formulário de feedback: só produção (escalada no evento) e acima
+  const linkFeedback = producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis)
+    ? db.configuracoes.link_formulario_produtor : undefined;
   const horario = `${hora(evento.inicio)} às ${hora(evento.fim)}`;
   const cancelado = evento.situacao === 'cancelado';
   const podeEditar = permissoes.operacao && !cancelado;
@@ -74,6 +79,13 @@ export function DetalheEvento() {
   const podePedirTroca = (m: MembroEquipe) => m.escala.funcao === 'artista' && !m.troca && !cancelado
     && m.escala.profissional_id === usuario.profissionalId && evento.situacao !== 'realizado'
     && new Date(hoje) < new Date(prazoDaTroca(evento, db.configuracoes));
+  // Cartão de fantasias: a maquiagem não precisa; quem veste, produz ou cuida delas vê
+  const veFantasias = permissoes.operacao || papeis.has('artista') || papeis.has('produtor') || papeis.has('fantasias');
+  // Valores: quem só cuida das fantasias não vê valor nenhum no evento
+  const veValorProprio = tipoDoPainel(permissoes, papeis) !== 'fantasias';
+  // A própria escala que ainda pode ser trocada (o botão fica embaixo da equipe, com o prazo)
+  const minhaTroca = equipe.find(podePedirTroca);
+  const prazoTroca = prazoDaTroca(evento, db.configuracoes);
 
   return (
     <Layout tituloMobile="Detalhe do evento" comBarra>
@@ -190,14 +202,9 @@ export function DetalheEvento() {
                         <td>{ROTULO_FUNCAO[m.escala.funcao]}</td>
                         <td className="suave">{personagemDoMembro(db, evento, m)}</td>
                         <td><strong>{m.profissional?.nome}</strong></td>
-                        <td>
-                          {situacaoMembro(m)}
-                          {podePedirTroca(m) && (
-                            <button type="button" className="botao pequeno" style={{ marginLeft: 8 }} onClick={() => setJanela({ tipo: 'trocar', membro: m })}>Pedir troca</button>
-                          )}
-                        </td>
+                        <td>{situacaoMembro(m)}</td>
                         {podeTirar && (
-                          <td style={{ textAlign: 'right' }}>
+                          <td className="tabela-acoes">
                             <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>Tirar</button>
                           </td>
                         )}
@@ -214,9 +221,6 @@ export function DetalheEvento() {
                         <small>{ROTULO_FUNCAO[m.escala.funcao]}{m.escala.funcao !== 'produtor' ? ` · ${personagemDoMembro(db, evento, m)}` : ''}</small>
                       </span>
                       {situacaoMembro(m)}
-                      {podePedirTroca(m) && (
-                        <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'trocar', membro: m })}>Trocar</button>
-                      )}
                       {podeTirar && (
                         <button type="button" className="botao pequeno" aria-label={`Tirar ${m.profissional?.nome ?? ''} da equipe`}
                           onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>✕</button>
@@ -224,6 +228,12 @@ export function DetalheEvento() {
                     </div>
                   ))}
                 </div>
+                {minhaTroca && (
+                  <div className="pedir-troca">
+                    <span>Não vai poder ir? Peça a troca até <strong>{diaCurto(prazoTroca)}, {hora(prazoTroca)}</strong>.</span>
+                    <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'trocar', membro: minhaTroca })}>Pedir troca</button>
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -237,7 +247,7 @@ export function DetalheEvento() {
             )}
           </section>
 
-          <section className="cartao">
+          {veFantasias && <section className="cartao">
             <div className="cartao-topo">
               <h2>Fantasias</h2>
               {conferencia !== 'sem_fantasias' && (
@@ -275,7 +285,7 @@ export function DetalheEvento() {
             ) : (
               <div className="vazio">Nenhuma fantasia escalada.</div>
             )}
-          </section>
+          </section>}
         </div>
 
         <div className="coluna">
@@ -300,7 +310,7 @@ export function DetalheEvento() {
             )}
           </section>
 
-          {veValores(perfil) ? <CartaoFinanceiro evento={evento} /> : <CartaoMeuValor evento={evento} />}
+          {veValores(perfil) ? <CartaoFinanceiro evento={evento} /> : veValorProprio && <CartaoMeuValor evento={evento} />}
           <CartaoDespesas evento={evento} />
 
           <section className="cartao">
