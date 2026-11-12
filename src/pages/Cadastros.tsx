@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { abasDoPerfil, Layout, MENU } from '../components/Layout';
 import { Icone } from '../components/Icone';
+import { ResumoDisponibilidadeEquipe } from '../components/DisponibilidadeSemanal';
 import {
   FormContratante, FormFantasia, FormLocal, FormPersonagem, FormVeiculo, ROTULO_FANTASIA,
 } from '../components/FormulariosCadastro';
@@ -115,7 +116,6 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
   const busca = parametros.get('busca') ?? '';
   const personagem = parametros.get('personagem') ?? '';
   const funcao = parametros.get('funcao') ?? '';
-  const disponibilidade = parametros.get('disponibilidade') ?? '';
   const status = parametros.get('status') ?? 'ativo';
   const alterar = (nome: string, valor: string) => {
     const novos = new URLSearchParams(parametros);
@@ -125,8 +125,6 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
     setParametros(novos);
   };
   const personagens = [...db.personagens].sort((a, b) => a.nome.localeCompare(b.nome));
-  const disponibilidades = [...new Set(db.profissionais.map((item) => item.disponibilidade).filter(Boolean) as string[])]
-    .sort((a, b) => a.localeCompare(b));
 
   return (
     <section className="filtros-eventos filtros-profissionais" aria-label="Filtros de profissionais">
@@ -149,13 +147,6 @@ function FiltrosProfissionais({ db }: { db: ReturnType<typeof useEstado>['db'] }
         value={funcao}
         options={[['', 'Todas as funções'], ...Object.entries(ROTULO_FUNCAO_PROF)]}
         onChange={(valor) => alterar('funcao', valor)}
-      />
-      <SeletorFiltro
-        label="Disponibilidade"
-        icon="relogio"
-        value={disponibilidade}
-        options={[['', 'Todas as disponibilidades'], ...disponibilidades.map((item) => [item, item] as [string, string])]}
-        onChange={(valor) => alterar('disponibilidade', valor)}
       />
       <SeletorFiltro label="Situação" icon="lista" value={status}
         options={[[ 'ativo', 'Ativos' ], [ 'inativo', 'Inativos / sem acesso ativo' ], [ 'todos', 'Todos' ]]}
@@ -309,14 +300,12 @@ export function Profissionais() {
   const busca = semAcentos(parametros.get('busca') ?? '');
   const personagem = parametros.get('personagem') ?? '';
   const funcao = parametros.get('funcao') ?? '';
-  const disponibilidade = parametros.get('disponibilidade') ?? '';
   const status = parametros.get('status') ?? 'ativo';
   const filtrados = lista.filter((profissional) => {
     const personagens = db.profissional_personagens.filter((item) => item.profissional_id === profissional.id);
     return (!busca || semAcentos(profissional.nome).includes(busca))
       && (!personagem || personagens.some((item) => item.personagem_id === personagem))
       && (!funcao || profissional.funcoes.includes(funcao as keyof typeof ROTULO_FUNCAO_PROF))
-      && (!disponibilidade || profissional.disponibilidade === disponibilidade)
       && (status === 'todos' || (status === 'inativo' ? !profissionalDisponivel(db, profissional) : profissionalDisponivel(db, profissional)));
   });
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 10));
@@ -341,6 +330,7 @@ export function Profissionais() {
           Cadastre e edite a equipe em <Link to="/usuarios" className="link-marca">Usuários e acessos</Link>.
         </p>
       )}
+      <ResumoDisponibilidadeEquipe />
       <FiltrosProfissionais db={db} />
       {listaDaPagina.length ? (
         <div className="profissionais-grade">
@@ -368,7 +358,6 @@ export function Profissionais() {
                 <div className="profissional-detalhes">
                   <div><Icone nome="pessoas" tamanho={15} /><span><small>Personagens</small><strong>{personagens.length ? personagens.join(', ') : 'Nenhum vinculado'}</strong></span></div>
                   <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{p.telefone ?? 'Não informado'}</strong></span></div>
-                  <div><Icone nome="relogio" tamanho={15} /><span><small>Disponibilidade</small><strong>{p.disponibilidade ?? 'Não informada'}</strong></span></div>
                 </div>
                 {permissoes.gestao && (usuario.perfil === 'diretora' || !db.usuarios.some((u) => u.id === p.usuario_id && u.perfil === 'diretora')) && (
                   <div className="acoes-linha">

@@ -67,6 +67,17 @@ export interface ProfissionalPersonagem {
   personagem_id: string;
 }
 
+export interface DisponibilidadeSemanalDia {
+  profissional_id: string;
+  semana_inicio: string;
+  dia: number;
+  disponivel: boolean;
+  hora_inicio: string | null;
+  hora_fim: string | null;
+  observacoes: string | null;
+  atualizado_em: string;
+}
+
 export interface Contratante {
   id: string;
   nome: string;
@@ -256,6 +267,7 @@ export interface BaseDados {
   configuracoes: Record<string, string>;
   usuarios: Usuario[];
   profissionais: Profissional[];
+  disponibilidade_semanal: DisponibilidadeSemanalDia[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];
   contratantes: Contratante[];

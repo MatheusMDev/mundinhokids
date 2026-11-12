@@ -5,6 +5,7 @@ import { Campo, Linha } from '../components/Formulario';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { Icone } from '../components/Icone';
 import { PreferenciasNotificacao } from '../components/PreferenciasNotificacao';
+import { EditorDisponibilidadeConta } from '../components/DisponibilidadeSemanal';
 import { NOME_PAINEL, tipoDoPainel, useEstado } from '../lib/estado';
 import { atualizarAbasMobile, atualizarMeuEmail, atualizarMinhaConta, enviarFotoPerfil, removerFotoPerfil } from '../lib/acoes';
 import { iniciais } from '../lib/formato';
@@ -17,7 +18,6 @@ export function MinhaConta() {
   const profissional = db.profissionais.find((item) => item.usuario_id === usuario.id && item.ativo);
   const [nome, setNome] = useState(conta?.nome ?? usuario.nome);
   const [telefone, setTelefone] = useState(conta?.telefone ?? profissional?.telefone ?? '');
-  const [disponibilidade, setDisponibilidade] = useState(profissional?.disponibilidade ?? '');
   const [email, setEmail] = useState(conta?.email ?? '');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [previsao, setPrevisao] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export function MinhaConta() {
     if (!nome.trim()) { avisar('Informe seu nome.'); return; }
     setSalvandoPerfil(true);
     const resultado = await executar(
-      () => atualizarMinhaConta(cliente, { nome: nome.trim(), telefone: telefone.trim() || null, disponibilidade: disponibilidade.trim() || null }),
+      () => atualizarMinhaConta(cliente, { nome: nome.trim(), telefone: telefone.trim() || null, disponibilidade: profissional?.disponibilidade ?? null }),
       'Dados atualizados.',
     );
     setSalvandoPerfil(false);
@@ -143,9 +143,10 @@ export function MinhaConta() {
           <div className="cartao-topo"><h2>Dados pessoais</h2><span className="selo ok">Editável por você</span></div>
           <Linha><Campo rotulo="Nome" obrigatorio>{(id) => <input id={id} value={nome} onChange={(evento) => setNome(evento.target.value)} required />}</Campo></Linha>
           <Linha><Campo rotulo="Telefone" dica="Usado para contato sobre eventos.">{(id) => <input id={id} type="tel" value={telefone} onChange={(evento) => setTelefone(evento.target.value)} />}</Campo></Linha>
-          {profissional && <Linha><Campo rotulo="Disponibilidade" dica="Ex.: só fins de semana, manhãs ou regiões atendidas.">{(id) => <input id={id} value={disponibilidade} onChange={(evento) => setDisponibilidade(evento.target.value)} />}</Campo></Linha>}
           <button type="submit" className="botao primario" disabled={salvandoPerfil}>{salvandoPerfil ? 'Salvando…' : 'Salvar dados'}</button>
         </form>
+
+        <EditorDisponibilidadeConta />
 
         <form className="cartao" onSubmit={salvarEmail}>
           <div className="cartao-topo"><h2>E-mail de acesso</h2><span className="selo alerta">Confirmação obrigatória</span></div>

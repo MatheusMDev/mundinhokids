@@ -511,6 +511,58 @@ h3 { font-size: 15px; font-weight: 800; }
 .historico strong { display: block; font-weight: 500; font-size: 13px; }
 .historico small { color: var(--texto-suave); font-size: 12px; }
 
+/* ---------- Disponibilidade semanal da equipe ---------- */
+.disponibilidade-lembrete { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 13px 15px; border: 1px solid var(--marca-borda); border-radius: var(--raio); background: var(--marca-suave); }
+.disponibilidade-lembrete-icone { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--cartao); color: var(--marca); }
+.disponibilidade-lembrete > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.disponibilidade-lembrete strong { font-size: 14px; }
+.disponibilidade-lembrete small { color: var(--texto-suave); font-size: 12px; }
+.disponibilidade-instrucao { margin: 0; }
+.disponibilidade-atalhos { display: flex; flex-wrap: wrap; gap: 7px; }
+.disponibilidade-dias { display: grid; gap: 8px; }
+.disponibilidade-dias, .disponibilidade-dia, .disponibilidade-opcoes, .disponibilidade-horarios { min-width: 0; max-width: 100%; }
+.disponibilidade-dia { display: grid; grid-template-columns: 105px minmax(200px, 1fr) minmax(210px, 1fr); align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--borda); border-radius: 11px; background: var(--fundo); }
+.disponibilidade-dia.hoje { border-color: var(--marca-borda); }
+.disponibilidade-dia header { display: grid; gap: 2px; }
+.disponibilidade-dia header strong { font-size: 13px; }
+.disponibilidade-dia header small { color: var(--texto-suave); font-size: 11px; }
+.disponibilidade-opcoes { display: flex; gap: 5px; }
+.disponibilidade-opcoes button { min-height: 34px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao); color: var(--texto-suave); font: inherit; font-size: 12px; cursor: pointer; }
+.disponibilidade-opcoes button.selecionado { border-color: var(--marca); background: var(--marca-suave); color: var(--marca-escura); font-weight: 700; }
+.disponibilidade-horarios { display: flex; align-items: center; gap: 6px; color: var(--texto-suave); font-size: 12px; }
+.disponibilidade-horarios label { display: flex; align-items: center; gap: 4px; }
+.disponibilidade-horarios input { width: 96px; min-height: 34px; padding: 4px 6px; border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao); color: var(--texto); font: inherit; }
+.disponibilidade-horarios input:focus, .disponibilidade-observacoes textarea:focus { outline: 2px solid var(--marca); outline-offset: 1px; border-color: transparent; }
+.disponibilidade-horarios small { font-size: 10px; }
+.disponibilidade-observacoes { display: grid; gap: 6px; color: var(--texto); font-size: 13px; font-weight: 650; }
+.disponibilidade-observacoes span small { margin-left: 4px; color: var(--texto-fraco); font-size: 11px; font-weight: 400; }
+.disponibilidade-observacoes textarea { width: 100%; min-height: 72px; padding: 9px 11px; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); color: var(--texto); font: inherit; resize: vertical; }
+.conta-disponibilidade { min-width: 0; }
+.conta-disponibilidade-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.conta-disponibilidade-dias > div { display: grid; justify-items: center; gap: 6px; min-width: 0; padding: 8px 4px; border: 1px solid var(--borda); border-radius: 9px; text-align: center; }
+.conta-disponibilidade-dias strong { color: var(--texto-fraco); font-size: 10px; }
+.conta-disponibilidade-dias span { overflow: hidden; max-width: 100%; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.disponivel { color: var(--verde); }
+.indisponivel { color: var(--texto-suave); }
+.pendente { color: var(--laranja-escuro); }
+.resumo-disponibilidade { margin-bottom: 14px; }
+.resumo-disponibilidade summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; }
+.resumo-disponibilidade summary::-webkit-details-marker { display: none; }
+.resumo-disponibilidade summary > span { display: grid; gap: 3px; }
+.resumo-disponibilidade summary strong { font-size: 15px; }
+.resumo-disponibilidade summary small { color: var(--texto-suave); font-size: 12px; }
+.resumo-disponibilidade[open] summary > svg { transform: rotate(90deg); }
+.resumo-disponibilidade-lista { display: grid; gap: 7px; margin-top: 12px; }
+.resumo-disponibilidade-pessoa { display: grid; grid-template-columns: minmax(100px, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--borda); }
+.resumo-disponibilidade-pessoa > strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.resumo-disponibilidade-dias { display: flex; gap: 4px; }
+.resumo-disponibilidade-dias > span { display: grid; flex: 0 0 25px; place-items: center; width: 25px; height: 22px; border-radius: 999px; background: var(--cinza-suave); font-size: 9px; font-weight: 700; }
+.resumo-disponibilidade-dias > span.disponivel { background: #e5f4eb; color: var(--verde); }
+.resumo-disponibilidade-dias > span.indisponivel { background: var(--cinza-suave); color: var(--texto-suave); }
+.resumo-disponibilidade-dias > span.pendente { background: var(--laranja-suave); color: var(--laranja-escuro); }
+.resumo-disponibilidade-pessoa .selo { font-size: 10px; }
+.resumo-disponibilidade-legenda { display: block; margin-top: 8px; }
+
 .barra-acoes { display: none; }
 
 /* ---------- Listas de cadastro ---------- */
@@ -962,6 +1014,19 @@ h3 { font-size: 15px; font-weight: 800; }
   .cartao { padding: 14px; }
   .conta-grade { column-count: 1; }
   .conta-grade > .cartao { margin-bottom: 12px; }
+  .conta-disponibilidade-dias { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .disponibilidade-lembrete { align-items: flex-start; flex-wrap: wrap; }
+  .disponibilidade-lembrete > div { flex-basis: calc(100% - 54px); }
+  .disponibilidade-lembrete > .botao { flex: 1 1 calc(100% - 50px); margin-left: 50px; }
+  .disponibilidade-dia { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .disponibilidade-dia header, .disponibilidade-opcoes, .disponibilidade-horarios { grid-column: 1; }
+  .disponibilidade-opcoes { grid-column: 1 / -1; }
+  .disponibilidade-opcoes button { flex: 1; }
+  .disponibilidade-horarios { grid-column: 1 / -1; flex-wrap: wrap; }
+  .resumo-disponibilidade-pessoa { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .resumo-disponibilidade-dias { grid-column: 1 / -1; grid-row: 2; }
+  .resumo-disponibilidade-pessoa .selo { grid-column: 2; grid-row: 1; }
+  .disponibilidade-atalhos > .botao { flex: 1 1 100%; }
   .conta-notificacoes { margin-top: 12px; }
   .conta-notificacoes-dispositivo { align-items: flex-start; flex-direction: column; }
   .conta-notificacoes .preferencias-notificacao { grid-template-columns: 1fr; }
@@ -1269,6 +1334,7 @@ h3 { font-size: 15px; font-weight: 800; }
   overflow: hidden; box-shadow: 0 20px 60px rgba(29, 21, 39, 0.25);
 }
 .dialogo::backdrop { background: rgba(29, 21, 39, 0.45); }
+.dialogo.disponibilidade-dialogo { width: min(760px, calc(100vw - 48px)); }
 .dialogo form { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
 .dialogo-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--borda); }
 .dialogo-corpo { min-height: 0; flex: 1; padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -1336,10 +1402,13 @@ h3 { font-size: 15px; font-weight: 800; }
 
 @media (max-width: 899px) {
   .dialogo { width: 100vw; max-width: 100vw; max-height: 100dvh; height: 100dvh; border-radius: 0; margin: 0; }
-  .dialogo form { max-height: 100dvh; height: 100%; }
-  .dialogo-corpo { flex: 1; }
+  .dialogo.disponibilidade-dialogo { width: 100vw; max-width: 100vw; min-width: 0; }
+  .dialogo form { max-height: 100dvh; height: 100%; min-width: 0; }
+  .dialogo-corpo { flex: 1; min-width: 0; }
+  .disponibilidade-dialogo .dialogo-corpo { width: 100%; }
   .dialogo-rodape { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .dialogo-rodape .botao { flex: 1; }
+  .disponibilidade-opcoes button { min-width: 0; padding-inline: 6px; font-size: 11px; }
 }
 
 .link-botao {

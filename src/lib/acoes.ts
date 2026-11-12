@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
 import { sairDesteAparelho } from './supabase';
 import type {
-  ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
+  ConferenciaFantasia, Contratante, Despesa, DisponibilidadeSemanalDia, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
   Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
 } from './tipos';
 import type { Notificacao } from './tipos';
@@ -131,6 +131,17 @@ export type DadosEscala = Pick<EscalaItem,
 
 export async function escalar(c: Cliente, dados: DadosEscala) {
   ok(await c.from('evento_escala').insert(dados));
+}
+
+export async function salvarDisponibilidadeSemanal(
+  c: Cliente,
+  semanaInicio: string,
+  dias: Pick<DisponibilidadeSemanalDia, 'dia' | 'disponivel' | 'hora_inicio' | 'hora_fim' | 'observacoes'>[],
+) {
+  ok(await c.rpc('salvar_disponibilidade_semanal', {
+    p_semana_inicio: semanaInicio,
+    p_dias: dias,
+  }));
 }
 
 /** Ninguém sai da tabela: a vaga fica inativa e o histórico guarda quem estava */
