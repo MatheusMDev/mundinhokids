@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261112000001_documentos_artistas.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -2248,109 +2248,68 @@ create trigger pagamento_exige_escala_ativa
   before insert or update on public.pagamentos_profissionais
   for each row execute function public.proteger_pagamento_de_escala_encerrada();
 
--- >>>>> migrations/20261111000004_disponibilidade_semanal.sql
+-- >>>>> migrations/20261112000001_documentos_artistas.sql
 
--- Disponibilidade semanal preenchida por cada profissional.
--- A ausência de resposta é diferente de marcar todos os dias indisponíveis.
-
-create table public.disponibilidade_semanal (
-  profissional_id uuid not null references public.profissionais(id) on delete cascade,
-  semana_inicio date not null,
-  dia smallint not null,
-  disponivel boolean not null,
-  hora_inicio time,
-  hora_fim time,
-  observacoes text,
-  atualizado_em timestamptz not null default now(),
-  primary key (profissional_id, semana_inicio, dia),
-  constraint disponibilidade_semana_segunda check (extract(isodow from semana_inicio) = 1),
-  constraint disponibilidade_dia_valido check (dia between 1 and 7),
-  constraint disponibilidade_horario_valido check (
-    (hora_inicio is null and hora_fim is null)
-    or (hora_inicio is not null and hora_fim is not null and hora_inicio < hora_fim)
-  ),
-  constraint disponibilidade_indisponivel_sem_horario check (
-    disponivel or (hora_inicio is null and hora_fim is null)
-  )
+-- Documentos privados anexados ao cadastro de cada artista.
+create table documentos_artistas (
+  id              uuid primary key default gen_random_uuid(),
+  profissional_id uuid not null references profissionais (id) on delete cascade,
+  tipo            text not null check (char_length(trim(tipo)) between 1 and 40),
+  nome            text not null check (char_length(trim(nome)) between 1 and 255),
+  storage_path    text not null unique,
+  mime_type       text not null,
+  tamanho_bytes   bigint not null check (tamanho_bytes > 0 and tamanho_bytes <= 10485760),
+  enviado_por     uuid not null references usuarios (id) default auth.uid(),
+  enviado_em      timestamptz not null default now()
 );
 
-create index disponibilidade_semanal_periodo_idx
-  on public.disponibilidade_semanal (semana_inicio, dia);
+create index documentos_artistas_profissional_idx on documentos_artistas (profissional_id, enviado_em desc);
 
-alter table public.disponibilidade_semanal enable row level security;
-grant select on public.disponibilidade_semanal to authenticated;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'documentos-artistas', 'documentos-artistas', false, 10485760,
+  array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
-create policy disponibilidade_semanal_ler on public.disponibilidade_semanal
-  for select to authenticated
+alter table documentos_artistas enable row level security;
+
+grant select, insert, delete on documentos_artistas to authenticated;
+
+create policy documentos_artistas_ler on documentos_artistas for select to authenticated
   using (eh_operacao() or profissional_id = meu_profissional_id());
 
--- A gravação é atômica e sempre registra uma resposta para cada dia da semana.
-create or replace function public.salvar_disponibilidade_semanal(
-  p_semana_inicio date,
-  p_dias jsonb
-) returns void
-language plpgsql security definer set search_path = public as $$
-declare
-  v_profissional_id uuid := meu_profissional_id();
-  v_total integer;
-  v_dias_distintos integer;
-begin
-  if auth.uid() is null or v_profissional_id is null then
-    raise exception 'sem_permissao';
-  end if;
-  if p_semana_inicio is null or extract(isodow from p_semana_inicio) <> 1 then
-    raise exception 'A semana precisa começar na segunda-feira.';
-  end if;
-  if coalesce(jsonb_typeof(p_dias), '') <> 'array' then
-    raise exception 'Informe a disponibilidade para os sete dias.';
-  end if;
-  if jsonb_array_length(p_dias) <> 7 then
-    raise exception 'Informe a disponibilidade para os sete dias.';
-  end if;
+create policy documentos_artistas_criar on documentos_artistas for insert to authenticated
+  with check (eh_operacao() and enviado_por = auth.uid());
 
-  select count(*), count(distinct x.dia)
-    into v_total, v_dias_distintos
-  from jsonb_to_recordset(p_dias) as x(
-    dia smallint,
-    disponivel boolean,
-    hora_inicio time,
-    hora_fim time,
-    observacoes text
+create policy documentos_artistas_apagar on documentos_artistas for delete to authenticated
+  using (eh_operacao());
+
+create policy documentos_storage_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'documentos-artistas'
+    and (
+      eh_operacao()
+      or exists (
+        select 1 from documentos_artistas d
+        where d.storage_path = name and d.profissional_id = meu_profissional_id()
+      )
+    )
   );
-  if v_total <> 7 or v_dias_distintos <> 7 then
-    raise exception 'Informe cada dia da semana uma única vez.';
-  end if;
 
-  insert into public.disponibilidade_semanal (
-    profissional_id, semana_inicio, dia, disponivel, hora_inicio, hora_fim, observacoes, atualizado_em
-  )
-  select
-    v_profissional_id,
-    p_semana_inicio,
-    x.dia,
-    x.disponivel,
-    case when x.disponivel then x.hora_inicio else null end,
-    case when x.disponivel then x.hora_fim else null end,
-    nullif(btrim(x.observacoes), ''),
-    now()
-  from jsonb_to_recordset(p_dias) as x(
-    dia smallint,
-    disponivel boolean,
-    hora_inicio time,
-    hora_fim time,
-    observacoes text
-  )
-  on conflict (profissional_id, semana_inicio, dia) do update set
-    disponivel = excluded.disponivel,
-    hora_inicio = excluded.hora_inicio,
-    hora_fim = excluded.hora_fim,
-    observacoes = excluded.observacoes,
-    atualizado_em = excluded.atualizado_em;
-end;
-$$;
+create policy documentos_storage_criar on storage.objects for insert to authenticated
+  with check (bucket_id = 'documentos-artistas' and eh_operacao());
 
-revoke all on function public.salvar_disponibilidade_semanal(date, jsonb) from public, anon;
-grant execute on function public.salvar_disponibilidade_semanal(date, jsonb) to authenticated;
+create policy documentos_storage_alterar on storage.objects for update to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_operacao())
+  with check (bucket_id = 'documentos-artistas' and eh_operacao());
+
+create policy documentos_storage_apagar on storage.objects for delete to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_operacao());
 
 -- >>>>> seed.sql
 

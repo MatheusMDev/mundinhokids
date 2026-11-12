@@ -22,7 +22,9 @@ const MIGRACOES = [
   'migrations/20261111000001_abas_mobile.sql',
   'migrations/20261111000002_abas_mobile_todos_menus.sql',
   'migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql',
-  'migrations/20261111000004_disponibilidade_semanal.sql',
+  'migrations/20261112000001_documentos_artistas.sql',
+  'migrations/20261112000002_assistente_valores.sql',
+  'migrations/20261112000003_adicionais_produtores.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -35,8 +37,15 @@ const PREPARO = `
   create table auth.users (id uuid primary key, email text);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
-  grant usage on schema public, auth to anon, authenticated;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql immutable as
+    $$ select string_to_array(name, '/') $$;
+  grant usage on schema public, auth, storage to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
+  grant execute on function storage.foldername(text) to anon, authenticated;
   alter default privileges in schema public grant all on tables    to anon, authenticated;
   alter default privileges in schema public grant all on sequences to anon, authenticated;
   alter default privileges in schema public grant all on functions to anon, authenticated;
@@ -55,7 +64,7 @@ const DADOS_ANTES = `
   insert into auth.users (id) values ('${ID.diretora}'), ('${ID.supervisora}'), ('${ID.ana}'), ('${ID.bia}'), ('${ID.bruno}');
   insert into usuarios (id, nome, email, perfil) values
     ('${ID.diretora}',    'Diretora',    'd@x', 'diretora'),
-    ('${ID.supervisora}', 'Supervisora', 's@x', 'supervisora'),
+     ('${ID.supervisora}', 'Assistente', 's@x', 'supervisora'),
     ('${ID.ana}',         'Ana',         'a@x', 'artista'),
     ('${ID.bia}',         'Bia',         'b@x', 'artista'),
     ('${ID.bruno}',       'Bruno',       'p@x', 'produtor');
@@ -182,6 +191,20 @@ await teste('produtor não pode ser escalado como artista', () =>
 await teste('Ana vê o evento enquanto está escalada', async () => {
   const n = await como(ID.ana, (tx) => qtd(tx, 'select count(*) as n from eventos'));
   if (n !== 1) throw new Error(`esperado 1, veio ${n}`);
+});
+
+await teste('documentos de artista ficam isolados por RLS', async () => {
+  await db.transaction(async (tx) => {
+    await tx.exec(`set local role authenticated; set local app.uid = '${ID.diretora}';
+      insert into documentos_artistas (profissional_id, tipo, nome, storage_path, mime_type, tamanho_bytes)
+      values ('10000000-0000-0000-0000-000000000011', 'Contrato', 'contrato.pdf', '10000000-0000-0000-0000-000000000011/contrato.pdf', 'application/pdf', 1200);`);
+    await tx.exec(`set local app.uid = '${ID.ana}'`);
+    const proprio = await qtd(tx, `select count(*) as n from documentos_artistas where profissional_id = '10000000-0000-0000-0000-000000000011'`);
+    await tx.exec(`set local app.uid = '${ID.bia}'`);
+    const alheio = await qtd(tx, `select count(*) as n from documentos_artistas`);
+    if (proprio !== 1 || alheio !== 0) throw new Error(`Ana viu ${proprio}; Bia viu ${alheio}`);
+    await tx.rollback();
+  }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
 });
 
 await teste('Ana deixa de ver o evento ao sair da escala', async () => {
@@ -552,17 +575,41 @@ await teste('vincular_usuarios.sql liga os logins criados no Auth', async () => 
   if (n !== 2) throw new Error(`esperado 2 usuários, veio ${n}`);
 });
 
+await db.exec(`insert into auth.users (id, email) values ('90000000-0000-0000-0000-000000000003', 'bruno@teste.com');
+  insert into usuarios (id, nome, email, perfil) values ('90000000-0000-0000-0000-000000000003', 'Bruno Alves', 'bruno@teste.com', 'produtor');
+  update profissionais set usuario_id = '90000000-0000-0000-0000-000000000003' where nome = 'Bruno Alves';
+  insert into adicionais_produtores (id, produtor_id, valor, data, descricao, foto_path, foto_nome, foto_mime, foto_tamanho, criado_por)
+    values ('70000000-0000-0000-0000-000000000001',
+      (select id from profissionais where nome = 'Bruno Alves'), 48.50, current_date, 'Compra de glitter',
+      'a0000000-0000-0000-0000-000000000007/comprovante.jpg', 'comprovante.jpg', 'image/jpeg', 1024,
+      '90000000-0000-0000-0000-000000000001');`);
+
 await teste('gerente vê os 14 eventos e os 5 valores contratados', async () => {
   const eventos = await como(LOGIN.gerente, (tx) => qtd(tx, 'select count(*) as n from eventos'));
   const valores = await como(LOGIN.gerente, (tx) => qtd(tx, 'select count(*) as n from evento_financeiro'));
   if (eventos !== 14 || valores !== 5) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
 });
 
-await teste('supervisora vê os eventos, mas nenhum valor', async () => {
+await teste('Assistente vê eventos e valores, mas não pode gravar financeiro', async () => {
   const eventos = await como(LOGIN.supervisora, (tx) => qtd(tx, 'select count(*) as n from eventos'));
   const valores = await como(LOGIN.supervisora, (tx) =>
     qtd(tx, 'select (select count(*) from evento_financeiro) + (select count(*) from pagamentos_profissionais) as n'));
-  if (eventos !== 14 || valores !== 0) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
+  if (eventos !== 14 || valores !== 15) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
+  const alteradas = await como(LOGIN.supervisora, async (tx) => (await tx.query(`update evento_financeiro
+    set valor_contratado = valor_contratado
+    where evento_id = (select id from eventos order by inicio limit 1)
+    returning evento_id`)).rows.length);
+  if (alteradas !== 0) throw new Error(`Assistente alterou ${alteradas} valor(es)`);
+});
+
+await teste('adicional geral fica separado e produtor consulta o próprio sem alterar', async () => {
+  const gerente = await como(LOGIN.gerente, (tx) => qtd(tx, 'select count(*) as n from adicionais_produtores'));
+  const produtor = await como('90000000-0000-0000-0000-000000000003', (tx) => qtd(tx, 'select count(*) as n from adicionais_produtores'));
+  const historico = await como(LOGIN.gerente, (tx) => qtd(tx, `select count(*) as n from historico
+    where tabela = 'adicionais_produtores' and registro_id = '70000000-0000-0000-0000-000000000001'`));
+  const alteradas = await como('90000000-0000-0000-0000-000000000003', async (tx) => (await tx.query(`update adicionais_produtores
+    set descricao = descricao where id = '70000000-0000-0000-0000-000000000001' returning id`)).rows.length);
+  if (gerente !== 1 || produtor !== 1 || historico !== 1 || alteradas !== 0) throw new Error(`gestão ${gerente}, produtor ${produtor}, histórico ${historico}, alteradas ${alteradas}`);
 });
 
 await teste('gerente aprova a troca do seed e o Rafael entra na escala', async () => {

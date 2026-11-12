@@ -21,7 +21,7 @@ import type { FuncaoProfissional, PerfilAcesso, SituacaoLogin, Usuario } from '.
 const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: boolean }[] = [
   { valor: 'diretora', texto: 'Direção', descricao: 'Acesso total, inclusive valores e usuários.', equipe: false },
   { valor: 'gerente', texto: 'Gerente geral', descricao: 'Organiza eventos e equipes. Vê valores.', equipe: false },
-  { valor: 'supervisora', texto: 'Supervisora', descricao: 'Organiza eventos e equipes. Não vê valores.', equipe: false },
+  { valor: 'supervisora', texto: 'Assistente', descricao: 'Organiza eventos e consulta valores fora do Painel.', equipe: false },
   { valor: 'produtor', texto: 'Produção', descricao: 'Seus eventos, veículos e despesas.', equipe: true },
   { valor: 'artista', texto: 'Artista', descricao: 'Seus eventos e trocas.', equipe: true },
   { valor: 'maquiador', texto: 'Maquiagem', descricao: 'Seus eventos de maquiagem.', equipe: true },
@@ -97,7 +97,7 @@ type TipoAcesso = 'diretora' | 'gerente' | 'supervisora' | 'equipe';
 const TIPOS: { valor: TipoAcesso; texto: string; descricao: string }[] = [
   { valor: 'diretora', texto: 'Direção', descricao: PERFIS[0].descricao },
   { valor: 'gerente', texto: 'Gerente geral', descricao: PERFIS[1].descricao },
-  { valor: 'supervisora', texto: 'Supervisora', descricao: PERFIS[2].descricao },
+  { valor: 'supervisora', texto: 'Assistente', descricao: PERFIS[2].descricao },
   { valor: 'equipe', texto: 'Equipe', descricao: 'Vê só os próprios eventos.' },
 ];
 
@@ -572,9 +572,11 @@ export function Usuarios() {
                   <div className="profissional-identidade">
                     <span className="profissional-avatar"><Icone nome="usuario" tamanho={19} /></span>
                     <div>
-                      <strong>{u.nome}</strong>
+                      <div className="profissional-nome-linha">
+                        <strong>{u.nome}</strong>
+                        {u.id === usuario.id && <span className="usuario-proprio">Você</span>}
+                      </div>
                       <span className={`selo ${u.ativo ? 'confirmado' : 'realizado'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span>
-                      {u.id === usuario.id && <span className="selo marca" style={{ marginLeft: 6 }}>você</span>}
                     </div>
                   </div>
                   {abrir && <Icone nome="lapis" tamanho={16} />}

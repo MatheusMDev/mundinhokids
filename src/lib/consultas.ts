@@ -6,9 +6,9 @@ import type {
 } from './tipos';
 import { chaveDia, diaCurto, hora, somarDias } from './formato';
 
-export type PerfilTela = 'gerente' | 'supervisora';
+export type PerfilTela = 'gerente' | 'assistente' | 'equipe';
 
-export const veValores = (perfil: PerfilTela) => perfil === 'gerente';
+export const veValores = (perfil: PerfilTela) => perfil === 'gerente' || perfil === 'assistente';
 
 export const ROTULO_FUNCAO: Record<FuncaoEscala, string> = {
   artista: 'Artista',
@@ -79,6 +79,20 @@ export function equipeDoEvento(db: BaseDados, eventoId: string): MembroEquipe[] 
         (s) => s.escala_id === escala.id && (s.situacao === 'aguardando_aceite' || s.situacao === 'aguardando_aprovacao'),
       ),
     }));
+}
+
+/** Um evento futuro ou cancelado não conta; só uma escala ativa em evento realizado conta. */
+export function ehPrimeiroEventoDoArtista(db: BaseDados, eventoId: string, profissionalId: string): boolean {
+  const evento = eventoPorId(db, eventoId);
+  if (!evento || evento.situacao === 'cancelado') return false;
+  const estaNaEscala = db.evento_escala.some((escala) => escala.ativo
+    && escala.evento_id === eventoId && escala.funcao === 'artista' && escala.profissional_id === profissionalId);
+  if (!estaNaEscala) return false;
+  return !db.evento_escala.some((escala) => {
+    if (!escala.ativo || escala.funcao !== 'artista' || escala.profissional_id !== profissionalId || escala.evento_id === eventoId) return false;
+    const anterior = eventoPorId(db, escala.evento_id);
+    return !!anterior && anterior.situacao === 'realizado' && new Date(anterior.inicio) < new Date(evento.inicio);
+  });
 }
 
 /** "Maquia os 2 artistas · 14h" */

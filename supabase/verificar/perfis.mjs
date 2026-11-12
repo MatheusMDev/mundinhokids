@@ -16,6 +16,8 @@ const MIGRACOES = [
   'migrations/20261104000001_funcoes_do_login.sql',
   'migrations/20261104000002_telas_do_usuario.sql',
   'migrations/20261110000003_despesas_so_producao.sql',
+  'migrations/20261112000002_assistente_valores.sql',
+  'migrations/20261112000003_adicionais_produtores.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -28,8 +30,15 @@ const PREPARO = `
   create table auth.users (id uuid primary key, email text);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
-  grant usage on schema public, auth to anon, authenticated;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql immutable as
+    $$ select string_to_array(name, '/') $$;
+  grant usage on schema public, auth, storage to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
+  grant execute on function storage.foldername(text) to anon, authenticated;
   alter default privileges in schema public grant all on tables    to anon, authenticated;
   alter default privileges in schema public grant all on sequences to anon, authenticated;
   alter default privileges in schema public grant all on functions to anon, authenticated;
@@ -101,11 +110,16 @@ await teste('gerente vê os 14 eventos e os 5 valores contratados', async () => 
   if (eventos !== 14 || valores !== 5) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
 });
 
-await teste('supervisora vê os eventos, mas nenhum valor', async () => {
+await teste('Assistente vê eventos e valores, mas não pode gravar financeiro', async () => {
   const eventos = await como(LOGIN.supervisora, (tx) => qtd(tx, 'select count(*) as n from eventos'));
   const valores = await como(LOGIN.supervisora, (tx) =>
     qtd(tx, 'select (select count(*) from evento_financeiro) + (select count(*) from pagamentos_profissionais) as n'));
-  if (eventos !== 14 || valores !== 0) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
+  if (eventos !== 14 || valores !== 15) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
+  const alteradas = await como(LOGIN.supervisora, async (tx) => (await tx.query(`update evento_financeiro
+    set valor_contratado = valor_contratado
+    where evento_id = (select id from eventos order by inicio limit 1)
+    returning evento_id`)).rows.length);
+  if (alteradas !== 0) throw new Error(`Assistente alterou ${alteradas} valor(es)`);
 });
 
 await teste('gerente aprova a troca do seed e o Rafael entra na escala', async () => {

@@ -14,7 +14,7 @@ create temp table logins (email text, nome text, perfil perfil_acesso, profissio
 
 insert into logins values
   ('gerente@teste.com',     'Gerente geral', 'gerente',     null),
-  ('supervisora@teste.com', 'Supervisora',   'supervisora', null),
+  ('supervisora@teste.com', 'Assistente',     'supervisora', null),
   ('bruno@teste.com',       'Bruno Alves',   'produtor',    'Bruno Alves'),
   ('julia@teste.com',       'Júlia Martins', 'artista',     'Júlia Martins'),
   ('paula@teste.com',       'Paula Nunes',   'fantasias',   'Paula Nunes');
