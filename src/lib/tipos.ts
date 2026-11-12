@@ -3,7 +3,7 @@
 // exemplo pelas consultas do Supabase sem mudar as telas.
 
 export type PerfilAcesso =
-  | 'diretora' | 'gerente' | 'supervisora' | 'produtor' | 'artista' | 'maquiador' | 'fantasias';
+  | 'diretora' | 'gerente' | 'assistente' | 'produtor' | 'artista' | 'maquiador' | 'fantasias';
 export type FuncaoProfissional = 'artista' | 'produtor' | 'maquiador' | 'fantasias';
 export type FuncaoEscala = 'artista' | 'produtor' | 'maquiador';
 export type SituacaoEvento = 'agendado' | 'confirmado' | 'realizado' | 'cancelado';

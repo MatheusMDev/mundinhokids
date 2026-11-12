@@ -21,11 +21,11 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const PERFIS = ['diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'] as const;
+const PERFIS = ['diretora', 'gerente', 'assistente', 'produtor', 'artista', 'maquiador', 'fantasias'] as const;
 type Perfil = (typeof PERFIS)[number];
 const PERFIS_EQUIPE: Perfil[] = ['produtor', 'artista', 'maquiador', 'fantasias'];
 const PERFIS_GESTAO: Perfil[] = ['diretora', 'gerente'];
-const PERFIS_OPERACAO: Perfil[] = ['diretora', 'gerente', 'supervisora'];
+const PERFIS_OPERACAO: Perfil[] = ['diretora', 'gerente', 'assistente'];
 
 const TELAS = ['painel', 'eventos', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes'];
 
@@ -42,7 +42,7 @@ function validarTelas(valor: unknown, perfil: Perfil): string[] | null | undefin
   if (!telas.length) throw new Recusa('Marque pelo menos uma tela.');
   if (telas.includes('financeiro') && !PERFIS_GESTAO.includes(perfil)) throw new Recusa('Financeiro só pode ser liberado para Direção e Gerente.');
   if (telas.some((t) => t === 'usuarios' || t === 'configuracoes') && !PERFIS_OPERACAO.includes(perfil)) {
-    throw new Recusa('Usuários e Configurações só podem ser liberados para Direção, Gerente e Supervisora.');
+    throw new Recusa('Usuários e Configurações só podem ser liberados para Direção, Gerente e Assistente.');
   }
   if (PERFIS_GESTAO.includes(perfil) && !telas.includes('usuarios')) throw new Recusa('Direção e Gerente precisam da tela de Usuários.');
   return telas;

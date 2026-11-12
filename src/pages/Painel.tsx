@@ -52,7 +52,7 @@ export function Painel() {
   return <MinhaAgenda />;
 }
 
-/** Painel da gestão (Direção, Gerente e Supervisora). A equipe abre a Minha agenda. */
+/** Painel da gestão (Direção, Gerente e Assistente). A equipe abre a Minha agenda. */
 function PainelOperacao() {
   const { db, hoje, perfil, permissoes, usuario } = useEstado();
   const [novoEvento, setNovoEvento] = useState(false);

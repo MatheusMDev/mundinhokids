@@ -16,7 +16,7 @@ import { SkeletonFinanceiro } from '../components/SkeletonFinanceiro';
 interface Estado {
   db: BaseDados;
   hoje: string;
-  /** Perfil usado pelas telas: com valores (gerente) ou sem valores (supervisora) */
+  /** Perfil usado pelas telas: com valores (gerente) ou sem valores (assistente) */
   perfil: PerfilTela;
   usuario: { id: string; nome: string; perfil: PerfilAcesso; profissionalId: string | null; abasMobile: string[] | null };
   decidirTroca: (substituicaoId: string, aprova: boolean) => void;
@@ -40,7 +40,7 @@ interface Estado {
 }
 
 export interface Permissoes {
-  /** Diretora, gerente e supervisora: cadastros e eventos */
+  /** Diretora, gerente e assistente: cadastros e eventos */
   operacao: boolean;
   /** Diretora e gerente: valores e aprovação de trocas */
   gestao: boolean;
@@ -55,13 +55,13 @@ const Contexto = createContext<Estado | null>(null);
 
 function calcularPermissoes(perfil: PerfilAcesso, papeis: ReadonlySet<PerfilAcesso>, config: Record<string, string>): Permissoes {
   const gestao = perfil === 'diretora' || perfil === 'gerente';
-  const supervisora = perfil === 'supervisora';
+  const assistente = perfil === 'assistente';
   return {
-    operacao: gestao || supervisora,
+    operacao: gestao || assistente,
     gestao,
-    alterarEquipe: gestao || (supervisora && config.supervisora_pode_alterar_equipe === 'true'),
-    cancelarEvento: gestao || (supervisora && config.supervisora_pode_cancelar === 'true'),
-    conferirFantasias: gestao || supervisora || papeis.has('fantasias'),
+    alterarEquipe: gestao || (assistente && config.assistente_pode_alterar_equipe === 'true'),
+    cancelarEvento: gestao || (assistente && config.assistente_pode_cancelar === 'true'),
+    conferirFantasias: gestao || assistente || papeis.has('fantasias'),
   };
 }
 
@@ -74,7 +74,7 @@ export const TODAS: Tela[] = [
 ];
 
 const GESTAO: PerfilAcesso[] = ['diretora', 'gerente'];
-const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora'];
+const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'assistente'];
 
 /**
  * Telas que podem ser liberadas para o perfil (as mesmas travas da função do
@@ -82,7 +82,7 @@ const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora'];
  */
 /**
  * Qual painel a tela inicial ("/") mostra:
- * - operacao: Direção, Gerente e Supervisora (calendário completo, pendências e números);
+ * - operacao: Direção, Gerente e Assistente (calendário completo, pendências e números);
  * - fantasias: quem só cuida das fantasias (calendário das festas com fantasias e conferências);
  * - agenda: artista, produção e maquiagem (Minha agenda: calendário, compromissos e valores).
  * Quem cuida das fantasias e também trabalha nas festas fica com a Minha agenda.
@@ -95,7 +95,7 @@ export function tipoDoPainel(permissoes: Pick<Permissoes, 'operacao'>, papeis: R
 }
 
 /**
- * "Produção ou acima" num evento: Direção, Gerente e Supervisora, ou quem tem a
+ * "Produção ou acima" num evento: Direção, Gerente e Assistente, ou quem tem a
  * função Produção (perfil ou cadastro) e está escalado nele, em qualquer função.
  * Usado no formulário de feedback e na reserva do veículo (mesma regra do banco).
  */
@@ -108,7 +108,7 @@ export function producaoDoEvento(
   return db.evento_escala.some((s) => s.evento_id === eventoId && s.ativo && s.profissional_id === profissionalId);
 }
 
-const ORDEM_PAPEIS: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'];
+const ORDEM_PAPEIS: PerfilAcesso[] = ['diretora', 'gerente', 'assistente', 'produtor', 'artista', 'maquiador', 'fantasias'];
 
 /** "Artista · Produção": o perfil do login primeiro, depois as outras funções do cadastro */
 export function nomeDosPapeis(perfil: PerfilAcesso, papeis: ReadonlySet<PerfilAcesso>): string {
@@ -136,7 +136,7 @@ export const telasPadrao = (perfil: PerfilAcesso, funcoes: readonly string[]) =>
 const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
   diretora: TODAS,
   gerente: TODAS,
-  supervisora: TODAS.filter((t) => t !== 'financeiro'),
+  assistente: TODAS.filter((t) => t !== 'financeiro'),
   produtor: ['painel', 'eventos', 'notificacoes', 'veiculos'],
   artista: ['painel', 'eventos', 'notificacoes'],
   maquiador: ['painel', 'eventos', 'notificacoes'],
@@ -144,13 +144,13 @@ const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
 };
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {
-  diretora: 'Direção', gerente: 'Gerente geral', supervisora: 'Supervisora', produtor: 'Produção',
+  diretora: 'Direção', gerente: 'Gerente geral', assistente: 'Assistente', produtor: 'Produção',
   artista: 'Artista', maquiador: 'Maquiagem', fantasias: 'Fantasias',
 };
 
 /** Diretora e gerente veem valores; os demais perfis usam a tela sem valores */
 const perfilDaTela = (perfil: PerfilAcesso): PerfilTela =>
-  perfil === 'diretora' || perfil === 'gerente' ? 'gerente' : 'supervisora';
+  perfil === 'diretora' || perfil === 'gerente' ? 'gerente' : 'assistente';
 
 function useAviso() {
   const [aviso, setAviso] = useState<string | null>(null);

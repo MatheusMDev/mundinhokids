@@ -23,6 +23,7 @@ const MIGRACOES = [
   'migrations/20261111000002_abas_mobile_todos_menus.sql',
   'migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql',
   'migrations/20261111000004_disponibilidade_semanal.sql',
+  'migrations/20261112000001_renomear_supervisora_para_assistente.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -44,7 +45,7 @@ const PREPARO = `
 
 const ID = {
   diretora: '00000000-0000-0000-0000-000000000001',
-  supervisora: '00000000-0000-0000-0000-000000000003',
+  assistente: '00000000-0000-0000-0000-000000000003',
   ana: '00000000-0000-0000-0000-000000000011',
   bia: '00000000-0000-0000-0000-000000000012',
   bruno: '00000000-0000-0000-0000-000000000013',
@@ -52,10 +53,10 @@ const ID = {
 
 // Antes dos ajustes: cadastros com observações, para testar a migração delas
 const DADOS_ANTES = `
-  insert into auth.users (id) values ('${ID.diretora}'), ('${ID.supervisora}'), ('${ID.ana}'), ('${ID.bia}'), ('${ID.bruno}');
+  insert into auth.users (id) values ('${ID.diretora}'), ('${ID.assistente}'), ('${ID.ana}'), ('${ID.bia}'), ('${ID.bruno}');
   insert into usuarios (id, nome, email, perfil) values
     ('${ID.diretora}',    'Diretora',    'd@x', 'diretora'),
-    ('${ID.supervisora}', 'Supervisora', 's@x', 'supervisora'),
+    ('${ID.assistente}', 'Assistente', 's@x', 'supervisora'),
     ('${ID.ana}',         'Ana',         'a@x', 'artista'),
     ('${ID.bia}',         'Bia',         'b@x', 'artista'),
     ('${ID.bruno}',       'Bruno',       'p@x', 'produtor');
@@ -211,8 +212,8 @@ await teste('equipe não lê observações internas', async () => {
   if (nAna !== 0 || nCli !== 0) throw new Error(`produtor leu ${nAna} + ${nCli} observações`);
 });
 
-await teste('supervisora lê as observações migradas', async () => {
-  const n = await como(ID.supervisora, (tx) =>
+await teste('assistente lê as observações migradas', async () => {
+  const n = await como(ID.assistente, (tx) =>
     qtd(tx, 'select (select count(*) from profissionais_notas) + (select count(*) from contratantes_notas) as n'));
   if (n !== 2) throw new Error(`esperado 2, veio ${n}`);
 });
@@ -254,9 +255,9 @@ await teste('artista indicado vê o pedido de troca sem ver o evento', async () 
     }
     const eventos = await qtd(tx, 'select count(*) as n from eventos');
     if (eventos !== 0) throw new Error(`Bia não devia ler o evento antes da troca, leu ${eventos}`);
-    await tx.exec(`set local app.uid = '${ID.supervisora}'`);
-    const daSupervisora = (await tx.query('select * from trocas_para_mim()')).rows.length;
-    if (daSupervisora !== 0) throw new Error('supervisora não é substituta de nada');
+    await tx.exec(`set local app.uid = '${ID.assistente}'`);
+    const daAssistente = (await tx.query('select * from trocas_para_mim()')).rows.length;
+    if (daAssistente !== 0) throw new Error('assistente não é substituta de nada');
     await tx.rollback();
   }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
 });
@@ -279,7 +280,7 @@ await teste('troca de artista continua funcionando (Ana → Bia, aprovada)', asy
 
 await teste('remarcação continua funcionando', async () => {
   await db.transaction(async (tx) => {
-    await tx.exec(`set local role authenticated; set local app.uid = '${ID.supervisora}'`);
+    await tx.exec(`set local role authenticated; set local app.uid = '${ID.assistente}'`);
     await tx.exec(`select remarcar_evento('60000000-0000-0000-0000-000000000001', '2030-01-10 16:00-03', '2030-01-10 19:00-03', 'Pedido da mãe')`);
     const n = await qtd(tx, `select count(*) as n from evento_remarcacoes`);
     if (n !== 1) throw new Error('remarcação não registrada');
@@ -457,11 +458,11 @@ await teste('Gerência exclui profissional sem apagar cadastro de login', () => 
   if (await qtd(tx, `select count(*) as n from profissionais where id = '${PROF.bia}' and excluido_em is not null`) !== 1) throw new Error('Gerência não conseguiu excluir');
 }));
 
-await teste('Supervisora não exclui profissional por RPC', () =>
-  como(ID.supervisora, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'Só a direção')));
+await teste('Assistente não exclui profissional por RPC', () =>
+  como(ID.assistente, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'Só a direção')));
 
-await teste('Supervisora não contorna a exclusão com update direto', () =>
-  como(ID.supervisora, (tx) => esperaErro(tx.exec(`update profissionais set excluido_em = now() where id = '${PROF.bia}'`), 'Só a direção')));
+await teste('Assistente não contorna a exclusão com update direto', () =>
+  como(ID.assistente, (tx) => esperaErro(tx.exec(`update profissionais set excluido_em = now() where id = '${PROF.bia}'`), 'Só a direção')));
 
 await teste('Artista não exclui profissional por RPC', () =>
   como(ID.ana, (tx) => esperaErro(tx.exec(`select excluir_profissional('${PROF.bia}')`), 'Só a direção')));
@@ -534,7 +535,7 @@ if (temRegularizacao) await teste('regularização não altera nenhum cadastro s
 
 const LOGIN = {
   gerente: '90000000-0000-0000-0000-000000000001',
-  supervisora: '90000000-0000-0000-0000-000000000002',
+  assistente: '90000000-0000-0000-0000-000000000002',
 };
 
 db = new PGlite({ extensions: { btree_gist } });
@@ -546,7 +547,7 @@ await teste('seed.sql carrega passando por todas as travas', () => db.exec(readF
 
 await teste('vincular_usuarios.sql liga os logins criados no Auth', async () => {
   await db.exec(`insert into auth.users (id, email) values
-    ('${LOGIN.gerente}', 'gerente@teste.com'), ('${LOGIN.supervisora}', 'supervisora@teste.com')`);
+    ('${LOGIN.gerente}', 'gerente@teste.com'), ('${LOGIN.assistente}', 'assistente@teste.com')`);
   await db.exec(readFileSync(pasta('vincular_usuarios.sql'), 'utf8'));
   const n = await qtd(db, 'select count(*) as n from usuarios');
   if (n !== 2) throw new Error(`esperado 2 usuários, veio ${n}`);
@@ -558,9 +559,9 @@ await teste('gerente vê os 14 eventos e os 5 valores contratados', async () => 
   if (eventos !== 14 || valores !== 5) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
 });
 
-await teste('supervisora vê os eventos, mas nenhum valor', async () => {
-  const eventos = await como(LOGIN.supervisora, (tx) => qtd(tx, 'select count(*) as n from eventos'));
-  const valores = await como(LOGIN.supervisora, (tx) =>
+await teste('assistente vê os eventos, mas nenhum valor', async () => {
+  const eventos = await como(LOGIN.assistente, (tx) => qtd(tx, 'select count(*) as n from eventos'));
+  const valores = await como(LOGIN.assistente, (tx) =>
     qtd(tx, 'select (select count(*) from evento_financeiro) + (select count(*) from pagamentos_profissionais) as n'));
   if (eventos !== 14 || valores !== 0) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
 });

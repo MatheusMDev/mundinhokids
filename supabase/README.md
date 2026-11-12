@@ -59,7 +59,7 @@ nunca fica sem ninguém da gestão ativo; acesso desativado não consegue mais e
 3. Rode `npm run dev` e entre com um dos logins.
 
 Com o login da gerente aparecem os valores e o botão de aprovar troca. Com o da
-supervisora, os valores ficam ocultos, porque o banco não os envia.
+assistente, os valores ficam ocultos, porque o banco não os envia.
 
 > A chave **anon** pode ficar no navegador: quem protege os dados são as permissões
 > do banco. A chave **service_role** nunca vai para o `.env.local` nem para o repositório.

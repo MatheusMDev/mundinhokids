@@ -6,7 +6,7 @@
 -- (ou hoje, se hoje for sábado). Assim a base sempre tem eventos na
 -- semana, pendências e uma troca para aprovar, como nos mocks.
 --
--- Os logins (gerente e supervisora) não são criados aqui: crie os
+-- Os logins (gerente e assistente) não são criados aqui: crie os
 -- usuários em Authentication > Users e rode supabase/vincular_usuarios.sql.
 -- =====================================================================
 

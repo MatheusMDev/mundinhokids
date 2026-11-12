@@ -10,7 +10,7 @@
 --
 -- Cria 14 logins já confirmados (e-mails fictícios @demo.com; nenhum e-mail é
 -- enviado ao criar):
---   Direção, Gerente, Supervisora (sem cadastro de profissional)
+--   Direção, Gerente, Assistente (sem cadastro de profissional)
 --   5 artistas, 3 produtores, 2 maquiadores e 1 responsável pelas fantasias,
 --   cada um ligado ao seu cadastro em Profissionais.
 -- Pode rodar de novo: quem já existe só é atualizado.
@@ -33,7 +33,7 @@ create temp table logins (id uuid, email text, nome text, perfil perfil_acesso, 
 insert into logins values
   ('91000000-0000-0000-0000-000000000001', 'direcao@demo.com',    'Fernanda Lopes', 'diretora',    null),
   ('91000000-0000-0000-0000-000000000002', 'gerente@demo.com',    'Patrícia Gomes', 'gerente',     null),
-  ('91000000-0000-0000-0000-000000000003', 'supervisora@demo.com','Camila Ramos',   'supervisora', null),
+  ('91000000-0000-0000-0000-000000000003', 'assistente@demo.com','Camila Ramos',   'assistente', null),
   ('91000000-0000-0000-0000-000000000011', 'julia@demo.com',      'Júlia Martins',  'artista',     'a1000000-0000-0000-0000-000000000001'),
   ('91000000-0000-0000-0000-000000000012', 'lucas@demo.com',      'Lucas Pereira',  'artista',     'a1000000-0000-0000-0000-000000000002'),
   ('91000000-0000-0000-0000-000000000013', 'rafael@demo.com',     'Rafael Lima',    'artista',     'a1000000-0000-0000-0000-000000000003'),

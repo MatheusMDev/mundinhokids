@@ -6,7 +6,7 @@
 -- 2. Rode este script no SQL Editor. Pode rodar de novo sempre que criar
 --    outro login: quem já está ligado só é atualizado.
 --
--- Perfis: diretora, gerente, supervisora, produtor, artista, maquiador, fantasias
+-- Perfis: diretora, gerente, assistente, produtor, artista, maquiador, fantasias
 -- =====================================================================
 
 -- Login → perfil. Quem é da equipe também diz qual profissional do cadastro é.
@@ -14,7 +14,7 @@ create temp table logins (email text, nome text, perfil perfil_acesso, profissio
 
 insert into logins values
   ('gerente@teste.com',     'Gerente geral', 'gerente',     null),
-  ('supervisora@teste.com', 'Supervisora',   'supervisora', null),
+  ('assistente@teste.com', 'Assistente',   'assistente', null),
   ('bruno@teste.com',       'Bruno Alves',   'produtor',    'Bruno Alves'),
   ('julia@teste.com',       'Júlia Martins', 'artista',     'Júlia Martins'),
   ('paula@teste.com',       'Paula Nunes',   'fantasias',   'Paula Nunes');

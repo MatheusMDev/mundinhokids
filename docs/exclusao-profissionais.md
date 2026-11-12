@@ -8,7 +8,7 @@ A exclusão é lógica: `excluido_em` registra quando ocorreu, o profissional fi
 
 ## Permissões
 
-A RPC `excluir_profissional` verifica a sessão e exige perfil ativo de Gerência ou Direção. Anônimos, artistas, supervisão e gerentes desativados são recusados. O trigger também recusa tentativas de marcar a exclusão por update direto de outro perfil. Somente Direção pode excluir um profissional ainda vinculado a um acesso de Direção.
+A RPC `excluir_profissional` verifica a sessão e exige perfil ativo de Gerência ou Direção. Anônimos, artistas, assistentes e gerentes desativados são recusados. O trigger também recusa tentativas de marcar a exclusão por update direto de outro perfil. Somente Direção pode excluir um profissional ainda vinculado a um acesso de Direção.
 
 ## Ativação no projeto existente
 

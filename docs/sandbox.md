@@ -58,7 +58,7 @@ Faça no painel do **sandbox** (confira o nome do projeto no topo antes de cada 
 4. **Auth**: Site URL e redirects apontando para a URL do site de staging (quando existir);
    SMTP (Brevo) e os modelos de `supabase/emails/`, como em `supabase/README.md`.
 5. **Logins de demonstração: feito (2026-11-11)** com `supabase/sandbox/logins.sql`.
-   14 logins @demo.com, todos com a senha `senha123`: direcao, gerente, supervisora;
+   14 logins @demo.com, todos com a senha `senha123`: direcao, gerente, assistente;
    artistas julia, lucas, rafael, ana, bia; produtores bruno, diego, marina;
    maquiadores carla, renan; fantasias paula. Cada profissional ligado ao seu login.
 6. **Dados fictícios: feito (2026-11-11)** com `supabase/sandbox/dados.sql` (rodar antes dos

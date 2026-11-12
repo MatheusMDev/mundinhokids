@@ -1,5 +1,5 @@
 // Carrega a base do Supabase no mesmo formato dos dados de exemplo.
-// Cada tabela já vem filtrada pelas permissões do banco (RLS): a supervisora
+// Cada tabela já vem filtrada pelas permissões do banco (RLS): a assistente
 // recebe o financeiro vazio, o artista só os próprios eventos, e assim por diante.
 
 import type { SupabaseClient } from '@supabase/supabase-js';

@@ -6,7 +6,7 @@ import type {
 } from './tipos';
 import { chaveDia, diaCurto, hora, somarDias } from './formato';
 
-export type PerfilTela = 'gerente' | 'supervisora';
+export type PerfilTela = 'gerente' | 'assistente';
 
 export const veValores = (perfil: PerfilTela) => perfil === 'gerente';
 

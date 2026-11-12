@@ -54,7 +54,7 @@ const fixture = function () {
   const end = new Date(start); end.setHours(18);
   const db = {
     usuarios: [user], configuracoes: [], historico: [],
-    profissionais: [{ id: 'p1', usuario_id: uid, nome: 'Profissional de teste', telefone: '11999990000', email: 'mobile@example.test', funcoes: profile === 'gerente' || profile === 'diretora' || profile === 'supervisora' ? ['artista'] : [profile], disponibilidade: 'Todos os dias', ativo: true }],
+    profissionais: [{ id: 'p1', usuario_id: uid, nome: 'Profissional de teste', telefone: '11999990000', email: 'mobile@example.test', funcoes: profile === 'gerente' || profile === 'diretora' || profile === 'assistente' ? ['artista'] : [profile], disponibilidade: 'Todos os dias', ativo: true }],
     personagens: [{ id: 'pe1', nome: 'Princesa de teste', descricao: 'Personagem para validação mobile', referencias: null, orientacoes: 'Orientação de teste', ativo: true }],
     profissional_personagens: [{ profissional_id: 'p1', personagem_id: 'pe1' }],
     fantasias: [{ id: 'f1', personagem_id: 'pe1', identificacao: 'Fantasia de teste', tamanho: 'M', quantidade: 1, situacao: 'disponivel', previsao_disponivel: null, observacoes: null }],
