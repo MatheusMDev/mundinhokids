@@ -32,6 +32,7 @@ const pessoa = (id, nome, ativo, usuario_id) => ({ id, nome, ativo, usuario_id, 
 const dados = {
   usuarios: [{ id: 'gestao', nome: 'Gestão', perfil: 'gerente', ativo: true, email: 'gestao@example.test' }, { id: 'login-inativo', nome: 'Login inativo', ativo: false, perfil: 'artista' }],
   profissionais: [pessoa('ativo', 'Pessoa elegível', true, 'gestao'), pessoa('sem-login', 'Sem login legítimo', true, null), pessoa('inativo', 'Profissional desativado', false, null), pessoa('excluido', 'Profissional do login excluído', false, null), pessoa('bloqueado', 'Profissional com login inativo', true, 'login-inativo')],
+  disponibilidade_semanal: [],
   profissionais_disponiveis: ['ativo', 'sem-login'],
   eventos: [evento], personagens: [], profissional_personagens: [], fantasias: [], veiculos: [], reservas_veiculo: [],
   contratantes: [{ id: 'c', nome: 'Contratante' }], locais: [{ id: 'l', nome: 'Local', tipo: 'buffet', ativo: true }],
@@ -104,7 +105,9 @@ async function executar() {
   teste('filtro explícito permite consulta administrativa a inativos', () => {
     const html = render(Profissionais, {}, '/profissionais?status=inativo');
     for (const nome of indisponiveis) assert(html.includes(nome));
-    assert(!html.includes('Pessoa elegível'));
+    const inicioLista = html.indexOf('<div class="profissionais-grade">');
+    assert.notEqual(inicioLista, -1, 'lista de profissionais deve estar renderizada');
+    assert(!html.slice(inicioLista).includes('Pessoa elegível'));
   });
   teste('base histórica preserva quem já foi escalado', () => assert.equal(equipeDoEvento(dados, evento.id)[0].profissional.nome, 'Profissional do login excluído'));
   teste('pagamento histórico continua identificando o profissional excluído', () => assert(render(FormPagamentos, { evento, onFechar() {} }).includes('Profissional do login excluído')));
