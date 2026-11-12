@@ -285,6 +285,7 @@ export interface BaseDados {
   configuracoes: Record<string, string>;
   usuarios: Usuario[];
   profissionais: Profissional[];
+  disponibilidade_semanal: DisponibilidadeSemanalDia[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];
   documentos_artistas: DocumentoArtista[];

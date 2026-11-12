@@ -117,12 +117,12 @@ function useDadosEquipe(inicial?: { funcoes: string[]; telefone: string | null; 
   const [funcoes, setFuncoes] = useState<string[]>(inicial?.funcoes ?? ['artista']);
   const [telefone, setTelefone] = useState(mascaraTelefone(inicial?.telefone ?? ''));
   const [personagens, setPersonagens] = useState<string[]>(inicial?.personagens ?? []);
-  const [disponibilidade, setDisponibilidade] = useState(inicial?.disponibilidade ?? '');
+  const disponibilidade = inicial?.disponibilidade ?? null;
   const dados: DadosEquipe = {
     funcoes: funcoes as FuncaoProfissional[], telefone: telefone.trim() || null,
-    personagens: funcoes.includes('artista') ? personagens : [], disponibilidade: disponibilidade.trim() || null,
+    personagens: funcoes.includes('artista') ? personagens : [], disponibilidade,
   };
-  return { funcoes, setFuncoes, telefone, setTelefone, personagens, setPersonagens, disponibilidade, setDisponibilidade, dados };
+  return { funcoes, setFuncoes, telefone, setTelefone, personagens, setPersonagens, dados };
 }
 
 function CamposEquipe({ d }: { d: ReturnType<typeof useDadosEquipe> }) {
@@ -144,9 +144,6 @@ function CamposEquipe({ d }: { d: ReturnType<typeof useDadosEquipe> }) {
       <Linha>
         <Campo rotulo="Telefone">
           {(id) => <input id={id} type="tel" inputMode="numeric" value={d.telefone} onChange={(e) => d.setTelefone(mascaraTelefone(e.target.value))} placeholder="(11) 90000-0000" />}
-        </Campo>
-        <Campo rotulo="Disponibilidade" dica="Ex.: só fins de semana.">
-          {(id) => <input id={id} value={d.disponibilidade} onChange={(e) => d.setDisponibilidade(e.target.value)} />}
         </Campo>
       </Linha>
     </>

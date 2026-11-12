@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Campo, Dialogo, Linha, Marcador } from './Formulario';
 import { FormContratante } from './FormulariosCadastro';
 import { useEstado } from '../lib/estado';
+import { disponibilidadeNoEvento } from './DisponibilidadeSemanal';
 import { cancelarEvento, escalar, remarcarEvento, salvarEvento, tirarDaEscala, vazioParaNulo } from '../lib/acoes';
 import { deCampos, diaCurto, hora, paraCampos } from '../lib/formato';
 import { profissionalDisponivel, ROTULO_FUNCAO } from '../lib/consultas';
@@ -253,14 +254,17 @@ export function FormEscala({ evento, onFechar }: { evento: Evento; onFechar: () 
       )}
       <Campo
         rotulo={funcao === 'artista' ? 'Artista' : funcao === 'produtor' ? 'Quem produz' : 'Quem maquia'} obrigatorio
-        dica={funcao === 'artista' && personagem && !profissionais.length ? 'Nenhum artista ativo está cadastrado para este personagem.' : undefined}
+        dica={profissional
+          ? `Disponibilidade informada: ${disponibilidadeNoEvento(db, profissional, evento.inicio, evento.fim).toLowerCase()}.`
+          : funcao === 'artista' && personagem && !profissionais.length ? 'Nenhum artista ativo está cadastrado para este personagem.' : undefined}
       >
         {(id) => (
           <select id={id} value={profissional} onChange={(e) => setProfissional(e.target.value)} disabled={funcao === 'artista' && !personagem}>
             <option value="">Escolha…</option>
             {profissionais.map((p) => {
               const motivo = ocupacao.profissional(p.id);
-              return <option key={p.id} value={p.id} disabled={!!motivo}>{p.nome}{motivo ? ` (${motivo})` : ''}</option>;
+              const disponibilidade = disponibilidadeNoEvento(db, p.id, evento.inicio, evento.fim);
+              return <option key={p.id} value={p.id} disabled={!!motivo}>{p.nome}{motivo ? ` (${motivo})` : ` (${disponibilidade})`}</option>;
             })}
           </select>
         )}

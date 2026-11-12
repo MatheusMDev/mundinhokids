@@ -7,6 +7,7 @@ import { mesAno } from '../lib/formato';
 
 interface PropsDialogo {
   titulo: string;
+  className?: string;
   onFechar: () => void;
   /** Chamado no envio; devolve true se salvou (aí a janela fecha) ou a mensagem de erro */
   onSalvar: () => Promise<true | string>;
@@ -18,7 +19,7 @@ interface PropsDialogo {
   children: ReactNode;
 }
 
-export function Dialogo({ titulo, onFechar, onSalvar, textoSalvar = 'Salvar', perigo, validar, children }: PropsDialogo) {
+export function Dialogo({ titulo, className, onFechar, onSalvar, textoSalvar = 'Salvar', perigo, validar, children }: PropsDialogo) {
   const ref = useRef<HTMLDialogElement>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export function Dialogo({ titulo, onFechar, onSalvar, textoSalvar = 'Salvar', pe
 
   return (
     <dialog
-      ref={ref} className="dialogo" aria-labelledby={idTitulo}
+      ref={ref} className={`dialogo${className ? ` ${className}` : ''}`} aria-labelledby={idTitulo}
       onCancel={(e) => { e.preventDefault(); if (!salvando) onFechar(); }}
       onClick={(e) => { if (e.target === ref.current && !salvando) onFechar(); }}
     >

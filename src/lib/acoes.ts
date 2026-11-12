@@ -137,6 +137,17 @@ export async function escalar(c: Cliente, dados: DadosEscala) {
   ok(await c.from('evento_escala').insert(dados));
 }
 
+export async function salvarDisponibilidadeSemanal(
+  c: Cliente,
+  semanaInicio: string,
+  dias: Pick<DisponibilidadeSemanalDia, 'dia' | 'disponivel' | 'hora_inicio' | 'hora_fim' | 'observacoes'>[],
+) {
+  ok(await c.rpc('salvar_disponibilidade_semanal', {
+    p_semana_inicio: semanaInicio,
+    p_dias: dias,
+  }));
+}
+
 /** Ninguém sai da tabela: a vaga fica inativa e o histórico guarda quem estava */
 export async function tirarDaEscala(c: Cliente, escalaId: string) {
   const linhas = ok(await c.from('evento_escala').update({ ativo: false }).eq('id', escalaId).select('id')) as unknown[];
