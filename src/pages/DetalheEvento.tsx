@@ -12,7 +12,7 @@ import { adicionarOrientacaoEvento, marcarRealizado } from '../lib/acoes';
 import { dataLonga, diaCurto, hora, iniciais, quando } from '../lib/formato';
 import {
   avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
-  historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
+  ehPrimeiroEventoDoArtista, historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
   trocasPendentes, veValores, type MembroEquipe,
 } from '../lib/consultas';
 import type { Evento } from '../lib/tipos';
@@ -60,6 +60,10 @@ export function DetalheEvento() {
   const local = localDe(db, evento);
   const contratante = contratanteDe(db, evento);
   const equipe = equipeDoEvento(db, evento.id);
+  const podeVerPrimeiroEvento = permissoes.operacao || papeis.has('produtor');
+  const eventoTemPrimeiroEvento = equipe.some((m) => m.escala.funcao === 'artista' && !!m.profissional
+    && ehPrimeiroEventoDoArtista(db, evento.id, m.profissional.id));
+  const mostrarPrimeiroEvento = podeVerPrimeiroEvento && eventoTemPrimeiroEvento;
   const trocas = trocasPendentes(db, evento.id);
   const avisos = avisosDoEvento(db, evento);
   const conferencia = conferenciaDoEvento(db, evento.id);
@@ -199,36 +203,46 @@ export function DetalheEvento() {
                 <table className="tabela so-desktop">
                   <thead><tr><th>Função</th><th>Personagem</th><th>Profissional</th><th>Situação</th>{podeTirar && <th><span className="sr-only">Ações</span></th>}</tr></thead>
                   <tbody>
-                    {equipe.map((m) => (
-                      <tr key={m.escala.id}>
-                        <td>{ROTULO_FUNCAO[m.escala.funcao]}</td>
-                        <td className="suave">{personagemDoMembro(db, evento, m)}</td>
-                        <td><strong>{m.profissional?.nome}</strong></td>
-                        <td>{situacaoMembro(m)}</td>
-                        {podeTirar && (
-                          <td className="tabela-acoes">
-                            <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>Tirar</button>
+                    {equipe.map((m) => {
+                      return (
+                        <tr key={m.escala.id}>
+                          <td>{ROTULO_FUNCAO[m.escala.funcao]}</td>
+                          <td className="suave">{personagemDoMembro(db, evento, m)}</td>
+                          <td>
+                            <span className="profissional-evento">
+                              <strong>{m.profissional?.nome}</strong>
+                              {mostrarPrimeiroEvento && <span className="primeiro-evento"><Icone nome="estrela" tamanho={11} /> Primeiro evento</span>}
+                            </span>
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td>{situacaoMembro(m)}</td>
+                          {podeTirar && (
+                            <td className="tabela-acoes">
+                              <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>Tirar</button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 <div className="equipe-lista">
-                  {equipe.map((m) => (
-                    <div key={m.escala.id}>
-                      <span className="avatar">{iniciais(m.profissional?.nome ?? '?')}</span>
-                      <span>
-                        <strong>{m.profissional?.nome}</strong>
-                        <small>{ROTULO_FUNCAO[m.escala.funcao]}{m.escala.funcao !== 'produtor' ? ` · ${personagemDoMembro(db, evento, m)}` : ''}</small>
-                      </span>
-                      {situacaoMembro(m)}
-                      {podeTirar && (
-                        <button type="button" className="botao pequeno" aria-label={`Tirar ${m.profissional?.nome ?? ''} da equipe`}
-                          onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>✕</button>
-                      )}
-                    </div>
-                  ))}
+                    {equipe.map((m) => {
+                      return (
+                        <div key={m.escala.id}>
+                          <span className="avatar">{iniciais(m.profissional?.nome ?? '?')}</span>
+                          <span>
+                            <strong>{m.profissional?.nome}</strong>
+                            <small>{ROTULO_FUNCAO[m.escala.funcao]}{m.escala.funcao !== 'produtor' ? ` · ${personagemDoMembro(db, evento, m)}` : ''}</small>
+                            {mostrarPrimeiroEvento && <span className="primeiro-evento"><Icone nome="estrela" tamanho={11} /> Primeiro evento</span>}
+                          </span>
+                          {situacaoMembro(m)}
+                          {podeTirar && (
+                            <button type="button" className="botao pequeno" aria-label={`Tirar ${m.profissional?.nome ?? ''} da equipe`}
+                              onClick={() => setJanela({ tipo: 'tirar', escalaId: m.escala.id, nome: m.profissional?.nome ?? 'Profissional' })}>✕</button>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
                 {minhaTroca && (
                   <div className="pedir-troca">

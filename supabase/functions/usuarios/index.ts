@@ -42,7 +42,7 @@ function validarTelas(valor: unknown, perfil: Perfil): string[] | null | undefin
   if (!telas.length) throw new Recusa('Marque pelo menos uma tela.');
   if (telas.includes('financeiro') && !PERFIS_GESTAO.includes(perfil)) throw new Recusa('Financeiro só pode ser liberado para Direção e Gerente.');
   if (telas.some((t) => t === 'usuarios' || t === 'configuracoes') && !PERFIS_OPERACAO.includes(perfil)) {
-    throw new Recusa('Usuários e Configurações só podem ser liberados para Direção, Gerente e Supervisora.');
+    throw new Recusa('Usuários e Configurações só podem ser liberados para Direção, Gerente e Assistente.');
   }
   if (PERFIS_GESTAO.includes(perfil) && !telas.includes('usuarios')) throw new Recusa('Direção e Gerente precisam da tela de Usuários.');
   return telas;

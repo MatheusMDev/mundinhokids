@@ -5,13 +5,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
 import { sairDesteAparelho } from './supabase';
 import type {
-  ConferenciaFantasia, Contratante, Despesa, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
-  Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
+  ConferenciaFantasia, Contratante, Despesa, DocumentoArtista, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
+  AdicionalProdutor, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
 } from './tipos';
 import type { Notificacao } from './tipos';
 
 type Cliente = SupabaseClient;
 type Resposta<T> = { data: T; error: unknown };
+
+export const DOCUMENTOS_ARTISTAS_BUCKET = 'documentos-artistas';
+export const MAX_DOCUMENTO_ARTISTA_BYTES = 10 * 1024 * 1024;
+export const TIPOS_DOCUMENTO_ARTISTA = ['Documento de identificação', 'Contrato', 'Comprovante', 'Outro'] as const;
 
 function ok<T>(r: Resposta<T>): T {
   if (r.error) throw r.error;
@@ -183,6 +187,61 @@ export async function decidirDespesa(c: Cliente, id: string, aprova: boolean) {
   await salvar(c, 'despesas', id, { aprovacao: aprova ? 'aprovada' : 'recusada' });
 }
 
+export const ADICIONAIS_PRODUTORES_BUCKET = 'adicionais-produtores';
+export const MAX_ADICIONAL_PRODUTOR_BYTES = 10 * 1024 * 1024;
+
+function validarFotoAdicional(arquivo: File) {
+  const tiposAceitos = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!tiposAceitos.includes(arquivo.type)) throw new Error('Envie uma foto JPG, PNG ou WEBP.');
+  if (arquivo.size > MAX_ADICIONAL_PRODUTOR_BYTES) throw new Error('A foto precisa ter no máximo 10 MB.');
+}
+
+function caminhoFotoAdicional(produtorId: string, arquivo: File) {
+  const nome = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'comprovante';
+  return `${produtorId}/${crypto.randomUUID()}-${nome}`;
+}
+
+export type DadosAdicionalProdutor = Pick<AdicionalProdutor, 'produtor_id' | 'valor' | 'data' | 'descricao'>;
+
+export async function salvarAdicionalProdutor(
+  c: Cliente, id: string | undefined, dados: DadosAdicionalProdutor, arquivo: File | null, fotoAnterior?: string,
+) {
+  if (!id && !arquivo) throw new Error('Escolha uma foto ou comprovante.');
+  const foto = arquivo ? (() => {
+    validarFotoAdicional(arquivo);
+    return { caminho: caminhoFotoAdicional(dados.produtor_id, arquivo), nome: arquivo.name, mime: arquivo.type, tamanho: arquivo.size };
+  })() : null;
+  if (foto && arquivo) {
+    ok(await c.storage.from(ADICIONAIS_PRODUTORES_BUCKET).upload(foto.caminho, arquivo, {
+      cacheControl: '3600', upsert: false, contentType: arquivo.type,
+    }));
+  }
+  try {
+    const payload = {
+      ...dados,
+      ...(foto ? { foto_path: foto.caminho, foto_nome: foto.nome, foto_mime: foto.mime, foto_tamanho: foto.tamanho } : {}),
+      atualizado_em: new Date().toISOString(),
+    };
+    const salvo = id
+      ? ok(await c.from('adicionais_produtores').update(payload).eq('id', id).select('id')) as unknown[]
+      : [ok(await c.from('adicionais_produtores').insert({ ...payload, foto_path: foto!.caminho, foto_nome: foto!.nome, foto_mime: foto!.mime, foto_tamanho: foto!.tamanho }).select('id').single())];
+    if (!salvo.length) throw new SemPermissao();
+    if (foto && fotoAnterior) await c.storage.from(ADICIONAIS_PRODUTORES_BUCKET).remove([fotoAnterior]);
+    return id ?? (salvo[0] as { id: string }).id;
+  } catch (erro) {
+    if (foto) await c.storage.from(ADICIONAIS_PRODUTORES_BUCKET).remove([foto.caminho]);
+    throw erro;
+  }
+}
+
+export async function cancelarAdicionalProdutor(c: Cliente, id: string) {
+  const linhas = ok(await c.from('adicionais_produtores').update({
+    cancelado_em: new Date().toISOString(), cancelado_por: (await c.auth.getUser()).data.user?.id ?? null,
+    atualizado_em: new Date().toISOString(),
+  }).eq('id', id).is('cancelado_em', null).select('id')) as unknown[];
+  if (!linhas.length) throw new SemPermissao();
+}
+
 // ---------------------------------------------------------------------
 // Conferência das fantasias depois do evento
 // ---------------------------------------------------------------------
@@ -248,6 +307,53 @@ export async function enviarFotoPerfil(c: Cliente, usuarioId: string, arquivo: F
 export async function removerFotoPerfil(c: Cliente, caminho: string) {
   ok(await c.rpc('atualizar_foto_minha_conta', { p_foto_path: null }));
   await c.storage.from('avatares').remove([caminho]);
+}
+
+function validarDocumentoArtista(arquivo: File) {
+  const tiposAceitos = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+  if (!tiposAceitos.includes(arquivo.type)) throw new Error('Envie um PDF, JPG, PNG ou WEBP.');
+  if (arquivo.size > MAX_DOCUMENTO_ARTISTA_BYTES) throw new Error('O documento precisa ter no máximo 10 MB.');
+}
+
+function caminhoDocumento(profissionalId: string, arquivo: File) {
+  const nome = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'documento';
+  return `${profissionalId}/${crypto.randomUUID()}-${nome}`;
+}
+
+export async function enviarDocumentoArtista(c: Cliente, profissionalId: string, tipo: string, arquivo: File) {
+  validarDocumentoArtista(arquivo);
+  const caminho = caminhoDocumento(profissionalId, arquivo);
+  ok(await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).upload(caminho, arquivo, {
+    cacheControl: '3600', upsert: false, contentType: arquivo.type,
+  }));
+  try {
+    const documento = ok(await c.from('documentos_artistas').insert({
+      profissional_id: profissionalId, tipo: tipo.trim(), nome: arquivo.name,
+      storage_path: caminho, mime_type: arquivo.type, tamanho_bytes: arquivo.size,
+    }).select('id').single()) as { id: string };
+    return documento.id;
+  } catch (erro) {
+    await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).remove([caminho]);
+    throw erro;
+  }
+}
+
+export async function removerDocumentoArtista(c: Cliente, documento: DocumentoArtista) {
+  ok(await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).remove([documento.storage_path]));
+  const linhas = ok(await c.from('documentos_artistas').delete().eq('id', documento.id).select('id')) as unknown[];
+  if (!linhas.length) throw new SemPermissao();
+}
+
+export async function substituirDocumentoArtista(c: Cliente, documento: DocumentoArtista, tipo: string, arquivo: File) {
+  const novoId = await enviarDocumentoArtista(c, documento.profissional_id, tipo, arquivo);
+  try {
+    await removerDocumentoArtista(c, documento);
+  } catch (erro) {
+    const novo = ok(await c.from('documentos_artistas').select('storage_path').eq('id', novoId).single()) as { storage_path: string };
+    await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).remove([novo.storage_path]);
+    await c.from('documentos_artistas').delete().eq('id', novoId);
+    throw erro;
+  }
 }
 
 // ---------------------------------------------------------------------

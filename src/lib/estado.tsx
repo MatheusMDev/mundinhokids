@@ -16,7 +16,7 @@ import { SkeletonFinanceiro } from '../components/SkeletonFinanceiro';
 interface Estado {
   db: BaseDados;
   hoje: string;
-  /** Perfil usado pelas telas: com valores (gerente) ou sem valores (supervisora) */
+  /** Perfil usado pelas telas: gerente, assistente com valores fora do Painel ou equipe */
   perfil: PerfilTela;
   usuario: { id: string; nome: string; perfil: PerfilAcesso; profissionalId: string | null; abasMobile: string[] | null };
   decidirTroca: (substituicaoId: string, aprova: boolean) => void;
@@ -40,9 +40,9 @@ interface Estado {
 }
 
 export interface Permissoes {
-  /** Diretora, gerente e supervisora: cadastros e eventos */
+  /** Diretora, gerente e assistente: cadastros e eventos */
   operacao: boolean;
-  /** Diretora e gerente: valores e aprovação de trocas */
+  /** Diretora e gerente: alterações financeiras e aprovação de trocas */
   gestao: boolean;
   /** Tirar alguém de uma equipe já escalada */
   alterarEquipe: boolean;
@@ -82,7 +82,7 @@ const OPERACAO: PerfilAcesso[] = ['diretora', 'gerente', 'supervisora'];
  */
 /**
  * Qual painel a tela inicial ("/") mostra:
- * - operacao: Direção, Gerente e Supervisora (calendário completo, pendências e números);
+ * - operacao: Direção, Gerente e Assistente (calendário completo, pendências e sem números financeiros);
  * - fantasias: quem só cuida das fantasias (calendário das festas com fantasias e conferências);
  * - agenda: artista, produção e maquiagem (Minha agenda: calendário, compromissos e valores).
  * Quem cuida das fantasias e também trabalha nas festas fica com a Minha agenda.
@@ -131,7 +131,7 @@ export const telasPadrao = (perfil: PerfilAcesso, funcoes: readonly string[]) =>
 
 /**
  * Telas de cada perfil. Os dados já vêm filtrados pelo banco (cada um só recebe
- * os próprios eventos, e valores só a gestão); aqui fica o que aparece no menu.
+ * os próprios eventos, e a Assistente consulta valores apenas nos detalhes); aqui fica o que aparece no menu.
  */
 const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
   diretora: TODAS,
@@ -144,13 +144,13 @@ const TELAS_DO_PERFIL: Record<PerfilAcesso, Tela[]> = {
 };
 
 export const NOME_PERFIL: Record<PerfilAcesso, string> = {
-  diretora: 'Direção', gerente: 'Gerente geral', supervisora: 'Supervisora', produtor: 'Produção',
+  diretora: 'Direção', gerente: 'Gerente geral', supervisora: 'Assistente', produtor: 'Produção',
   artista: 'Artista', maquiador: 'Maquiagem', fantasias: 'Fantasias',
 };
 
-/** Diretora e gerente veem valores; os demais perfis usam a tela sem valores */
+/** Diretora, gerente e Assistente veem valores fora do Painel. */
 const perfilDaTela = (perfil: PerfilAcesso): PerfilTela =>
-  perfil === 'diretora' || perfil === 'gerente' ? 'gerente' : 'supervisora';
+  perfil === 'diretora' || perfil === 'gerente' ? 'gerente' : perfil === 'supervisora' ? 'assistente' : 'equipe';
 
 function useAviso() {
   const [aviso, setAviso] = useState<string | null>(null);

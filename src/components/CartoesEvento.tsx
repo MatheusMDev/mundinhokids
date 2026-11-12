@@ -133,7 +133,7 @@ export function CartaoTransporte({ evento }: { evento: Evento }) {
 // ---------------------------------------------------------------------
 
 export function CartaoFinanceiro({ evento }: { evento: Evento }) {
-  const { db } = useEstado();
+  const { db, permissoes } = useEstado();
   const [janela, setJanela] = useState<{ tipo: 'recebimento'; item?: Recebimento } | { tipo: 'pagamentos' } | null>(null);
   const f = financeiroDoEvento(db, evento.id);
   const recebimentos = db.recebimentos.filter((r) => r.evento_id === evento.id).sort((a, b) => a.recebido_em.localeCompare(b.recebido_em));
@@ -156,17 +156,17 @@ export function CartaoFinanceiro({ evento }: { evento: Evento }) {
       <div className="bloco">
         <div className="cartao-topo" style={{ marginBottom: 6 }}>
           <span className="rotulo">Recebimentos</span>
-          <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'recebimento' })}>
-            <Icone nome="mais" tamanho={14} /> Registrar
-          </button>
+           {permissoes.gestao && <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'recebimento' })}>
+             <Icone nome="mais" tamanho={14} /> Registrar
+           </button>}
         </div>
         {recebimentos.length ? (
           <div className="linhas">
             {recebimentos.map((r) => (
               <div key={r.id}>
-                <button type="button" className="link-botao normal" onClick={() => setJanela({ tipo: 'recebimento', item: r })}>
+                {permissoes.gestao ? <button type="button" className="link-botao normal" onClick={() => setJanela({ tipo: 'recebimento', item: r })}>
                   {dataCurta(r.recebido_em)}{r.forma ? ` · ${r.forma}` : ''}{r.observacoes ? ` · ${r.observacoes}` : ''}
-                </button>
+                </button> : <span>{dataCurta(r.recebido_em)}{r.forma ? ` · ${r.forma}` : ''}{r.observacoes ? ` · ${r.observacoes}` : ''}</span>}
                 <span>{moeda(r.valor)}</span>
               </div>
             ))}
@@ -177,7 +177,7 @@ export function CartaoFinanceiro({ evento }: { evento: Evento }) {
       <div className="bloco">
         <div className="cartao-topo" style={{ marginBottom: 6 }}>
           <span className="rotulo">Pagamento da equipe</span>
-          {!cancelado && <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'pagamentos' })}>Valores</button>}
+           {!cancelado && permissoes.gestao && <button type="button" className="botao pequeno" onClick={() => setJanela({ tipo: 'pagamentos' })}>Valores</button>}
         </div>
         {f.pagamentos.length ? (
           <div className="linhas">

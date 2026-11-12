@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261112000001_documentos_artistas.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -2247,6 +2247,69 @@ revoke execute on function public.proteger_pagamento_de_escala_encerrada() from 
 create trigger pagamento_exige_escala_ativa
   before insert or update on public.pagamentos_profissionais
   for each row execute function public.proteger_pagamento_de_escala_encerrada();
+
+-- >>>>> migrations/20261112000001_documentos_artistas.sql
+
+-- Documentos privados anexados ao cadastro de cada artista.
+create table documentos_artistas (
+  id              uuid primary key default gen_random_uuid(),
+  profissional_id uuid not null references profissionais (id) on delete cascade,
+  tipo            text not null check (char_length(trim(tipo)) between 1 and 40),
+  nome            text not null check (char_length(trim(nome)) between 1 and 255),
+  storage_path    text not null unique,
+  mime_type       text not null,
+  tamanho_bytes   bigint not null check (tamanho_bytes > 0 and tamanho_bytes <= 10485760),
+  enviado_por     uuid not null references usuarios (id) default auth.uid(),
+  enviado_em      timestamptz not null default now()
+);
+
+create index documentos_artistas_profissional_idx on documentos_artistas (profissional_id, enviado_em desc);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'documentos-artistas', 'documentos-artistas', false, 10485760,
+  array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+alter table documentos_artistas enable row level security;
+
+grant select, insert, delete on documentos_artistas to authenticated;
+
+create policy documentos_artistas_ler on documentos_artistas for select to authenticated
+  using (eh_operacao() or profissional_id = meu_profissional_id());
+
+create policy documentos_artistas_criar on documentos_artistas for insert to authenticated
+  with check (eh_operacao() and enviado_por = auth.uid());
+
+create policy documentos_artistas_apagar on documentos_artistas for delete to authenticated
+  using (eh_operacao());
+
+create policy documentos_storage_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'documentos-artistas'
+    and (
+      eh_operacao()
+      or exists (
+        select 1 from documentos_artistas d
+        where d.storage_path = name and d.profissional_id = meu_profissional_id()
+      )
+    )
+  );
+
+create policy documentos_storage_criar on storage.objects for insert to authenticated
+  with check (bucket_id = 'documentos-artistas' and eh_operacao());
+
+create policy documentos_storage_alterar on storage.objects for update to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_operacao())
+  with check (bucket_id = 'documentos-artistas' and eh_operacao());
+
+create policy documentos_storage_apagar on storage.objects for delete to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_operacao());
 
 -- >>>>> seed.sql
 

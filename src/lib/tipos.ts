@@ -67,6 +67,18 @@ export interface ProfissionalPersonagem {
   personagem_id: string;
 }
 
+export interface DocumentoArtista {
+  id: string;
+  profissional_id: string;
+  tipo: string;
+  nome: string;
+  storage_path: string;
+  mime_type: string;
+  tamanho_bytes: number;
+  enviado_por: string;
+  enviado_em: string;
+}
+
 export interface Contratante {
   id: string;
   nome: string;
@@ -184,6 +196,23 @@ export interface Despesa {
   criado_em: string;
 }
 
+export interface AdicionalProdutor {
+  id: string;
+  produtor_id: string;
+  valor: number;
+  data: string;
+  descricao: string;
+  foto_path: string;
+  foto_nome: string;
+  foto_mime: 'image/jpeg' | 'image/png' | 'image/webp';
+  foto_tamanho: number;
+  criado_por: string;
+  criado_em: string;
+  atualizado_em: string;
+  cancelado_em: string | null;
+  cancelado_por: string | null;
+}
+
 export interface Substituicao {
   id: string;
   escala_id: string;
@@ -258,6 +287,7 @@ export interface BaseDados {
   profissionais: Profissional[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];
+  documentos_artistas: DocumentoArtista[];
   contratantes: Contratante[];
   locais: Local[];
   fantasias: Fantasia[];
@@ -269,6 +299,7 @@ export interface BaseDados {
   recebimentos: Recebimento[];
   pagamentos_profissionais: PagamentoProfissional[];
   despesas: Despesa[];
+  adicionais_produtores: AdicionalProdutor[];
   substituicoes: Substituicao[];
   conferencias_fantasia: ConferenciaFantasia[];
   historico: Historico[];

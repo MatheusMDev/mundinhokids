@@ -34,7 +34,7 @@ const dados = {
   profissionais: [pessoa('ativo', 'Pessoa elegível', true, 'gestao'), pessoa('sem-login', 'Sem login legítimo', true, null), pessoa('inativo', 'Profissional desativado', false, null), pessoa('excluido', 'Profissional do login excluído', false, null), pessoa('bloqueado', 'Profissional com login inativo', true, 'login-inativo')],
   profissionais_disponiveis: ['ativo', 'sem-login'],
   eventos: [evento], personagens: [], profissional_personagens: [], fantasias: [], veiculos: [], reservas_veiculo: [],
-  contratantes: [{ id: 'c', nome: 'Contratante' }], locais: [{ id: 'l', nome: 'Local', tipo: 'buffet', ativo: true }],
+  contratantes: [{ id: 'c', nome: 'Contratante' }], locais: [{ id: 'l', nome: 'Local', tipo: 'buffet', ativo: true }], documentos_artistas: [],
   evento_escala: [{ id: 'escala', evento_id: 'evento', profissional_id: 'excluido', funcao: 'produtor', ativo: true }],
   evento_financeiro: [{ evento_id: 'evento', valor_contratado: 900 }], recebimentos: [],
   pagamentos_profissionais: [{ id: 'pg', evento_id: 'evento', profissional_id: 'excluido', valor_combinado: 100, situacao: 'pendente' }],

@@ -187,7 +187,7 @@ as telas de cada pessoa em **Usuários e acessos → Permissões**.
 | Perfil | Vê |
 | --- | --- |
 | Direção e Gerente geral | Tudo, inclusive valores, Financeiro e Usuários e acessos |
-| Supervisora | Tudo, menos Financeiro e valores |
+| Assistente | Operação e consulta de valores fora do Painel |
 | Produtor | **Minha agenda** (calendário, eventos em que está escalado e os próprios valores), Eventos e Veículos. Nos eventos em que está escalado: reserva o veículo, lança despesas e vê o formulário de feedback |
 | Artista | **Minha agenda** e Eventos, sem Veículos. Vê só o próprio valor. Não lança despesas nem vê o formulário de feedback |
 | Maquiador | **Minha agenda** e Eventos. Em cada festa vê quantas pessoas maquia, o horário e quem maquiar. Não vê o cartão de fantasias |

@@ -279,6 +279,36 @@ teste('semana vazia não inventa números', () => {
 // ---------------------------------------------------------------------
 console.log('\nConflitos de escala e transporte');
 // ---------------------------------------------------------------------
+const basePrimeiroEvento = {
+  eventos: [
+    { id: 'atual', inicio: '2026-11-20T15:00:00Z', situacao: 'confirmado' },
+    { id: 'anterior', inicio: '2026-11-10T15:00:00Z', situacao: 'realizado' },
+    { id: 'cancelado', inicio: '2026-11-05T15:00:00Z', situacao: 'cancelado' },
+    { id: 'futuro', inicio: '2026-11-30T15:00:00Z', situacao: 'confirmado' },
+  ],
+  evento_escala: [
+    { id: 's-atual', evento_id: 'atual', profissional_id: 'artista', funcao: 'artista', ativo: true },
+    { id: 's-anterior', evento_id: 'anterior', profissional_id: 'artista', funcao: 'artista', ativo: true },
+    { id: 's-cancelado', evento_id: 'cancelado', profissional_id: 'artista', funcao: 'artista', ativo: true },
+    { id: 's-futuro', evento_id: 'futuro', profissional_id: 'artista', funcao: 'artista', ativo: true },
+  ],
+};
+teste('primeiro evento ignora cancelado e futuro, mas reconhece realizado anterior', () => {
+  assert.equal(c.ehPrimeiroEventoDoArtista(basePrimeiroEvento, 'atual', 'artista'), false);
+  const semAnterior = {
+    ...basePrimeiroEvento,
+    eventos: basePrimeiroEvento.eventos.filter((e) => e.id !== 'anterior'),
+    evento_escala: basePrimeiroEvento.evento_escala.filter((e) => e.evento_id !== 'anterior'),
+  };
+  assert.equal(c.ehPrimeiroEventoDoArtista(semAnterior, 'atual', 'artista'), true);
+});
+teste('primeiro evento desaparece quando a escala atual fica inativa', () => {
+  const semEscala = {
+    ...basePrimeiroEvento,
+    evento_escala: basePrimeiroEvento.evento_escala.map((e) => e.id === 's-atual' ? { ...e, ativo: false } : e),
+  };
+  assert.equal(c.ehPrimeiroEventoDoArtista(semEscala, 'atual', 'artista'), false);
+});
 const trocas = c.trocasPendentes(db);
 teste('substituto escalado num evento que sobrepõe tem conflito', () =>
   assert.equal(trocas.find((t) => t.troca.id === 't1').semConflito, false));

@@ -570,7 +570,9 @@ h3 { font-size: 15px; font-weight: 800; }
 .profissional-cartao-cabecalho { justify-content: space-between; gap: 10px; color: var(--texto-fraco); }
 .profissional-identidade { min-width: 0; gap: 10px; }
 .profissional-identidade > div { display: grid; min-width: 0; gap: 5px; }
+.profissional-nome-linha { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 7px; }
 .profissional-identidade strong { overflow: hidden; color: var(--texto); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.usuario-proprio { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border: 1px solid var(--marca-borda); border-radius: 6px; background: #fff8fc; color: var(--marca-escura); font-size: 10px; font-weight: 800; letter-spacing: .03em; line-height: 1; text-transform: uppercase; }
 .profissional-avatar { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--marca-suave); color: var(--marca-escura); }
 .profissional-cartao.inativo .profissional-avatar { background: var(--cinza-suave); color: var(--cinza-texto); }
 .profissional-funcoes { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 15px 0; }
@@ -581,6 +583,21 @@ h3 { font-size: 15px; font-weight: 800; }
 .profissional-detalhes span { display: grid; min-width: 0; gap: 2px; }
 .profissional-detalhes small { color: var(--texto-fraco); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .profissional-detalhes strong { overflow: hidden; color: var(--texto-suave); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.documentos-artista { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.documentos-artista-topo, .documentos-artista-topo > span, .documento-artista-acoes { display: flex; align-items: center; gap: 7px; }
+.documentos-artista-topo { justify-content: space-between; margin-bottom: 8px; color: var(--marca-escura); font-size: 12px; }
+.documentos-artista-icone { font-size: 18px; line-height: 1; }
+.documentos-artista-lista { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.documentos-artista-lista li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--borda); }
+.documento-artista-info { display: grid; min-width: 0; gap: 2px; }
+.documento-artista-info strong { overflow: hidden; color: var(--texto); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.documento-artista-info small { overflow: hidden; color: var(--texto-fraco); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.documento-artista-acoes { flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+.documentos-artista-vazio { margin: 0; color: var(--texto-fraco); font-size: 12px; }
+.documento-artista-selecao { margin: -4px 0 12px; font-size: 12px; }
+.profissional-evento { display: grid; min-width: 0; gap: 3px; }
+.primeiro-evento { display: inline-flex; width: max-content; align-items: center; gap: 4px; color: var(--marca-escura); font-size: 10px; font-weight: 750; line-height: 1.2; }
+.primeiro-evento svg { color: var(--marca); }
 .personagens-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .personagem-cartao { min-width: 0; padding: 16px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--cartao); box-shadow: var(--sombra); transition: border-color .2s, box-shadow .2s, transform .2s; }
 .personagem-cartao.clicavel { cursor: pointer; }
@@ -851,7 +868,14 @@ h3 { font-size: 15px; font-weight: 800; }
 .financeiro-vazio { display: flex; flex-direction: column; align-items: center; padding: 42px 20px; gap: 10px; border: 1px dashed var(--borda); border-radius: var(--raio); background: var(--cartao); text-align: center; }
 .financeiro-vazio-icone { width: 48px; height: 48px; margin-bottom: 4px; border-radius: 14px; }
 .financeiro-vazio p { margin: 0 0 4px; color: var(--texto-suave); font-size: 13px; }
-.skeleton-financeiro-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 20px; }
+.adicionais-topo { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.adicionais-topo h2 { margin: 0; font-size: 18px; }
+.adicionais-topo p { margin: 3px 0 0; color: var(--texto-suave); font-size: 12px; }
+.adicional-produtor { cursor: default; }
+.adicional-produtor.adicional-cancelado { opacity: .72; }
+.adicional-acoes { display: flex; align-items: center; gap: 6px; }
+.adicional-arquivo-selecao { margin: -2px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.skeleton-financeiro-abas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 20px; }
 @media (max-width: 1080px) {
   .financeiro-indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .financeiro-filtros { grid-template-columns: minmax(0, 1fr); }
@@ -886,6 +910,8 @@ h3 { font-size: 15px; font-weight: 800; }
   .financeiro-secao-topo h2 { font-size: 16px; }
   .financeiro-secao-topo p { margin: 0; font-size: 10px; }
   .financeiro-lista-acoes { width: 100%; justify-content: space-between; }
+  .adicionais-topo { align-items: flex-start; flex-direction: column; }
+  .adicional-acoes { flex-wrap: wrap; justify-content: flex-end; }
   .financeiro-grade { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .financeiro-filtros { gap: 8px; margin-bottom: 12px; }
   .financeiro-filtros-detalhes { display: none; grid-template-columns: minmax(0, 1fr); gap: 8px; }
@@ -1036,6 +1062,7 @@ h3 { font-size: 15px; font-weight: 800; }
   .equipe-lista > div:first-child { border-top: 0; }
   .equipe-lista strong { display: block; font-weight: 600; font-size: 13.5px; }
   .equipe-lista small { display: block; color: var(--texto-suave); font-size: 12px; }
+  .equipe-lista .primeiro-evento { margin-top: 2px; font-size: 10px; }
   .equipe-lista .selo { margin-left: auto; }
 
   .barra-acoes {
@@ -1423,6 +1450,9 @@ h3 { font-size: 15px; font-weight: 800; }
 }
 
 @media (max-width: 640px) {
+  .documentos-artista-lista li { align-items: flex-start; flex-direction: column; }
+  .documento-artista-info { width: 100%; }
+  .documento-artista-acoes { justify-content: flex-start; }
   .configuracoes-cabecalho { flex-direction: column; gap: 12px; }
   .configuracoes-status { align-self: flex-start; }
   .configuracoes-resumo { grid-template-columns: 1fr; margin-top: 18px; }

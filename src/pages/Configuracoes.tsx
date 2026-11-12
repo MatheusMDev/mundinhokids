@@ -32,7 +32,7 @@ function comAtual(opcoes: { valor: string; texto: string }[], atual: string) {
 }
 
 export function Configuracoes() {
-  const { db, cliente, executar, permissoes } = useEstado();
+  const { db, cliente, executar, permissoes, usuario } = useEstado();
   const atual = db.configuracoes;
   const podeEditar = permissoes.gestao;
 
@@ -171,17 +171,17 @@ export function Configuracoes() {
           )}
         </section>
 
-        <section className="cartao configuracao-secao">
+        {usuario.perfil !== 'supervisora' && <section className="cartao configuracao-secao">
           <div className="configuracao-secao-cabecalho">
             <span className="configuracao-secao-numero">04</span>
-            <div><h2>Permissões da supervisora</h2><p>Escolha ações extras sem liberar acesso a valores.</p></div>
+            <div><h2>Permissões da Assistente</h2><p>Escolha as ações operacionais extras da Assistente.</p></div>
           </div>
-          <p className="suave configuracao-nota">Ela sempre cadastra, monta a escala, remarca e confere fantasias. Nunca vê valores.</p>
+          <p className="suave configuracao-nota">Ela sempre cadastra, monta a escala, remarca e confere fantasias. Consulta valores fora do Painel, mas não pode alterá-los.</p>
           <div className="acoes-coluna">
             <Marcador texto="Cancelar eventos" marcado={supCancela} onMudar={setSupCancela} desativado={desativado} />
             <Marcador texto="Tirar alguém de uma equipe já escalada" marcado={supEquipe} onMudar={setSupEquipe} desativado={desativado} />
           </div>
-        </section>
+        </section>}
 
         {podeEditar && (
           <div className="configuracoes-rodape">
