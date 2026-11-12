@@ -59,7 +59,11 @@ Faça no painel do **sandbox** (confira o nome do projeto no topo antes de cada 
    SMTP (Brevo) e os modelos de `supabase/emails/`, como em `supabase/README.md`.
 5. **Primeiro login da Direção** e os logins de teste dos perfis combinados.
 6. **Dados de teste fictícios** (seed novo, organizado) e o procedimento de repor o banco.
-7. **Site de demonstração na Vercel** (plano Hobby, grátis; é só para a dona ver o
+7. **Site de demonstração na Vercel: feito (2026-11-11).** No ar em
+   <https://mundinhokids.vercel.app>, ligado ao sandbox (conferido no código publicado).
+   Site URL e Redirect URL (`https://mundinhokids.vercel.app/**`) já configurados no Auth
+   do sandbox. Os passos abaixo ficam para refazer, se precisar.
+   (Plano Hobby, grátis; é só para a dona ver o
    sistema, o site definitivo vai para a Hostinger). O repositório já tem o `vercel.json`
    (manda todas as rotas para o `index.html`, para recarregar `/eventos/...` não dar 404,
    e pede aos buscadores para não indexar o site).
