@@ -53,6 +53,17 @@ export interface Profissional {
   ativo: boolean;
 }
 
+export interface DisponibilidadeSemanalDia {
+  profissional_id: string;
+  semana_inicio: string;
+  dia: number;
+  disponivel: boolean;
+  hora_inicio: string | null;
+  hora_fim: string | null;
+  observacoes: string | null;
+  atualizado_em: string;
+}
+
 export interface Personagem {
   id: string;
   nome: string;

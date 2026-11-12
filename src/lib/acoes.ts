@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
 import { sairDesteAparelho } from './supabase';
 import type {
-  ConferenciaFantasia, Contratante, Despesa, DocumentoArtista, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
+  ConferenciaFantasia, Contratante, Despesa, DisponibilidadeSemanalDia, DocumentoArtista, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
   AdicionalProdutor, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
 } from './tipos';
 import type { Notificacao } from './tipos';
