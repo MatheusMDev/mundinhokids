@@ -1,6 +1,6 @@
 // Carrega a base do Supabase no mesmo formato dos dados de exemplo.
-// Cada tabela já vem filtrada pelas permissões do banco (RLS): a assistente
-// recebe o financeiro vazio, o artista só os próprios eventos, e assim por diante.
+// Cada tabela já vem filtrada pelas permissões do banco (RLS): a Assistente
+// recebe valores fora do Painel, o artista só os próprios eventos, e assim por diante.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BaseDados, Historico, TrocaParaMim } from './tipos';
@@ -8,9 +8,10 @@ import { diaCurto, hora, moeda } from './formato';
 import { ROTULO_SITUACAO } from './consultas';
 
 const TABELAS = [
-  'usuarios', 'profissionais', 'disponibilidade_semanal', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
+  'usuarios', 'profissionais', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
+  'documentos_artistas',
   'fantasias', 'veiculos', 'eventos', 'evento_escala', 'reservas_veiculo', 'evento_financeiro',
-  'recebimentos', 'pagamentos_profissionais', 'despesas', 'substituicoes', 'conferencias_fantasia',
+  'recebimentos', 'pagamentos_profissionais', 'despesas', 'adicionais_produtores', 'substituicoes', 'conferencias_fantasia',
   'notificacoes', 'notificacao_preferencias', 'profissionais_notas', 'contratantes_notas',
 ] as const;
 
@@ -29,7 +30,7 @@ interface LinhaHistorico {
 export async function carregarBase(cliente: SupabaseClient): Promise<BaseDados> {
   const [configuracoes, historico, trocasParaMim, disponiveis, ...tabelas] = await Promise.all([
     cliente.from('configuracoes').select('chave, valor'),
-    cliente.from('historico').select('*').not('evento_id', 'is', null).order('em', { ascending: false }).limit(500),
+    cliente.from('historico').select('*').order('em', { ascending: false }).limit(500),
     cliente.rpc('trocas_para_mim'),
     cliente.rpc('profissionais_disponiveis'),
     ...TABELAS.map((t) => cliente.from(t).select('*')),
@@ -63,6 +64,7 @@ export async function carregarBase(cliente: SupabaseClient): Promise<BaseDados> 
     recebimentos: base.recebimentos.map((r) => ({ ...r, valor: Number(r.valor) })),
     pagamentos_profissionais: base.pagamentos_profissionais.map((p) => ({ ...p, valor_combinado: Number(p.valor_combinado) })),
     despesas: base.despesas.map((d) => ({ ...d, valor: Number(d.valor) })),
+    adicionais_produtores: base.adicionais_produtores.map((a) => ({ ...a, valor: Number(a.valor), foto_tamanho: Number(a.foto_tamanho) })),
     trocas_para_mim: (trocasParaMim.data ?? []) as TrocaParaMim[],
     configuracoes: Object.fromEntries((configuracoes.data ?? []).map((c) => [c.chave, c.valor])),
     historico: (historico.data as LinhaHistorico[] ?? []).map((h) => resumirHistorico(h, base)),
@@ -115,6 +117,14 @@ function resumirHistorico(h: LinhaHistorico, base: Omit<BaseDados, 'configuracoe
     case 'despesas':
       descricao = `Despesa: ${texto(depois.descricao)} (${moeda(Number(depois.valor ?? 0))})`;
       break;
+    case 'adicionais_produtores': {
+      const produtor = nomeProfissional(depois.produtor_id);
+      const valor = moeda(Number(depois.valor ?? 0));
+      descricao = depois.cancelado_em && !antes.cancelado_em
+        ? `Adicional de ${produtor} cancelado: ${valor}`
+        : `Adicional de ${produtor}: ${texto(depois.descricao)} (${valor})`;
+      break;
+    }
   }
 
   return {

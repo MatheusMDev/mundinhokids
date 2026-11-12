@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icone, type NomeIcone } from '../components/Icone';
 import { FormDespesa } from '../components/FormulariosValores';
+import { AdicionaisProdutores, FormAdicionalProdutor } from '../components/AdicionaisProdutores';
 import { Paginacao, paginar } from '../components/Paginacao';
 import { SeletorFiltro } from '../components/SeletorFiltro';
 import { useEstado } from '../lib/estado';
@@ -15,6 +16,7 @@ const SECOES = [
   { id: 'eventos', nome: 'Por evento', icone: 'presente' },
   { id: 'equipe', nome: 'Equipe a pagar', icone: 'pessoas' },
   { id: 'despesas', nome: 'Despesas gerais', icone: 'dinheiro' },
+  { id: 'adicionais', nome: 'Adicionais gerais', icone: 'dinheiro' },
 ] as const;
 const SITUACOES = { pendente: 'Pendente', parcial: 'Parcial', pago: 'Pago' };
 const APROVACAO = { nao_requer: 'Sem aprovação necessária', pendente: 'Aguardando aprovação', aprovada: 'Aprovada', recusada: 'Recusada' };
@@ -125,9 +127,10 @@ function Vazio({ icone, titulo, filtrado, limpar }: { icone: NomeIcone; titulo: 
 }
 
 export function Financeiro() {
-  const { db, perfil, avisar } = useEstado();
+  const { db, perfil, permissoes, avisar } = useEstado();
   const [parametros, setParametros] = useSearchParams();
   const [despesa, setDespesa] = useState<{ item?: Despesa } | null>(null);
+  const [adicional, setAdicional] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [valoresOcultos, setValoresOcultos] = useState(true);
   const dados = useMemo(() => resumoDoFinanceiro(db), [db]);
@@ -159,7 +162,7 @@ export function Financeiro() {
     document.getElementById('financeiro-lista')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
 
-  if (!veValores(perfil)) return <Layout><section className="cartao oculto"><h1>Financeiro</h1><p>Só a direção e a gerência veem os valores financeiros.</p></section></Layout>;
+  if (!veValores(perfil)) return <Layout><section className="cartao oculto"><h1>Financeiro</h1><p>Só Direção e Gerência acessam o painel Financeiro. A Assistente consulta valores nos detalhes dos eventos.</p></section></Layout>;
 
   const { totais } = dados;
   const meses = new Map<string, string>();
@@ -170,12 +173,14 @@ export function Financeiro() {
   const equipe = dados.equipe.filter((p) => !termo || semAcentos(`${p.nome} ${p.eventos.map((e) => e.titulo).join(' ')}`).includes(termo));
   const despesas = dados.despesasGerais.filter((d) => (!termo || semAcentos(`${d.descricao} ${db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? ''}`).includes(termo))
     && (!tipo || d.tipo === tipo) && (!aprovacao || d.aprovacao === aprovacao));
+  const adicionais = dados.adicionaisGerais.filter((a) => !termo || semAcentos(`${a.descricao} ${db.profissionais.find((p) => p.id === a.produtor_id)?.nome ?? ''}`).includes(termo));
   const paginaEventos = paginar(eventos, pagina, 6);
   const paginaEquipe = paginar(equipe, pagina, 6);
   const paginaDespesas = paginar(despesas, pagina, 6);
-  const paginacao = aba === 'eventos' ? paginaEventos : aba === 'equipe' ? paginaEquipe : paginaDespesas;
-  const total = aba === 'eventos' ? dados.eventos.length : aba === 'equipe' ? dados.equipe.length : dados.despesasGerais.length;
-  const encontrados = aba === 'eventos' ? eventos.length : aba === 'equipe' ? equipe.length : despesas.length;
+  const paginaAdicionais = paginar(adicionais, pagina, 6);
+  const paginacao = aba === 'eventos' ? paginaEventos : aba === 'equipe' ? paginaEquipe : aba === 'despesas' ? paginaDespesas : paginaAdicionais;
+  const total = aba === 'eventos' ? dados.eventos.length : aba === 'equipe' ? dados.equipe.length : aba === 'despesas' ? dados.despesasGerais.length : dados.adicionaisGerais.length;
+  const encontrados = aba === 'eventos' ? eventos.length : aba === 'equipe' ? equipe.length : aba === 'despesas' ? despesas.length : adicionais.length;
   const filtrado = !!termo || (aba === 'eventos' ? !!mes || !!situacao : aba === 'despesas' ? !!tipo || !!aprovacao : false);
   const filtrosSelecionados = aba === 'eventos' ? Number(!!mes) + Number(!!situacao) : aba === 'despesas' ? Number(!!tipo) + Number(!!aprovacao) : 0;
   const exportarPlanilha = async () => {
@@ -184,6 +189,8 @@ export function Financeiro() {
         await baixarPlanilha('mundinho-kids-financeiro-por-evento.xlsx', 'Financeiro por evento', ['Evento', 'Aniversariante', 'Data do evento', 'Situação', 'Valor contratado', 'Valor recebido', 'Valor a receber', 'Equipe a pagar', 'Despesas'], eventos.map((r) => [r.evento.titulo, r.evento.aniversariante ?? 'Não informado', `${dataLonga(r.evento.inicio)} · ${hora(r.evento.inicio)}`, SITUACOES[r.situacao], r.contratado, r.recebido, Math.max(0, r.contratado - r.recebido), r.aPagar, r.despesas]), [5, 6, 7, 8, 9]);
       } else if (aba === 'equipe') {
         await baixarPlanilha('mundinho-kids-financeiro-equipe.xlsx', 'Equipe a pagar', ['Profissional', 'Total a pagar', 'Eventos pendentes'], equipe.map((p) => [p.nome, p.total, p.eventos.map((e) => e.titulo).join(', ')]), [2]);
+      } else if (aba === 'adicionais') {
+        await baixarPlanilha('mundinho-kids-adicionais-produtores.xlsx', 'Adicionais gerais de produtores', ['Produtor', 'Data', 'Descrição', 'Valor', 'Situação'], adicionais.map((a) => [db.profissionais.find((p) => p.id === a.produtor_id)?.nome ?? 'Produtor não informado', a.data, a.descricao, a.valor, a.cancelado_em ? 'Cancelado' : 'Ativo']), [4]);
       } else {
         await baixarPlanilha('mundinho-kids-financeiro-despesas.xlsx', 'Despesas gerais e insumos', ['Descrição', 'Tipo', 'Valor', 'Responsável', 'Aprovação'], despesas.map((d) => [d.descricao, d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra', d.valor, db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado', APROVACAO[d.aprovacao]]), [3]);
       }
@@ -206,7 +213,7 @@ export function Financeiro() {
         <button type="button" className="botao financeiro-visibilidade" onClick={() => setValoresOcultos((atual) => !atual)} aria-label={valoresOcultos ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'} aria-pressed={!valoresOcultos}>
           <Icone nome={valoresOcultos ? 'olhoFechado' : 'olho'} /><span className="financeiro-visibilidade-texto">{valoresOcultos ? 'Mostrar valores' : 'Ocultar valores'}</span>
         </button>
-        <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>
+        {permissoes.gestao && <button type="button" className="botao primario" onClick={() => setDespesa({})}><Icone nome="mais" /> Lançar despesa</button>}
       </div>
     </div>
     <section className="financeiro-indicadores" aria-label="Resumo financeiro geral">
@@ -218,7 +225,7 @@ export function Financeiro() {
     <nav className="financeiro-abas" aria-label="Seções do financeiro">
       {SECOES.map((s) => {
         const novos = new URLSearchParams(parametros); novos.set('aba', s.id);
-        const quantidade = s.id === 'eventos' ? dados.eventos.length : s.id === 'equipe' ? dados.equipe.length : dados.despesasGerais.length;
+         const quantidade = s.id === 'eventos' ? dados.eventos.length : s.id === 'equipe' ? dados.equipe.length : s.id === 'despesas' ? dados.despesasGerais.length : dados.adicionaisGerais.length;
         return <Link key={s.id} to={{ pathname: '/financeiro', search: novos.toString() }} aria-current={aba === s.id ? 'page' : undefined} className={aba === s.id ? 'ativo' : ''}>
           <Icone nome={s.icone} tamanho={18} /><span className="financeiro-aba-nome">{s.nome}</span><span className="financeiro-aba-curto">{s.id === 'eventos' ? 'Eventos' : s.id === 'equipe' ? 'Equipe' : 'Despesas'}</span><small>{quantidade}</small>
         </Link>;
@@ -226,23 +233,24 @@ export function Financeiro() {
     </nav>
     <section className="financeiro-secao" id="financeiro-lista" aria-labelledby="financeiro-titulo">
        <div className="financeiro-secao-topo"><div>
-         <h2 id="financeiro-titulo">{aba === 'eventos' ? 'Resumo por evento' : aba === 'equipe' ? 'Pagamentos pendentes' : 'Despesas gerais e insumos'}</h2>
-         <p>{encontrados} de {total} {aba === 'eventos' ? 'eventos · mais recentes primeiro' : aba === 'equipe' ? 'profissionais' : 'despesas'}</p>
-       </div><div className="financeiro-lista-acoes">
-         {filtrado && <button type="button" className="link-botao" onClick={limpar}>Limpar filtros</button>}
-         <button type="button" className="botao pequeno primario" onClick={() => void exportarPlanilha()}><Icone nome="arquivo" tamanho={15} /> Exportar Excel</button>
-       </div></div>
-      <div className={`financeiro-filtros ${aba === 'equipe' ? 'somente-busca' : ''}${filtrosAbertos ? ' aberto' : ''}`}>
+          <h2 id="financeiro-titulo">{aba === 'eventos' ? 'Resumo por evento' : aba === 'equipe' ? 'Pagamentos pendentes' : aba === 'despesas' ? 'Despesas gerais e insumos' : 'Adicionais gerais de produtores'}</h2>
+          <p>{encontrados} de {total} {aba === 'eventos' ? 'eventos · mais recentes primeiro' : aba === 'equipe' ? 'profissionais' : aba === 'despesas' ? 'despesas' : 'adicionais'}</p>
+        </div><div className="financeiro-lista-acoes">
+          {filtrado && <button type="button" className="link-botao" onClick={limpar}>Limpar filtros</button>}
+          {aba === 'adicionais' && permissoes.gestao && <button type="button" className="botao pequeno primario" onClick={() => setAdicional(true)}><Icone nome="mais" tamanho={15} /> Registrar adicional</button>}
+          <button type="button" className="botao pequeno primario" onClick={() => void exportarPlanilha()}><Icone nome="arquivo" tamanho={15} /> Exportar Excel</button>
+        </div></div>
+       <div className={`financeiro-filtros ${aba === 'equipe' || aba === 'adicionais' ? 'somente-busca' : ''}${filtrosAbertos ? ' aberto' : ''}`}>
         <div className="financeiro-busca-linha">
         <label className="busca-eventos"><span className="busca-icone" aria-hidden="true">⌕</span><span className="sr-only">{aba === 'eventos' ? 'Buscar evento' : aba === 'equipe' ? 'Buscar profissional ou evento' : 'Buscar despesa'}</span>
           <input type="search" value={busca} onChange={(e) => alterar(`busca_${aba}`, e.target.value)} placeholder={aba === 'eventos' ? 'Buscar evento' : aba === 'equipe' ? 'Buscar profissional ou evento' : 'Buscar despesa'} />
           {busca && <button type="button" className="limpar-busca" aria-label="Limpar busca" onClick={() => alterar(`busca_${aba}`, '')}>×</button>}
         </label>
-        {aba !== 'equipe' && <button type="button" className="botao financeiro-filtros-toggle so-mobile" aria-expanded={filtrosAbertos} aria-controls="financeiro-filtros-detalhes" onClick={() => setFiltrosAbertos((atual) => !atual)}>
+         {(aba === 'eventos' || aba === 'despesas') && <button type="button" className="botao financeiro-filtros-toggle so-mobile" aria-expanded={filtrosAbertos} aria-controls="financeiro-filtros-detalhes" onClick={() => setFiltrosAbertos((atual) => !atual)}>
           <Icone nome="lista" tamanho={16} /><span>Filtros</span>{filtrosSelecionados > 0 && <small>{filtrosSelecionados}</small>}
         </button>}
         </div>
-        {aba !== 'equipe' && <div className="financeiro-filtros-detalhes" id="financeiro-filtros-detalhes">
+         {(aba === 'eventos' || aba === 'despesas') && <div className="financeiro-filtros-detalhes" id="financeiro-filtros-detalhes">
         {aba === 'eventos' && <>
           <SeletorFiltro label="Mês" icon="calendario" value={mes} options={[[ '', 'Todos os meses' ], ...[...meses].sort(([a], [b]) => b.localeCompare(a))]} onChange={(v) => alterar('mes', v)} />
           <SeletorFiltro label="Recebimento" icon="dinheiro" value={situacao} options={[[ '', 'Todas as situações' ], ...Object.entries(SITUACOES)]} onChange={(v) => alterar('situacao', v)} />
@@ -266,7 +274,7 @@ export function Financeiro() {
           </Link>;
         })}
       </div> : <Vazio icone="presente" titulo="Nenhum evento com valores registrados" filtrado={filtrado} limpar={limpar} />)}
-      {aba === 'equipe' && (paginaEquipe.itens.length ? <div className="financeiro-grade">
+       {aba === 'equipe' && (paginaEquipe.itens.length ? <div className="financeiro-grade">
         {paginaEquipe.itens.map((p) => <article className="financeiro-profissional" key={p.id}>
           <div className="financeiro-profissional-topo"><span className="avatar">{iniciais(p.nome)}</span><div><h3>{p.nome}</h3><small>{p.eventos.length} {p.eventos.length === 1 ? 'evento pendente' : 'eventos pendentes'}</small></div><span className="selo alerta">A pagar</span></div>
            <strong className={`financeiro-pagamento-total${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(p.total)}</strong>
@@ -274,17 +282,24 @@ export function Financeiro() {
              <ul className="financeiro-pagamento-eventos">{p.eventos.map((e) => <li key={e.id}><Link to={`/eventos/${e.id}`} state={{ voltarPara: `/financeiro?${parametros}` }}>{e.titulo}<Icone nome="direita" tamanho={14} /></Link><strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(e.valor)}</strong></li>)}</ul>
           </details>
         </article>)}
-      </div> : <Vazio icone="pessoas" titulo="Nenhum pagamento pendente" filtrado={filtrado} limpar={limpar} />)}
-      {aba === 'despesas' && (paginaDespesas.itens.length ? <div className="financeiro-grade">
-        {paginaDespesas.itens.map((d) => <button type="button" className="financeiro-despesa" key={d.id} onClick={() => setDespesa({ item: d })} aria-label={`Editar despesa ${d.descricao}`}>
+       </div> : <Vazio icone="pessoas" titulo="Nenhum pagamento pendente" filtrado={filtrado} limpar={limpar} />)}
+       {aba === 'adicionais' && <AdicionaisProdutores adicionais={paginaAdicionais.itens} mostrarTopo={false} />}
+       {aba === 'despesas' && (paginaDespesas.itens.length ? <div className="financeiro-grade">
+         {paginaDespesas.itens.map((d) => permissoes.gestao ? <button type="button" className="financeiro-despesa" key={d.id} onClick={() => setDespesa({ item: d })} aria-label={`Editar despesa ${d.descricao}`}>
           <span className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="dinheiro" tamanho={19} /></span><span className="selo neutro">{d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra'}</span></span>
           <strong className="financeiro-despesa-titulo">{d.descricao}</strong><span className="financeiro-data">{db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado'}</span>
            <strong className={`financeiro-despesa-valor${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(d.valor)}</strong>
           <span className="financeiro-despesa-rodape"><span className={`selo ${d.aprovacao === 'pendente' ? 'alerta' : d.aprovacao === 'aprovada' ? 'ok' : 'neutro'}`}>{APROVACAO[d.aprovacao]}</span><Icone nome="lapis" tamanho={16} /></span>
-        </button>)}
+         </button> : <article className="financeiro-despesa" key={d.id}>
+           <span className="financeiro-cartao-topo"><span className="financeiro-cartao-icone"><Icone nome="dinheiro" tamanho={19} /></span><span className="selo neutro">{d.tipo === 'insumo' ? 'Insumo' : 'Gasto extra'}</span></span>
+           <strong className="financeiro-despesa-titulo">{d.descricao}</strong><span className="financeiro-data">{db.profissionais.find((p) => p.id === d.responsavel_id)?.nome ?? 'Responsável não informado'}</span>
+           <strong className={`financeiro-despesa-valor${valoresOcultos ? ' valor-financeiro-oculto' : ''}`}>{moeda(d.valor)}</strong>
+           <span className="financeiro-despesa-rodape"><span className={`selo ${d.aprovacao === 'pendente' ? 'alerta' : d.aprovacao === 'aprovada' ? 'ok' : 'neutro'}`}>{APROVACAO[d.aprovacao]}</span></span>
+         </article>)}
       </div> : <Vazio icone="dinheiro" titulo="Nenhuma despesa geral lançada" filtrado={filtrado} limpar={limpar} />)}
       <Paginacao pagina={paginacao.atual} total={paginacao.totalPaginas} onMudar={mudarPagina} rotulo={`Paginação de ${SECOES.find((s) => s.id === aba)?.nome}`} />
-    </section>
-    {despesa && <FormDespesa item={despesa.item} onFechar={() => setDespesa(null)} />}
-  </Layout>;
+     </section>
+     {despesa && <FormDespesa item={despesa.item} onFechar={() => setDespesa(null)} />}
+     {adicional && <FormAdicionalProdutor onFechar={() => setAdicional(false)} />}
+   </Layout>;
 }

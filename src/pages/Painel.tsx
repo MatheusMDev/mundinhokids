@@ -9,7 +9,7 @@ import { tipoDoPainel, useEstado } from '../lib/estado';
 import { chaveDia, dataLonga, dataLongaDaChave, diaCurto, hora, partes } from '../lib/formato';
 import {
   eventosDoDia, eventosOrdenados, localDe, numerosDaSemana, pendenciasDaSemana, proximosEventos,
-  ROTULO_SITUACAO, veValores, type Pendencia,
+  ROTULO_SITUACAO, type Pendencia,
 } from '../lib/consultas';
 import type { Evento } from '../lib/tipos';
 import { MinhaAgenda } from './MinhaAgenda';
@@ -52,7 +52,7 @@ export function Painel() {
   return <MinhaAgenda />;
 }
 
-/** Painel da gestão (Direção, Gerente e Assistente). A equipe abre a Minha agenda. */
+/** Painel da operação (Direção, Gerente e Assistente). A equipe abre a Minha agenda. */
 function PainelOperacao() {
   const { db, hoje, perfil, permissoes, usuario } = useEstado();
   const [novoEvento, setNovoEvento] = useState(false);
@@ -133,7 +133,7 @@ function PainelOperacao() {
           <strong className="marca">{numeros.trocas}</strong>
           <small>{numeros.trocaDescricao}</small>
         </div>
-        {veValores(perfil) && (
+        {perfil === 'gerente' && (
           <div className="cartao numero">
             <span>Pagamentos pendentes</span>
             <strong>{numeros.profissionaisAPagar}</strong>

@@ -19,6 +19,7 @@ import type { Profissional } from '../lib/tipos';
 import { BotaoMinhaSenha } from '../components/MinhaSenha';
 import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Paginacao } from '../components/Paginacao';
+import { DocumentosArtista } from '../components/DocumentosArtista';
 import { nomeDosPapeis, useEstado } from '../lib/estado';
 import { dataLonga, diaCurto, hora, MESES, mesAno, partes, semAcentos } from '../lib/formato';
 import {
@@ -355,10 +356,19 @@ export function Profissionais() {
                   <small>Função</small>
                   {p.funcoes.length ? p.funcoes.map((funcao) => <span key={funcao}>{ROTULO_FUNCAO_PROF[funcao]}</span>) : <span>Sem função definida</span>}
                 </div>
-                <div className="profissional-detalhes">
+                 <div className="profissional-detalhes">
                   <div><Icone nome="pessoas" tamanho={15} /><span><small>Personagens</small><strong>{personagens.length ? personagens.join(', ') : 'Nenhum vinculado'}</strong></span></div>
                   <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{p.telefone ?? 'Não informado'}</strong></span></div>
-                </div>
+                  <div><Icone nome="relogio" tamanho={15} /><span><small>Disponibilidade</small><strong>{p.disponibilidade ?? 'Não informada'}</strong></span></div>
+                 </div>
+                 {p.funcoes.includes('artista') && (
+                   <DocumentosArtista
+                     profissional={p}
+                     documentos={db.documentos_artistas.filter((documento) => documento.profissional_id === p.id)}
+                     usuarios={db.usuarios}
+                     podeGerenciar={permissoes.operacao}
+                   />
+                 )}
                 {permissoes.gestao && (usuario.perfil === 'diretora' || !db.usuarios.some((u) => u.id === p.usuario_id && u.perfil === 'diretora')) && (
                   <div className="acoes-linha">
                     <button type="button" className="botao pequeno texto-perigo" aria-label={`Excluir profissional ${p.nome}`} onClick={() => setExcluindo(p)}>
