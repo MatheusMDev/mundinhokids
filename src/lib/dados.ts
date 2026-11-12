@@ -8,7 +8,7 @@ import { diaCurto, hora, moeda } from './formato';
 import { ROTULO_SITUACAO } from './consultas';
 
 const TABELAS = [
-  'usuarios', 'profissionais', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
+  'usuarios', 'profissionais', 'disponibilidade_semanal', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
   'fantasias', 'veiculos', 'eventos', 'evento_escala', 'reservas_veiculo', 'evento_financeiro',
   'recebimentos', 'pagamentos_profissionais', 'despesas', 'substituicoes', 'conferencias_fantasia',
   'notificacoes', 'notificacao_preferencias', 'profissionais_notas', 'contratantes_notas',

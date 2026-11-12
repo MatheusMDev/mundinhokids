@@ -7,6 +7,7 @@ import { hora, iniciais } from '../lib/formato';
 import type { Notificacao } from '../lib/tipos';
 import { prepararSom, tocarSomNotificacao } from '../lib/som';
 import { textoNotificacao } from '../lib/notificacoes';
+import { LembreteDisponibilidadeSemanal } from './DisponibilidadeSemanal';
 
 interface ItemMenu { para: string; texto: string; icone: NomeIcone; tela: Tela }
 
@@ -225,7 +226,10 @@ export function Layout({ children, tituloMobile, comBarra }: Props) {
         )}
       </header>
 
-      <main className="conteudo">{children}</main>
+      <main className="conteudo">
+        <LembreteDisponibilidadeSemanal />
+        {children}
+      </main>
 
       <nav className="abas" aria-label="Navegação">
         {abas.map((aba) => (
