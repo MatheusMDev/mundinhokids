@@ -162,7 +162,7 @@ export function Financeiro() {
     document.getElementById('financeiro-lista')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
 
-  if (!veValores(perfil)) return <Layout><section className="cartao oculto"><h1>Financeiro</h1><p>Só a direção, a gerência e a Assistente veem os valores financeiros.</p></section></Layout>;
+  if (!veValores(perfil)) return <Layout><section className="cartao oculto"><h1>Financeiro</h1><p>Só Direção e Gerência acessam o painel Financeiro. A Assistente consulta valores nos detalhes dos eventos.</p></section></Layout>;
 
   const { totais } = dados;
   const meses = new Map<string, string>();

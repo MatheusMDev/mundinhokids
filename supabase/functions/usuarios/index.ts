@@ -21,11 +21,11 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const PERFIS = ['diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'] as const;
+const PERFIS = ['diretora', 'gerente', 'assistente', 'produtor', 'artista', 'maquiador', 'fantasias'] as const;
 type Perfil = (typeof PERFIS)[number];
 const PERFIS_EQUIPE: Perfil[] = ['produtor', 'artista', 'maquiador', 'fantasias'];
 const PERFIS_GESTAO: Perfil[] = ['diretora', 'gerente'];
-const PERFIS_OPERACAO: Perfil[] = ['diretora', 'gerente', 'supervisora'];
+const PERFIS_OPERACAO: Perfil[] = ['diretora', 'gerente', 'assistente'];
 
 const TELAS = ['painel', 'eventos', 'profissionais', 'personagens', 'fantasias', 'veiculos', 'financeiro', 'cadastros', 'usuarios', 'configuracoes'];
 

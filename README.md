@@ -114,7 +114,7 @@ Regras importantes:
 | `npm run agenda:verificar` ✓ | Testa a Minha agenda (próximos, histórico, valores e privacidade) |
 | `npm run pessoas:verificar` ✓ | Testa telas de pessoas e acessos renderizando os componentes reais |
 | `npm run banco:verificar` | Testa migrações, seed e permissões do banco num Postgres local |
-| `npm run perfis:verificar` | Testa o que cada perfil (gerente, supervisora, equipe, fantasias) pode ler e gravar |
+| `npm run perfis:verificar` | Testa o que cada perfil (gerente, assistente, equipe, fantasias) pode ler e gravar |
 | `npm run notificacoes:verificar` | Testa os avisos automáticos (ex.: conferir fantasias depois da festa) num Postgres local |
 | `npm run banco:juntar` | Gera `supabase/subir_tudo.sql` para colar de uma vez no SQL Editor |
 
@@ -236,7 +236,7 @@ Trello do projeto, numeradas (`#24`, `#61`...).
    citando o card do Trello quando houver:
    ```
    feat: #59 tela Minha conta com nome, foto e telefone
-   fix: #26 supervisora não vê valores no detalhe do evento
+   fix: #26 Assistente consulta valores fora do Painel
    ```
 4. **Rode os testes** da seção [Testes e validações](#testes-e-validações).
 5. **Abra um Pull Request** para a `main` no GitHub, dizendo o que mudou e como testar.

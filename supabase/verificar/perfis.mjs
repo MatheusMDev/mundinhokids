@@ -16,8 +16,10 @@ const MIGRACOES = [
   'migrations/20261104000001_funcoes_do_login.sql',
   'migrations/20261104000002_telas_do_usuario.sql',
   'migrations/20261110000003_despesas_so_producao.sql',
+  'migrations/20261112000001_documentos_artistas.sql',
   'migrations/20261112000002_assistente_valores.sql',
   'migrations/20261112000003_adicionais_produtores.sql',
+  'migrations/20261112000004_renomear_supervisora_para_assistente.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -86,7 +88,7 @@ const qtd = async (tx, sql) => Number((await tx.query(sql)).rows[0].n);
 
 const LOGIN = {
   gerente: '90000000-0000-0000-0000-000000000001',
-  supervisora: '90000000-0000-0000-0000-000000000002',
+  assistente: '90000000-0000-0000-0000-000000000002',
 };
 
 db = new PGlite({ extensions: { btree_gist } });
@@ -98,7 +100,7 @@ await teste('seed.sql carrega passando por todas as travas', () => db.exec(readF
 
 await teste('vincular_usuarios.sql liga os logins criados no Auth', async () => {
   await db.exec(`insert into auth.users (id, email) values
-    ('${LOGIN.gerente}', 'gerente@teste.com'), ('${LOGIN.supervisora}', 'supervisora@teste.com')`);
+    ('${LOGIN.gerente}', 'gerente@teste.com'), ('${LOGIN.assistente}', 'assistente@teste.com')`);
   await db.exec(readFileSync(pasta('vincular_usuarios.sql'), 'utf8'));
   const n = await qtd(db, 'select count(*) as n from usuarios');
   if (n !== 2) throw new Error(`esperado 2 usuários, veio ${n}`);
@@ -111,11 +113,11 @@ await teste('gerente vê os 14 eventos e os 5 valores contratados', async () => 
 });
 
 await teste('Assistente vê eventos e valores, mas não pode gravar financeiro', async () => {
-  const eventos = await como(LOGIN.supervisora, (tx) => qtd(tx, 'select count(*) as n from eventos'));
-  const valores = await como(LOGIN.supervisora, (tx) =>
+  const eventos = await como(LOGIN.assistente, (tx) => qtd(tx, 'select count(*) as n from eventos'));
+  const valores = await como(LOGIN.assistente, (tx) =>
     qtd(tx, 'select (select count(*) from evento_financeiro) + (select count(*) from pagamentos_profissionais) as n'));
   if (eventos !== 14 || valores !== 15) throw new Error(`veio ${eventos} eventos e ${valores} valores`);
-  const alteradas = await como(LOGIN.supervisora, async (tx) => (await tx.query(`update evento_financeiro
+  const alteradas = await como(LOGIN.assistente, async (tx) => (await tx.query(`update evento_financeiro
     set valor_contratado = valor_contratado
     where evento_id = (select id from eventos order by inicio limit 1)
     returning evento_id`)).rows.length);

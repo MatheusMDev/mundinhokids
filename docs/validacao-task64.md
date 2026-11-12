@@ -4,7 +4,7 @@ Resultado: **42 cenários de navegador aprovados**, sem erro JavaScript da aplic
 
 ## Matriz de execução
 
-Cada cenário abaixo foi executado para Direção, Gerência e Supervisão, nas larguras desktop de 1280 px e mobile de 375 px: 7 grupos × 3 perfis × 2 larguras = 42 resultados aprovados.
+Cada cenário abaixo foi executado para Direção, Gerência e Assistente, nas larguras desktop de 1280 px e mobile de 375 px: 7 grupos × 3 perfis × 2 larguras = 42 resultados aprovados.
 
 | Cenário | Resultado observado |
 | --- | --- |

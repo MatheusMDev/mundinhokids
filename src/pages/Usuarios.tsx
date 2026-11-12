@@ -21,7 +21,7 @@ import type { FuncaoProfissional, PerfilAcesso, SituacaoLogin, Usuario } from '.
 const PERFIS: { valor: PerfilAcesso; texto: string; descricao: string; equipe: boolean }[] = [
   { valor: 'diretora', texto: 'Direção', descricao: 'Acesso total, inclusive valores e usuários.', equipe: false },
   { valor: 'gerente', texto: 'Gerente geral', descricao: 'Organiza eventos e equipes. Vê valores.', equipe: false },
-  { valor: 'supervisora', texto: 'Assistente', descricao: 'Organiza eventos e consulta valores fora do Painel.', equipe: false },
+  { valor: 'assistente', texto: 'Assistente', descricao: 'Organiza eventos e consulta valores fora do Painel.', equipe: false },
   { valor: 'produtor', texto: 'Produção', descricao: 'Seus eventos, veículos e despesas.', equipe: true },
   { valor: 'artista', texto: 'Artista', descricao: 'Seus eventos e trocas.', equipe: true },
   { valor: 'maquiador', texto: 'Maquiagem', descricao: 'Seus eventos de maquiagem.', equipe: true },
@@ -92,12 +92,12 @@ function CampoProfissional({ valor, onMudar, perfil, loginId }: {
 // ---------------------------------------------------------------------
 // Equipe: o que a pessoa vai ser e o cadastro de profissional, no próprio acesso
 
-type TipoAcesso = 'diretora' | 'gerente' | 'supervisora' | 'equipe';
+type TipoAcesso = 'diretora' | 'gerente' | 'assistente' | 'equipe';
 
 const TIPOS: { valor: TipoAcesso; texto: string; descricao: string }[] = [
   { valor: 'diretora', texto: 'Direção', descricao: PERFIS[0].descricao },
   { valor: 'gerente', texto: 'Gerente geral', descricao: PERFIS[1].descricao },
-  { valor: 'supervisora', texto: 'Assistente', descricao: PERFIS[2].descricao },
+  { valor: 'assistente', texto: 'Assistente', descricao: PERFIS[2].descricao },
   { valor: 'equipe', texto: 'Equipe', descricao: 'Vê só os próprios eventos.' },
 ];
 

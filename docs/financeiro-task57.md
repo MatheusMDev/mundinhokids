@@ -27,7 +27,7 @@ Foi corrigida uma inconsistência do indicador Equipe a pagar: agora soma exatam
 - Chrome após a revisão mobile: 41 verificações aprovadas; nenhum erro JavaScript da aplicação.
 - Três seções conferidas em 320, 375, 768, 1024 e 1280 px, sem rolagem horizontal; barra inferior disponível nos tamanhos compactos.
 - Conferidos busca, paginação, retorno do evento mantendo parâmetros, filtro de recebimento parcial, expansão dos eventos de cada profissional, filtro de aprovação, edição e lançamento de despesas com valores decimais, limpar filtros, vazio, carregamento, erro e recuperação.
-- Acesso permitido para Gerência/Direção e bloqueado para Supervisão, Produção, Artista, Maquiagem e Fantasias.
+- Acesso permitido para Gerência/Direção e bloqueado para Assistente, Produção, Artista, Maquiagem e Fantasias.
 
 As ações no Chrome usaram o frontend compilado com cadastros e respostas do Supabase simulados; nenhum dado real foi alterado. Evidências locais: `.mobile-check/financeiro57-resultado.json` e `.mobile-check/financeiro57-*.png`.
 

@@ -25,7 +25,7 @@ function useEscalado(evento: Evento) {
 
 /**
  * Quem pode reservar o veículo de um evento, só com ele agendado ou confirmado:
- * gestão e supervisora, ou quem tem a função Produção e está escalado no evento
+ * gestão e assistente, ou quem tem a função Produção e está escalado no evento
  * (em qualquer função, ex.: artista que também é produtor). É a mesma regra do
  * banco (política res_criar).
  */

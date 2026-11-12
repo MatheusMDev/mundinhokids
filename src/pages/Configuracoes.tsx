@@ -42,8 +42,8 @@ export function Configuracoes() {
   const [prazoTroca, setPrazoTroca] = useState(atual.substituicao_antecedencia_minutos || '90');
   const [exigeAprovacao, setExigeAprovacao] = useState(!!atual.despesa_aprovacao_acima_de);
   const [limite, setLimite] = useState(atual.despesa_aprovacao_acima_de ?? '');
-  const [supCancela, setSupCancela] = useState(atual.supervisora_pode_cancelar === 'true');
-  const [supEquipe, setSupEquipe] = useState(atual.supervisora_pode_alterar_equipe === 'true');
+  const [assistenteCancela, setAssistenteCancela] = useState(atual.assistente_pode_cancelar === 'true');
+  const [assistenteEquipe, setAssistenteEquipe] = useState(atual.assistente_pode_alterar_equipe === 'true');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -53,8 +53,8 @@ export function Configuracoes() {
     lembrete_antecedencia_minutos: lembrete,
     substituicao_antecedencia_minutos: prazoTroca,
     despesa_aprovacao_acima_de: exigeAprovacao ? String(lerValor(limite) ?? '') : '',
-    supervisora_pode_cancelar: String(supCancela),
-    supervisora_pode_alterar_equipe: String(supEquipe),
+    assistente_pode_cancelar: String(assistenteCancela),
+    assistente_pode_alterar_equipe: String(assistenteEquipe),
   };
   const mudancas = Object.fromEntries(Object.entries(novo).filter(([chave, valor]) => (atual[chave] ?? '') !== valor));
   const alterou = Object.keys(mudancas).length > 0;
@@ -171,15 +171,15 @@ export function Configuracoes() {
           )}
         </section>
 
-        {usuario.perfil !== 'supervisora' && <section className="cartao configuracao-secao">
+        {usuario.perfil !== 'assistente' && <section className="cartao configuracao-secao">
           <div className="configuracao-secao-cabecalho">
             <span className="configuracao-secao-numero">04</span>
             <div><h2>Permissões da Assistente</h2><p>Escolha as ações operacionais extras da Assistente.</p></div>
           </div>
           <p className="suave configuracao-nota">Ela sempre cadastra, monta a escala, remarca e confere fantasias. Consulta valores fora do Painel, mas não pode alterá-los.</p>
           <div className="acoes-coluna">
-            <Marcador texto="Cancelar eventos" marcado={supCancela} onMudar={setSupCancela} desativado={desativado} />
-            <Marcador texto="Tirar alguém de uma equipe já escalada" marcado={supEquipe} onMudar={setSupEquipe} desativado={desativado} />
+            <Marcador texto="Cancelar eventos" marcado={assistenteCancela} onMudar={setAssistenteCancela} desativado={desativado} />
+            <Marcador texto="Tirar alguém de uma equipe já escalada" marcado={assistenteEquipe} onMudar={setAssistenteEquipe} desativado={desativado} />
           </div>
         </section>}
 

@@ -26,7 +26,7 @@ create extension if not exists btree_gist;   -- necessário para as travas de co
 -- ---------------------------------------------------------------------
 
 create type perfil_acesso as enum (
-  'diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'
+  'diretora', 'gerente', 'assistente', 'produtor', 'artista', 'maquiador', 'fantasias'
 );
 create type funcao_profissional  as enum ('artista', 'produtor', 'maquiador', 'fantasias');
 create type funcao_escala        as enum ('artista', 'produtor', 'maquiador');
@@ -55,8 +55,8 @@ insert into configuracoes (chave, valor, descricao) values
   ('link_respostas_formulario',         '',      'Atalho da direção para onde as respostas já ficam hoje'),
   ('lembrete_antecedencia_minutos',     '120',   'Último aviso antes do evento (definido: 2 horas)'),
   ('substituicao_antecedencia_minutos', '90',    'A CONFIRMAR (pergunta 5): antecedência mínima para pedir troca'),
-  ('supervisora_pode_cancelar',         'false', 'A CONFIRMAR (pergunta 3)'),
-  ('supervisora_pode_alterar_equipe',   'false', 'A CONFIRMAR (pergunta 4): alterar equipe já escalada'),
+  ('assistente_pode_cancelar',         'false', 'A CONFIRMAR (pergunta 3)'),
+  ('assistente_pode_alterar_equipe',   'false', 'A CONFIRMAR (pergunta 4): alterar equipe já escalada'),
   ('despesa_aprovacao_acima_de',        '',      'A CONFIRMAR (pergunta 2): valor a partir do qual a despesa precisa de aprovação; vazio = nunca');
 
 -- ---------------------------------------------------------------------
@@ -395,10 +395,10 @@ language sql stable security definer set search_path = public as $$
   select coalesce(meu_perfil() in ('diretora', 'gerente'), false)
 $$;
 
--- Diretora, gerente e supervisora: cadastram e editam eventos
+-- Diretora, gerente e assistente: cadastram e editam eventos
 create function eh_operacao() returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce(meu_perfil() in ('diretora', 'gerente', 'supervisora'), false)
+  select coalesce(meu_perfil() in ('diretora', 'gerente', 'assistente'), false)
 $$;
 
 create function meu_profissional_id() returns uuid
@@ -437,13 +437,13 @@ $$;
 create function pode_cancelar_evento() returns boolean
 language sql stable security definer set search_path = public as $$
   select eh_gestao()
-      or (meu_perfil() = 'supervisora' and config_texto('supervisora_pode_cancelar') = 'true')
+      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_cancelar') = 'true')
 $$;
 
 create function pode_alterar_equipe() returns boolean
 language sql stable security definer set search_path = public as $$
   select eh_gestao()
-      or (meu_perfil() = 'supervisora' and config_texto('supervisora_pode_alterar_equipe') = 'true')
+      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_alterar_equipe') = 'true')
 $$;
 
 -- ---------------------------------------------------------------------
@@ -978,15 +978,19 @@ create policy res_alterar  on reservas_veiculo for update to authenticated
 -- Financeiro do evento e recebimentos: só diretora e gerente
 create policy fin_tudo     on evento_financeiro for all to authenticated using (eh_gestao()) with check (eh_gestao());
 create policy rec_tudo     on recebimentos      for all to authenticated using (eh_gestao()) with check (eh_gestao());
+create policy fin_ler_assistente on evento_financeiro for select to authenticated
+  using (meu_perfil() = 'assistente');
+create policy rec_ler_assistente on recebimentos for select to authenticated
+  using (meu_perfil() = 'assistente');
 
 -- Pagamento dos profissionais: gestão vê todos; cada profissional vê só o próprio valor
 create policy pag_ler      on pagamentos_profissionais for select to authenticated
-  using (eh_gestao() or profissional_id = meu_profissional_id());
+  using (eh_gestao() or meu_perfil() = 'assistente' or profissional_id = meu_profissional_id());
 create policy pag_criar    on pagamentos_profissionais for insert to authenticated with check (eh_gestao());
 create policy pag_alterar  on pagamentos_profissionais for update to authenticated using (eh_gestao()) with check (eh_gestao());
 
 -- Despesas: gestão vê todas; quem lançou vê as próprias. A CONFIRMAR: quem pode lançar.
-create policy desp_ler     on despesas for select to authenticated using (eh_gestao() or criado_por = auth.uid());
+create policy desp_ler     on despesas for select to authenticated using (eh_gestao() or meu_perfil() = 'assistente' or criado_por = auth.uid());
 create policy desp_criar   on despesas for insert to authenticated
   with check (eh_gestao()
               or (criado_por = auth.uid() and evento_id is not null and participa_do_evento(evento_id)));
@@ -1011,9 +1015,9 @@ create policy push_proprio on push_inscricoes for all to authenticated
   using (usuario_id = auth.uid()) with check (usuario_id = auth.uid());
 create policy not_ler      on notificacoes for select to authenticated using (usuario_id = auth.uid());
 
--- Histórico: gestão vê tudo; supervisora vê sem as alterações financeiras
+-- Histórico: gestão e Assistente veem tudo
 create policy hist_ler     on historico for select to authenticated
-  using (eh_gestao() or (meu_perfil() = 'supervisora' and not financeiro));
+  using (eh_gestao() or meu_perfil() = 'assistente');
 
 -- Nada é excluído pelo app: eventos cancelam, escala desativa, histórico é permanente
 revoke delete on eventos, evento_escala, evento_remarcacoes, reservas_veiculo,
@@ -2321,7 +2325,7 @@ create policy documentos_storage_apagar on storage.objects for delete to authent
 -- (ou hoje, se hoje for sábado). Assim a base sempre tem eventos na
 -- semana, pendências e uma troca para aprovar, como nos mocks.
 --
--- Os logins (gerente e supervisora) não são criados aqui: crie os
+-- Os logins (gerente e assistente) não são criados aqui: crie os
 -- usuários em Authentication > Users e rode supabase/vincular_usuarios.sql.
 -- =====================================================================
 
