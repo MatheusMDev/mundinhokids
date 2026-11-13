@@ -191,8 +191,78 @@ export async function salvarPagamentos(c: Cliente, eventoId: string, linhas: Dad
 
 export type DadosDespesa = Pick<Despesa, 'evento_id' | 'tipo' | 'descricao' | 'valor' | 'responsavel_id' | 'comprovante' | 'observacoes'>;
 
-export const salvarDespesa = (c: Cliente, id: string | undefined, dados: DadosDespesa) =>
-  salvar(c, 'despesas', id, dados);
+export const DESPESAS_COMPROVANTES_BUCKET = 'despesas-comprovantes';
+export const MAX_DESPESA_COMPROVANTE_BYTES = 10 * 1024 * 1024;
+const TIPOS_DESPESA_COMPROVANTE = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+function caminhoComprovanteDespesa(eventoId: string | null, usuarioId: string, arquivo: File) {
+  const nome = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'comprovante';
+  return `${eventoId ?? 'geral'}/${usuarioId}/${crypto.randomUUID()}-${nome}`;
+}
+
+export async function salvarDespesa(
+  c: Cliente, id: string | undefined, dados: DadosDespesa, arquivo?: File | null, comprovanteAnterior?: string | null,
+) {
+  let novoCaminho: string | null = null;
+  if (arquivo) {
+    if (!TIPOS_DESPESA_COMPROVANTE.includes(arquivo.type)) throw new Error('Envie uma imagem JPG, PNG, WEBP ou um PDF.');
+    if (arquivo.size > MAX_DESPESA_COMPROVANTE_BYTES) throw new Error('O comprovante precisa ter no máximo 10 MB.');
+    const respostaUsuario = await c.auth.getUser();
+    if (respostaUsuario.error) throw respostaUsuario.error;
+    const usuario = respostaUsuario.data.user;
+    if (!usuario) throw new SemPermissao();
+    novoCaminho = caminhoComprovanteDespesa(dados.evento_id, usuario.id, arquivo);
+    ok(await c.storage.from(DESPESAS_COMPROVANTES_BUCKET).upload(novoCaminho, arquivo, {
+      cacheControl: '3600', upsert: false, contentType: arquivo.type,
+    }));
+  }
+
+  try {
+    const metadados = arquivo && novoCaminho ? {
+      comprovante_path: novoCaminho,
+      comprovante_nome: arquivo.name,
+      comprovante_mime: arquivo.type,
+      comprovante_tamanho: arquivo.size,
+    } : {};
+    const payload = { ...dados, ...metadados };
+    if (!id) {
+      const linha = ok(await c.from('despesas').insert(payload).select('id').single()) as { id: string };
+      return linha.id;
+    }
+    const linhas = ok(await c.from('despesas').update(payload).eq('id', id).select('id')) as unknown[];
+    if (!linhas.length) throw new SemPermissao();
+    if (novoCaminho && comprovanteAnterior) {
+      await c.storage.from(DESPESAS_COMPROVANTES_BUCKET).remove([comprovanteAnterior]);
+    }
+    return id;
+  } catch (erro) {
+    if (novoCaminho) await c.storage.from(DESPESAS_COMPROVANTES_BUCKET).remove([novoCaminho]);
+    throw erro;
+  }
+}
+
+export async function urlComprovanteDespesa(c: Cliente, caminho: string) {
+  const resposta = await c.storage.from(DESPESAS_COMPROVANTES_BUCKET).createSignedUrl(caminho, 300);
+  if (resposta.error) throw resposta.error;
+  if (!resposta.data?.signedUrl) throw new Error('Não foi possível abrir o comprovante. Tente novamente.');
+  return resposta.data.signedUrl;
+}
+
+export async function abrirComprovanteDespesa(c: Cliente, caminho: string) {
+  const novaAba = window.open('', '_blank');
+  try {
+    const url = await urlComprovanteDespesa(c, caminho);
+    if (novaAba) {
+      novaAba.opener = null;
+      novaAba.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+  } catch (erro) {
+    novaAba?.close();
+    throw erro;
+  }
+}
 
 export async function decidirDespesa(c: Cliente, id: string, aprova: boolean) {
   await salvar(c, 'despesas', id, { aprovacao: aprova ? 'aprovada' : 'recusada' });

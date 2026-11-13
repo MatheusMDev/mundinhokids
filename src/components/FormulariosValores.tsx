@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Campo, Dialogo, Linha, Marcador, SeletorData, SeletorOpcao } from './Formulario';
 import { useEstado } from '../lib/estado';
 import {
-  cancelarReserva, registrarDevolucao, salvarDespesa, salvarPagamentos, salvarRecebimento, salvarReserva, vazioParaNulo,
+  abrirComprovanteDespesa, cancelarReserva, MAX_DESPESA_COMPROVANTE_BYTES, registrarDevolucao, salvarDespesa, salvarPagamentos, salvarRecebimento, salvarReserva, vazioParaNulo,
   type DadosPagamento,
 } from '../lib/acoes';
 import { dataLonga, deCampos, hojeCampo, hora, lerValor, moeda, paraCampos } from '../lib/formato';
@@ -252,7 +252,7 @@ export function FormPagamentos({ evento, onFechar }: { evento: Evento; onFechar:
 // ---------------------------------------------------------------------
 
 export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?: Despesa; onFechar: () => void }) {
-  const { db, cliente, executar, permissoes, usuario } = useEstado();
+  const { db, cliente, executar, permissoes, usuario, avisar } = useEstado();
   const limite = lerValor(db.configuracoes.despesa_aprovacao_acima_de ?? '');
 
   const [tipo, setTipo] = useState<Despesa['tipo']>(item?.tipo ?? (evento ? 'extra' : 'insumo'));
@@ -261,11 +261,12 @@ export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?
   const [responsavel, setResponsavel] = useState(item?.responsavel_id
     ?? db.profissionais.find((p) => p.id === usuario.profissionalId && profissionalDisponivel(db, p))?.id ?? '');
   const [comprovante, setComprovante] = useState(item?.comprovante ?? '');
+  const [arquivoComprovante, setArquivoComprovante] = useState<File | null>(null);
   const [observacoes, setObservacoes] = useState(item?.observacoes ?? '');
   const numero = lerValor(valor);
 
   const pessoas = evento
-    ? equipeDoEvento(db, evento.id).map((m) => m.profissional).filter((p): p is NonNullable<typeof p> => !!p && profissionalDisponivel(db, p))
+    ? equipeDoEvento(db, evento.id).map((m) => m.profissional).filter((p): p is NonNullable<typeof p> => !!p && profissionalDisponivel(db, p) && (permissoes.gestao || p.id === usuario.profissionalId))
     : db.profissionais.filter((p) => profissionalDisponivel(db, p));
   const responsavelAnterior = item && db.profissionais.find((p) => p.id === item.responsavel_id && !pessoas.some((r) => r.id === p.id));
 
@@ -276,11 +277,12 @@ export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?
       textoSalvar={item ? 'Salvar' : 'Lançar despesa'}
       validar={() => (!descricao.trim() ? 'Descreva a despesa.' : numero === null || numero <= 0 ? 'Informe um valor maior que zero.'
         : responsavel && !pessoas.some((p) => p.id === responsavel) && responsavel !== item?.responsavel_id
-          ? 'Este profissional não está mais disponível. Escolha outra pessoa.' : null)}
+          ? 'Este profissional não está mais disponível. Escolha outra pessoa.'
+          : evento && !item && !arquivoComprovante && !comprovante.trim() ? 'Anexe o comprovante da despesa ou informe um link.' : null)}
       onSalvar={() => executar(() => salvarDespesa(cliente, item?.id, {
         evento_id: item ? item.evento_id : evento?.id ?? null, tipo, descricao: descricao.trim(), valor: numero!,
         responsavel_id: responsavel || null, comprovante: vazioParaNulo(comprovante), observacoes: vazioParaNulo(observacoes),
-      }), limite !== null && numero! > limite && !permissoes.gestao
+      }, arquivoComprovante, item?.comprovante_path), limite !== null && numero! > limite && !permissoes.gestao
         ? 'Despesa lançada. Ela aguarda a aprovação da gestão.'
         : 'Despesa lançada.')}
     >
@@ -307,9 +309,18 @@ export function FormDespesa({ evento, item, onFechar }: { evento?: Evento; item?
           </select>
         )}
       </Campo>
-      <Campo rotulo="Comprovante" dica="Link da foto ou referência (ex.: nota enviada no WhatsApp). O sistema não guarda arquivos.">
+      <Campo rotulo="Link do comprovante" dica="Opcional se anexar o arquivo abaixo.">
         {(id) => <input id={id} value={comprovante} onChange={(e) => setComprovante(e.target.value)} />}
       </Campo>
+      <Campo rotulo={item ? 'Anexar ou trocar arquivo' : evento ? 'Foto ou PDF do comprovante *' : 'Anexar comprovante'} obrigatorio={!!evento && !item && !comprovante.trim()} dica="JPG, PNG, WEBP ou PDF · máximo de 10 MB.">
+        {(id) => <input id={id} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setArquivoComprovante(e.target.files?.[0] ?? null)} />}
+      </Campo>
+      {arquivoComprovante && <small className="suave">{arquivoComprovante.name} · {(arquivoComprovante.size / (1024 * 1024)).toFixed(1)} MB</small>}
+      {item?.comprovante_path && <div className="acoes-linha">
+        <button type="button" className="botao pequeno" onClick={() => void abrirComprovanteDespesa(cliente, item.comprovante_path!).catch(() => avisar('Não foi possível abrir o comprovante. Tente novamente.'))}>Abrir arquivo anexado</button>
+        {!arquivoComprovante && <small className="suave">Arquivo atual: {item.comprovante_nome ?? 'comprovante'}</small>}
+      </div>}
+      <small className="sr-only">Limite do comprovante em bytes: {MAX_DESPESA_COMPROVANTE_BYTES}</small>
       <Campo rotulo="Observações">{(id) => <input id={id} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />}</Campo>
       {limite !== null && <small className="suave">Despesas acima de {moeda(limite)} passam pela aprovação da gestão.</small>}
     </Dialogo>

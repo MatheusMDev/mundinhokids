@@ -26,6 +26,7 @@ const MIGRACOES = [
   'migrations/20261112000002_assistente_valores.sql',
   'migrations/20261112000003_adicionais_produtores.sql',
   'migrations/20261112000004_renomear_supervisora_para_assistente.sql',
+  'migrations/20261112000005_comprovantes_despesas_evento.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -243,8 +244,8 @@ await teste('assistente lê as observações migradas', async () => {
 
 await teste('produtor não lança despesa já aprovada', async () => {
   const r = await como(ID.bruno, (tx) => tx.query(`
-    insert into despesas (evento_id, descricao, valor, aprovacao, aprovado_por)
-    values ('60000000-0000-0000-0000-000000000001', 'Balões', 45, 'aprovada', '${ID.diretora}')
+    insert into despesas (evento_id, descricao, valor, responsavel_id, comprovante, aprovacao, aprovado_por)
+    values ('60000000-0000-0000-0000-000000000001', 'Balões', 45, '${PROF.bruno}', 'https://exemplo.test/comprovante', 'aprovada', '${ID.diretora}')
     returning aprovacao, aprovado_por`));
   const linha = r.rows[0];
   if (linha.aprovacao !== 'nao_requer' || linha.aprovado_por !== null) {
@@ -256,8 +257,8 @@ await teste('despesa acima do limite fica pendente', async () => {
   await db.transaction(async (tx) => {
     await tx.exec(`update configuracoes set valor = '100' where chave = 'despesa_aprovacao_acima_de'`);
     await tx.exec(`set local role authenticated; set local app.uid = '${ID.bruno}'`);
-    const r = await tx.query(`insert into despesas (evento_id, descricao, valor)
-      values ('60000000-0000-0000-0000-000000000001', 'Peruca nova', 180) returning aprovacao`);
+    const r = await tx.query(`insert into despesas (evento_id, descricao, valor, responsavel_id, comprovante)
+      values ('60000000-0000-0000-0000-000000000001', 'Peruca nova', 180, '${PROF.bruno}', 'https://exemplo.test/comprovante') returning aprovacao`);
     if (r.rows[0].aprovacao !== 'pendente') throw new Error(`ficou ${r.rows[0].aprovacao}`);
     await tx.rollback();
   }).catch((e) => { if (!e.message.includes('rollback')) throw e; });

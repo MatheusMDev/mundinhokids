@@ -8,7 +8,7 @@ import {
   FormCancelarReserva, FormDespesa, FormDevolucao, FormPagamentos, FormRecebimento, FormReserva,
 } from './FormulariosValores';
 import { producaoDoEvento, useEstado } from '../lib/estado';
-import { decidirDespesa } from '../lib/acoes';
+import { abrirComprovanteDespesa, decidirDespesa } from '../lib/acoes';
 import { dataCurta, hora, moeda, quando } from '../lib/formato';
 import { equipeDoEvento, financeiroDoEvento, transporteDoEvento } from '../lib/consultas';
 import type { Despesa, Evento, Recebimento } from '../lib/tipos';
@@ -253,6 +253,7 @@ export function CartaoDespesas({ evento }: { evento: Evento }) {
                   {` · ${quando(d.criado_em, hoje)}`}
                   {d.comprovante && ` · comprovante: ${d.comprovante}`}
                 </small>
+                {d.comprovante_path && <button type="button" className="botao pequeno" onClick={() => void abrirComprovanteDespesa(cliente, d.comprovante_path!).catch(() => avisar('Não foi possível abrir o comprovante. Tente novamente.'))}>Abrir arquivo anexado</button>}
                 {d.aprovacao !== 'nao_requer' && <span className={`selo ${d.aprovacao === 'aprovada' ? 'ok' : d.aprovacao === 'recusada' ? 'neutro' : 'alerta'}`}>{ROTULO_APROVACAO[d.aprovacao]}</span>}
               </div>
               <div className="valor-despesa">
