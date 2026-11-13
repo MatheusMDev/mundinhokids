@@ -20,6 +20,7 @@ const MIGRACOES = [
   'migrations/20261112000002_assistente_valores.sql',
   'migrations/20261112000003_adicionais_produtores.sql',
   'migrations/20261112000004_renomear_supervisora_para_assistente.sql',
+  'migrations/20261112000005_comprovantes_despesas_evento.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -168,14 +169,14 @@ for (const [i, [nome, perfil, profissional]] of perfis26.entries()) {
     await teste('#26 Bruno: reserva Doblò e lança despesa própria', () => como(uid, async tx => {
       await tx.exec(`insert into reservas_veiculo(veiculo_id,responsavel_id,retirada,devolucao_prevista)
         values ('e0000000-0000-0000-0000-000000000001','${profissional}','2035-01-01 10:00Z','2035-01-01 12:00Z');
-        insert into despesas(evento_id,descricao,valor,responsavel_id)
-        select evento_id,'Teste produção',20,'${profissional}' from evento_escala where profissional_id='${profissional}' and ativo limit 1`);
+        insert into despesas(evento_id,descricao,valor,responsavel_id,comprovante)
+        select evento_id,'Teste produção',20,'${profissional}','https://exemplo.test/comprovante' from evento_escala where profissional_id='${profissional}' and ativo limit 1`);
       if (await qtd(tx, "select count(*) as n from despesas where descricao='Teste produção'") !== 1) throw Error('Despesa não gravada');
     }));
   }
   if (perfil === 'artista') {
-    const lancar = `insert into despesas(evento_id,descricao,valor)
-      select evento_id,'Teste artista',20 from evento_escala where profissional_id='${profissional}' and ativo limit 1`;
+    const lancar = `insert into despesas(evento_id,descricao,valor,responsavel_id,comprovante)
+      select evento_id,'Teste artista',20,'${profissional}','https://exemplo.test/comprovante' from evento_escala where profissional_id='${profissional}' and ativo limit 1`;
     await teste('Júlia (artista) não lança despesa no evento em que está escalada', () => como(uid, tx =>
       esperaErro(tx.exec(lancar), 'row-level security')));
     await teste('Júlia lança despesa se também tiver a função Produção no cadastro', async () => {

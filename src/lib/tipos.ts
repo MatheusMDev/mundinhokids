@@ -201,6 +201,10 @@ export interface Despesa {
   valor: number;
   responsavel_id: string | null;
   comprovante: string | null;
+  comprovante_path?: string | null;
+  comprovante_nome?: string | null;
+  comprovante_mime?: string | null;
+  comprovante_tamanho?: number | null;
   aprovacao: SituacaoAprovacao;
   observacoes: string | null;
   criado_por: string | null;
