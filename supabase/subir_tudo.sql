@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, migrations/20261112000001_documentos_artistas.sql, migrations/20261112000002_assistente_valores.sql, migrations/20261112000003_adicionais_produtores.sql, migrations/20261112000004_renomear_supervisora_para_assistente.sql, migrations/20261112000005_comprovantes_despesas_evento.sql, migrations/20261113000001_contratos_e_videos_eventos.sql, migrations/20261113000002_multas_cancelamento.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, migrations/20261112000001_documentos_artistas.sql, migrations/20261112000002_assistente_valores.sql, migrations/20261112000003_adicionais_produtores.sql, migrations/20261112000004_renomear_supervisora_para_assistente.sql, migrations/20261112000005_comprovantes_despesas_evento.sql, migrations/20261113000001_contratos_e_videos_eventos.sql, migrations/20261113000002_multas_cancelamento.sql, migrations/20261113000003_observacoes_artistas_eventos.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -2949,6 +2949,58 @@ $$;
 
 revoke all on function public.cancelar_evento_com_multa(uuid, text, text, numeric, numeric, text) from public, anon;
 grant execute on function public.cancelar_evento_com_multa(uuid, text, text, numeric, numeric, text) to authenticated;
+
+-- >>>>> migrations/20261113000003_observacoes_artistas_eventos.sql
+
+-- Observações gerais dos artistas vinculadas ao evento (não a uma fantasia).
+-- Cada envio é preservado como uma entrada própria, com autor e data.
+create table if not exists public.observacoes_artistas_eventos (
+  id uuid primary key default gen_random_uuid(),
+  evento_id uuid not null references public.eventos (id) on delete cascade,
+  profissional_id uuid not null references public.profissionais (id),
+  texto text not null check (char_length(trim(texto)) between 1 and 1000),
+  criado_em timestamptz not null default now()
+);
+
+create index if not exists observacoes_artistas_eventos_evento_idx
+  on public.observacoes_artistas_eventos (evento_id, criado_em desc);
+
+alter table public.observacoes_artistas_eventos enable row level security;
+revoke all on public.observacoes_artistas_eventos from anon, authenticated;
+grant select, insert on public.observacoes_artistas_eventos to authenticated;
+
+drop policy if exists observacoes_artistas_eventos_ler on public.observacoes_artistas_eventos;
+create policy observacoes_artistas_eventos_ler
+  on public.observacoes_artistas_eventos for select to authenticated
+  using (
+    eh_gestao()
+    or exists (
+      select 1 from public.evento_escala e
+      where e.evento_id = observacoes_artistas_eventos.evento_id
+        and e.profissional_id = meu_profissional_id()
+        and e.ativo
+    )
+  );
+
+drop policy if exists observacoes_artistas_eventos_criar on public.observacoes_artistas_eventos;
+create policy observacoes_artistas_eventos_criar
+  on public.observacoes_artistas_eventos for insert to authenticated
+  with check (
+    profissional_id = meu_profissional_id()
+    and tenho_funcao('artista')
+    and exists (
+      select 1 from public.evento_escala e
+      join public.eventos ev on ev.id = e.evento_id
+      where e.evento_id = observacoes_artistas_eventos.evento_id
+        and e.profissional_id = meu_profissional_id()
+        and e.funcao = 'artista'
+        and e.ativo
+        and ev.situacao <> 'cancelado'
+    )
+  );
+
+-- Sem políticas/grants de UPDATE ou DELETE: cada observação enviada permanece
+-- como histórico, identificada por artista e data.
 
 -- >>>>> seed.sql
 

@@ -144,6 +144,14 @@ export interface Evento {
   criado_em: string;
 }
 
+export interface ObservacaoArtistaEvento {
+  id: string;
+  evento_id: string;
+  profissional_id: string;
+  texto: string;
+  criado_em: string;
+}
+
 export interface EscalaItem {
   id: string;
   evento_id: string;
@@ -302,6 +310,7 @@ export interface BaseDados {
   profissionais: Profissional[];
   disponibilidade_semanal: DisponibilidadeSemanalDia[];
   videos_eventos: VideoEvento[];
+  observacoes_artistas_eventos: ObservacaoArtistaEvento[];
   multas_cancelamento: MultaCancelamento[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];

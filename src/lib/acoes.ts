@@ -6,7 +6,7 @@ import { SemPermissao } from './erros';
 import { sairDesteAparelho } from './supabase';
 import type {
   ConferenciaFantasia, Contratante, Despesa, DisponibilidadeSemanalDia, DocumentoProfissional, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
-  AdicionalProdutor, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo, VideoEvento,
+  AdicionalProdutor, ObservacaoArtistaEvento, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo, VideoEvento,
 } from './tipos';
 import type { Notificacao } from './tipos';
 
@@ -18,6 +18,7 @@ export const MAX_DOCUMENTO_ARTISTA_BYTES = 10 * 1024 * 1024;
 export const TIPOS_DOCUMENTO_ARTISTA = ['Contrato', 'Documento de identificação', 'Comprovante', 'Outro'] as const;
 export const VIDEOS_EVENTOS_BUCKET = 'videos-eventos';
 export const MAX_VIDEO_EVENTO_BYTES = 50 * 1024 * 1024;
+export const MAX_OBSERVACAO_ARTISTA_EVENTO = 1000;
 
 function ok<T>(r: Resposta<T>): T {
   if (r.error) throw r.error;
@@ -498,6 +499,17 @@ export async function abrirVideoEvento(c: Cliente, video: VideoEvento) {
     novaAba?.close();
     throw erro;
   }
+}
+
+export async function adicionarObservacaoArtistaEvento(
+  c: Cliente, eventoId: string, profissionalId: string, texto: string,
+): Promise<ObservacaoArtistaEvento> {
+  const observacao = texto.trim();
+  if (!observacao) throw new Error('Escreva uma observação antes de publicar.');
+  if (observacao.length > MAX_OBSERVACAO_ARTISTA_EVENTO) throw new Error('A observação deve ter até 1.000 caracteres.');
+  return ok(await c.from('observacoes_artistas_eventos').insert({
+    evento_id: eventoId, profissional_id: profissionalId, texto: observacao,
+  }).select('*').single()) as ObservacaoArtistaEvento;
 }
 
 // ---------------------------------------------------------------------

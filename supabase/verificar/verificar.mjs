@@ -29,6 +29,7 @@ const MIGRACOES = [
   'migrations/20261112000005_comprovantes_despesas_evento.sql',
   'migrations/20261113000001_contratos_e_videos_eventos.sql',
   'migrations/20261113000002_multas_cancelamento.sql',
+  'migrations/20261113000003_observacoes_artistas_eventos.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
