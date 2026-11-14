@@ -3,10 +3,10 @@ import { Campo, Dialogo, SeletorOpcao } from './Formulario';
 import { Icone } from './Icone';
 import { useEstado } from '../lib/estado';
 import {
-  DOCUMENTOS_ARTISTAS_BUCKET, enviarDocumentoArtista, MAX_DOCUMENTO_ARTISTA_BYTES,
-  removerDocumentoArtista, substituirDocumentoArtista, TIPOS_DOCUMENTO_ARTISTA,
+  DOCUMENTOS_ARTISTAS_BUCKET, enviarDocumentoProfissional, MAX_DOCUMENTO_ARTISTA_BYTES,
+  removerDocumentoProfissional, substituirDocumentoProfissional, TIPOS_DOCUMENTO_ARTISTA,
 } from '../lib/acoes';
-import type { DocumentoArtista, Profissional, Usuario } from '../lib/tipos';
+import type { DocumentoProfissional, Profissional, Usuario } from '../lib/tipos';
 
 function tamanho(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -17,26 +17,26 @@ function dataEnvio(data: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(data));
 }
 
-export function DocumentosArtista({ profissional, documentos, usuarios, podeGerenciar }: {
+export function DocumentosProfissional({ profissional, documentos, usuarios, podeGerenciar }: {
   profissional: Profissional;
-  documentos: DocumentoArtista[];
+  documentos: DocumentoProfissional[];
   usuarios: Usuario[];
   podeGerenciar: boolean;
 }) {
   const { cliente, executar, avisar } = useEstado();
-  const [janela, setJanela] = useState<{ documento?: DocumentoArtista } | null>(null);
+  const [janela, setJanela] = useState<{ documento?: DocumentoProfissional } | null>(null);
   const [tipo, setTipo] = useState<string>(TIPOS_DOCUMENTO_ARTISTA[0]);
   const [arquivo, setArquivo] = useState<File | null>(null);
 
   if (!podeGerenciar && !documentos.length) return null;
 
-  const abrirJanela = (documento?: DocumentoArtista) => {
+  const abrirJanela = (documento?: DocumentoProfissional) => {
     setTipo(documento?.tipo ?? TIPOS_DOCUMENTO_ARTISTA[0]);
     setArquivo(null);
     setJanela({ documento });
   };
 
-  const abrirDocumento = async (documento: DocumentoArtista) => {
+  const abrirDocumento = async (documento: DocumentoProfissional) => {
     const novaAba = window.open('', '_blank');
     const { data, error } = await cliente.storage.from(DOCUMENTOS_ARTISTAS_BUCKET)
       .createSignedUrl(documento.storage_path, 300);
@@ -52,8 +52,8 @@ export function DocumentosArtista({ profissional, documentos, usuarios, podeGere
   return (
     <div className="documentos-artista">
       <div className="documentos-artista-topo">
-        <span><Icone nome="arquivo" tamanho={15} /> <strong>Documentos</strong></span>
-        {podeGerenciar && <button type="button" className="botao pequeno" onClick={() => abrirJanela()}><span aria-hidden="true">+</span> Anexar</button>}
+        <span><Icone nome="arquivo" tamanho={15} /> <strong>Contrato e documentos</strong></span>
+        {podeGerenciar && <button type="button" className="botao pequeno" onClick={() => abrirJanela()}><span aria-hidden="true">+</span> Anexar contrato</button>}
       </div>
       {documentos.length ? (
         <ul className="documentos-artista-lista">
@@ -68,7 +68,7 @@ export function DocumentosArtista({ profissional, documentos, usuarios, podeGere
                 {podeGerenciar && <button type="button" className="botao pequeno" onClick={() => abrirJanela(documento)}>Substituir</button>}
                 {podeGerenciar && <button type="button" className="botao pequeno texto-perigo" onClick={() => {
                   if (window.confirm(`Remover o documento “${documento.nome}”?`)) {
-                    void executar(() => removerDocumentoArtista(cliente, documento), 'Documento removido.');
+                    void executar(() => removerDocumentoProfissional(cliente, documento), 'Documento removido.');
                   }
                 }}>Remover</button>}
               </div>
@@ -79,14 +79,15 @@ export function DocumentosArtista({ profissional, documentos, usuarios, podeGere
 
       {janela && (
         <Dialogo
+          className="documento-profissional-dialogo"
           titulo={janela.documento ? 'Substituir documento' : 'Anexar documento'}
           textoSalvar={janela.documento ? 'Substituir' : 'Anexar'}
           onFechar={() => setJanela(null)}
           validar={() => !arquivo ? 'Escolha um arquivo.' : null}
           onSalvar={() => executar(
             () => janela.documento
-              ? substituirDocumentoArtista(cliente, janela.documento, tipo, arquivo as File)
-              : enviarDocumentoArtista(cliente, profissional.id, tipo, arquivo as File),
+              ? substituirDocumentoProfissional(cliente, janela.documento, tipo, arquivo as File)
+              : enviarDocumentoProfissional(cliente, profissional.id, tipo, arquivo as File),
             janela.documento ? 'Documento substituído.' : 'Documento anexado.',
           )}
         >
@@ -95,7 +96,7 @@ export function DocumentosArtista({ profissional, documentos, usuarios, podeGere
             {(id) => <input id={id} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" onChange={(evento) => setArquivo(evento.target.files?.[0] ?? null)} required />}
           </Campo>
           {arquivo && <p className="suave documento-artista-selecao">{arquivo.name} · {tamanho(arquivo.size)}</p>}
-          <small className="suave">O arquivo ficará privado e só poderá ser aberto por quem tem autorização.</small>
+        <small className="suave">Somente Direção e Gerência podem anexar, substituir ou remover arquivos. Contratos ficam privados.</small>
           <span className="sr-only">Limite em bytes: {MAX_DOCUMENTO_ARTISTA_BYTES}</span>
         </Dialogo>
       )}

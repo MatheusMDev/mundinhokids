@@ -9,7 +9,7 @@ import { ROTULO_SITUACAO } from './consultas';
 
 const TABELAS = [
   'usuarios', 'profissionais', 'disponibilidade_semanal', 'personagens', 'profissional_personagens', 'contratantes', 'locais',
-  'documentos_artistas',
+  'documentos_artistas', 'videos_eventos',
   'fantasias', 'veiculos', 'eventos', 'evento_escala', 'reservas_veiculo', 'evento_financeiro',
   'recebimentos', 'pagamentos_profissionais', 'despesas', 'adicionais_produtores', 'substituicoes', 'conferencias_fantasia',
   'notificacoes', 'notificacao_preferencias', 'profissionais_notas', 'contratantes_notas',

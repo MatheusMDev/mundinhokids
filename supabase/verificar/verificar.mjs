@@ -27,6 +27,7 @@ const MIGRACOES = [
   'migrations/20261112000003_adicionais_produtores.sql',
   'migrations/20261112000004_renomear_supervisora_para_assistente.sql',
   'migrations/20261112000005_comprovantes_despesas_evento.sql',
+  'migrations/20261113000001_contratos_e_videos_eventos.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -59,6 +60,11 @@ const ID = {
   ana: '00000000-0000-0000-0000-000000000011',
   bia: '00000000-0000-0000-0000-000000000012',
   bruno: '00000000-0000-0000-0000-000000000013',
+};
+const PROF = {
+  ana: '10000000-0000-0000-0000-000000000011',
+  bia: '10000000-0000-0000-0000-000000000012',
+  bruno: '10000000-0000-0000-0000-000000000013',
 };
 
 // Antes dos ajustes: cadastros com observações, para testar a migração delas
@@ -195,19 +201,55 @@ await teste('Ana vê o evento enquanto está escalada', async () => {
   if (n !== 1) throw new Error(`esperado 1, veio ${n}`);
 });
 
-await teste('documentos de artista ficam isolados por RLS', async () => {
+await teste('contratos só ficam visíveis para Direção e Gerência', async () => {
   await db.transaction(async (tx) => {
     await tx.exec(`set local role authenticated; set local app.uid = '${ID.diretora}';
       insert into documentos_artistas (profissional_id, tipo, nome, storage_path, mime_type, tamanho_bytes)
       values ('10000000-0000-0000-0000-000000000011', 'Contrato', 'contrato.pdf', '10000000-0000-0000-0000-000000000011/contrato.pdf', 'application/pdf', 1200);`);
     await tx.exec(`set local app.uid = '${ID.ana}'`);
-    const proprio = await qtd(tx, `select count(*) as n from documentos_artistas where profissional_id = '10000000-0000-0000-0000-000000000011'`);
+    const contratoProprio = await qtd(tx, `select count(*) as n from documentos_artistas where profissional_id = '10000000-0000-0000-0000-000000000011'`);
     await tx.exec(`set local app.uid = '${ID.bia}'`);
     const alheio = await qtd(tx, `select count(*) as n from documentos_artistas`);
-    if (proprio !== 1 || alheio !== 0) throw new Error(`Ana viu ${proprio}; Bia viu ${alheio}`);
+    await tx.exec(`set local app.uid = '${ID.diretora}'`);
+    const gestao = await qtd(tx, `select count(*) as n from documentos_artistas`);
+    if (contratoProprio !== 0 || alheio !== 0 || gestao !== 1) throw new Error(`Ana viu ${contratoProprio}; Bia viu ${alheio}; Direção viu ${gestao}`);
     await tx.rollback();
   }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
 });
+
+await teste('evento não pode ser concluído sem vídeo', () =>
+  esperaErro(db.exec(`update eventos set situacao = 'realizado' where id = '60000000-0000-0000-0000-000000000001'`), 'Anexe o vídeo'));
+
+await teste('evento pode ser concluído após anexar vídeo', async () => {
+  await db.transaction(async (tx) => {
+    await tx.exec(`insert into videos_eventos (evento_id, storage_path, nome, mime_type, tamanho_bytes, enviado_por)
+      values ('60000000-0000-0000-0000-000000000001', 'teste/video.mp4', 'video.mp4', 'video/mp4', 1024, '${ID.diretora}');
+      update eventos set situacao = 'realizado' where id = '60000000-0000-0000-0000-000000000001';`);
+    const n = await qtd(tx, `select count(*) as n from eventos where id = '60000000-0000-0000-0000-000000000001' and situacao = 'realizado'`);
+    if (n !== 1) throw new Error('evento não foi concluído');
+    await tx.rollback();
+  }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+});
+
+await teste('produtor escalado só pode anexar vídeo depois do evento', async () => {
+  await db.transaction(async (tx) => {
+    await tx.exec(`insert into eventos (id, titulo, contratante_id, local_id, inicio, fim, situacao)
+      values ('60000000-0000-0000-0000-000000000003', 'Evento encerrado', '40000000-0000-0000-0000-000000000001',
+        '50000000-0000-0000-0000-000000000001', now() - interval '3 hours', now() - interval '1 hour', 'confirmado');
+      insert into evento_escala (evento_id, profissional_id, funcao)
+        values ('60000000-0000-0000-0000-000000000003', '${PROF.bruno}', 'produtor');
+      set local role authenticated; set local app.uid = '${ID.bruno}';
+      insert into videos_eventos (evento_id, storage_path, nome, mime_type, tamanho_bytes, enviado_por)
+      values ('60000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000003/${ID.bruno}/video.mp4', 'video.mp4', 'video/mp4', 1024, '${ID.bruno}');`);
+    const n = await qtd(tx, `select count(*) as n from videos_eventos where evento_id = '60000000-0000-0000-0000-000000000003'`);
+    if (n !== 1) throw new Error('produtor escalado não conseguiu enviar o vídeo');
+    await tx.rollback();
+  }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+});
+
+await teste('produtor não pode anexar vídeo antes do término', () =>
+  como(ID.bruno, (tx) => esperaErro(tx.exec(`insert into videos_eventos (evento_id, storage_path, nome, mime_type, tamanho_bytes, enviado_por)
+    values ('60000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001/${ID.bruno}/video.mp4', 'video.mp4', 'video/mp4', 1024, '${ID.bruno}')`), 'row-level security')));
 
 await teste('Ana deixa de ver o evento ao sair da escala', async () => {
   await db.transaction(async (tx) => {
@@ -347,11 +389,6 @@ async function isolado(fn) {
     await tx.rollback();
   }).catch((e) => { if (!String(e.message).includes('rollback')) throw e; });
 }
-const PROF = {
-  ana: '10000000-0000-0000-0000-000000000011',
-  bia: '10000000-0000-0000-0000-000000000012',
-  bruno: '10000000-0000-0000-0000-000000000013',
-};
 const EVENTO = '60000000-0000-0000-0000-000000000001';
 
 await teste('elegibilidade exclui login inativo, mas mantém profissional legítimo sem login', () => isolado(async (tx) => {

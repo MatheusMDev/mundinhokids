@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261112000001_documentos_artistas.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, migrations/20261112000001_documentos_artistas.sql, migrations/20261112000002_assistente_valores.sql, migrations/20261112000003_adicionais_produtores.sql, migrations/20261112000004_renomear_supervisora_para_assistente.sql, migrations/20261112000005_comprovantes_despesas_evento.sql, migrations/20261113000001_contratos_e_videos_eventos.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -26,7 +26,7 @@ create extension if not exists btree_gist;   -- necessário para as travas de co
 -- ---------------------------------------------------------------------
 
 create type perfil_acesso as enum (
-  'diretora', 'gerente', 'assistente', 'produtor', 'artista', 'maquiador', 'fantasias'
+  'diretora', 'gerente', 'supervisora', 'produtor', 'artista', 'maquiador', 'fantasias'
 );
 create type funcao_profissional  as enum ('artista', 'produtor', 'maquiador', 'fantasias');
 create type funcao_escala        as enum ('artista', 'produtor', 'maquiador');
@@ -55,8 +55,8 @@ insert into configuracoes (chave, valor, descricao) values
   ('link_respostas_formulario',         '',      'Atalho da direção para onde as respostas já ficam hoje'),
   ('lembrete_antecedencia_minutos',     '120',   'Último aviso antes do evento (definido: 2 horas)'),
   ('substituicao_antecedencia_minutos', '90',    'A CONFIRMAR (pergunta 5): antecedência mínima para pedir troca'),
-  ('assistente_pode_cancelar',         'false', 'A CONFIRMAR (pergunta 3)'),
-  ('assistente_pode_alterar_equipe',   'false', 'A CONFIRMAR (pergunta 4): alterar equipe já escalada'),
+  ('supervisora_pode_cancelar',         'false', 'A CONFIRMAR (pergunta 3)'),
+  ('supervisora_pode_alterar_equipe',   'false', 'A CONFIRMAR (pergunta 4): alterar equipe já escalada'),
   ('despesa_aprovacao_acima_de',        '',      'A CONFIRMAR (pergunta 2): valor a partir do qual a despesa precisa de aprovação; vazio = nunca');
 
 -- ---------------------------------------------------------------------
@@ -395,10 +395,10 @@ language sql stable security definer set search_path = public as $$
   select coalesce(meu_perfil() in ('diretora', 'gerente'), false)
 $$;
 
--- Diretora, gerente e assistente: cadastram e editam eventos
+-- Diretora, gerente e supervisora: cadastram e editam eventos
 create function eh_operacao() returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce(meu_perfil() in ('diretora', 'gerente', 'assistente'), false)
+  select coalesce(meu_perfil() in ('diretora', 'gerente', 'supervisora'), false)
 $$;
 
 create function meu_profissional_id() returns uuid
@@ -437,13 +437,13 @@ $$;
 create function pode_cancelar_evento() returns boolean
 language sql stable security definer set search_path = public as $$
   select eh_gestao()
-      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_cancelar') = 'true')
+      or (meu_perfil() = 'supervisora' and config_texto('supervisora_pode_cancelar') = 'true')
 $$;
 
 create function pode_alterar_equipe() returns boolean
 language sql stable security definer set search_path = public as $$
   select eh_gestao()
-      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_alterar_equipe') = 'true')
+      or (meu_perfil() = 'supervisora' and config_texto('supervisora_pode_alterar_equipe') = 'true')
 $$;
 
 -- ---------------------------------------------------------------------
@@ -978,19 +978,15 @@ create policy res_alterar  on reservas_veiculo for update to authenticated
 -- Financeiro do evento e recebimentos: só diretora e gerente
 create policy fin_tudo     on evento_financeiro for all to authenticated using (eh_gestao()) with check (eh_gestao());
 create policy rec_tudo     on recebimentos      for all to authenticated using (eh_gestao()) with check (eh_gestao());
-create policy fin_ler_assistente on evento_financeiro for select to authenticated
-  using (meu_perfil() = 'assistente');
-create policy rec_ler_assistente on recebimentos for select to authenticated
-  using (meu_perfil() = 'assistente');
 
 -- Pagamento dos profissionais: gestão vê todos; cada profissional vê só o próprio valor
 create policy pag_ler      on pagamentos_profissionais for select to authenticated
-  using (eh_gestao() or meu_perfil() = 'assistente' or profissional_id = meu_profissional_id());
+  using (eh_gestao() or profissional_id = meu_profissional_id());
 create policy pag_criar    on pagamentos_profissionais for insert to authenticated with check (eh_gestao());
 create policy pag_alterar  on pagamentos_profissionais for update to authenticated using (eh_gestao()) with check (eh_gestao());
 
 -- Despesas: gestão vê todas; quem lançou vê as próprias. A CONFIRMAR: quem pode lançar.
-create policy desp_ler     on despesas for select to authenticated using (eh_gestao() or meu_perfil() = 'assistente' or criado_por = auth.uid());
+create policy desp_ler     on despesas for select to authenticated using (eh_gestao() or criado_por = auth.uid());
 create policy desp_criar   on despesas for insert to authenticated
   with check (eh_gestao()
               or (criado_por = auth.uid() and evento_id is not null and participa_do_evento(evento_id)));
@@ -1015,9 +1011,9 @@ create policy push_proprio on push_inscricoes for all to authenticated
   using (usuario_id = auth.uid()) with check (usuario_id = auth.uid());
 create policy not_ler      on notificacoes for select to authenticated using (usuario_id = auth.uid());
 
--- Histórico: gestão e Assistente veem tudo
+-- Histórico: gestão vê tudo; supervisora vê sem as alterações financeiras
 create policy hist_ler     on historico for select to authenticated
-  using (eh_gestao() or meu_perfil() = 'assistente');
+  using (eh_gestao() or (meu_perfil() = 'supervisora' and not financeiro));
 
 -- Nada é excluído pelo app: eventos cancelam, escala desativa, histórico é permanente
 revoke delete on eventos, evento_escala, evento_remarcacoes, reservas_veiculo,
@@ -2252,6 +2248,110 @@ create trigger pagamento_exige_escala_ativa
   before insert or update on public.pagamentos_profissionais
   for each row execute function public.proteger_pagamento_de_escala_encerrada();
 
+-- >>>>> migrations/20261111000004_disponibilidade_semanal.sql
+
+-- Disponibilidade semanal preenchida por cada profissional.
+-- A ausência de resposta é diferente de marcar todos os dias indisponíveis.
+
+create table public.disponibilidade_semanal (
+  profissional_id uuid not null references public.profissionais(id) on delete cascade,
+  semana_inicio date not null,
+  dia smallint not null,
+  disponivel boolean not null,
+  hora_inicio time,
+  hora_fim time,
+  observacoes text,
+  atualizado_em timestamptz not null default now(),
+  primary key (profissional_id, semana_inicio, dia),
+  constraint disponibilidade_semana_segunda check (extract(isodow from semana_inicio) = 1),
+  constraint disponibilidade_dia_valido check (dia between 1 and 7),
+  constraint disponibilidade_horario_valido check (
+    (hora_inicio is null and hora_fim is null)
+    or (hora_inicio is not null and hora_fim is not null and hora_inicio < hora_fim)
+  ),
+  constraint disponibilidade_indisponivel_sem_horario check (
+    disponivel or (hora_inicio is null and hora_fim is null)
+  )
+);
+
+create index disponibilidade_semanal_periodo_idx
+  on public.disponibilidade_semanal (semana_inicio, dia);
+
+alter table public.disponibilidade_semanal enable row level security;
+grant select on public.disponibilidade_semanal to authenticated;
+
+create policy disponibilidade_semanal_ler on public.disponibilidade_semanal
+  for select to authenticated
+  using (eh_operacao() or profissional_id = meu_profissional_id());
+
+-- A gravação é atômica e sempre registra uma resposta para cada dia da semana.
+create or replace function public.salvar_disponibilidade_semanal(
+  p_semana_inicio date,
+  p_dias jsonb
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_profissional_id uuid := meu_profissional_id();
+  v_total integer;
+  v_dias_distintos integer;
+begin
+  if auth.uid() is null or v_profissional_id is null then
+    raise exception 'sem_permissao';
+  end if;
+  if p_semana_inicio is null or extract(isodow from p_semana_inicio) <> 1 then
+    raise exception 'A semana precisa começar na segunda-feira.';
+  end if;
+  if coalesce(jsonb_typeof(p_dias), '') <> 'array' then
+    raise exception 'Informe a disponibilidade para os sete dias.';
+  end if;
+  if jsonb_array_length(p_dias) <> 7 then
+    raise exception 'Informe a disponibilidade para os sete dias.';
+  end if;
+
+  select count(*), count(distinct x.dia)
+    into v_total, v_dias_distintos
+  from jsonb_to_recordset(p_dias) as x(
+    dia smallint,
+    disponivel boolean,
+    hora_inicio time,
+    hora_fim time,
+    observacoes text
+  );
+  if v_total <> 7 or v_dias_distintos <> 7 then
+    raise exception 'Informe cada dia da semana uma única vez.';
+  end if;
+
+  insert into public.disponibilidade_semanal (
+    profissional_id, semana_inicio, dia, disponivel, hora_inicio, hora_fim, observacoes, atualizado_em
+  )
+  select
+    v_profissional_id,
+    p_semana_inicio,
+    x.dia,
+    x.disponivel,
+    case when x.disponivel then x.hora_inicio else null end,
+    case when x.disponivel then x.hora_fim else null end,
+    nullif(btrim(x.observacoes), ''),
+    now()
+  from jsonb_to_recordset(p_dias) as x(
+    dia smallint,
+    disponivel boolean,
+    hora_inicio time,
+    hora_fim time,
+    observacoes text
+  )
+  on conflict (profissional_id, semana_inicio, dia) do update set
+    disponivel = excluded.disponivel,
+    hora_inicio = excluded.hora_inicio,
+    hora_fim = excluded.hora_fim,
+    observacoes = excluded.observacoes,
+    atualizado_em = excluded.atualizado_em;
+end;
+$$;
+
+revoke all on function public.salvar_disponibilidade_semanal(date, jsonb) from public, anon;
+grant execute on function public.salvar_disponibilidade_semanal(date, jsonb) to authenticated;
+
 -- >>>>> migrations/20261112000001_documentos_artistas.sql
 
 -- Documentos privados anexados ao cadastro de cada artista.
@@ -2314,6 +2414,426 @@ create policy documentos_storage_alterar on storage.objects for update to authen
 
 create policy documentos_storage_apagar on storage.objects for delete to authenticated
   using (bucket_id = 'documentos-artistas' and eh_operacao());
+
+-- >>>>> migrations/20261112000002_assistente_valores.sql
+
+-- A Assistente consulta valores operacionais, mas não grava nem aprova financeiro.
+-- O perfil interno continua sendo `supervisora` para preservar dados existentes.
+
+create policy fin_ler_assistente on evento_financeiro for select to authenticated
+  using (meu_perfil() = 'supervisora');
+
+create policy rec_ler_assistente on recebimentos for select to authenticated
+  using (meu_perfil() = 'supervisora');
+
+drop policy pag_ler on pagamentos_profissionais;
+create policy pag_ler on pagamentos_profissionais for select to authenticated
+  using (eh_gestao() or meu_perfil() = 'supervisora' or profissional_id = meu_profissional_id());
+
+drop policy desp_ler on despesas;
+create policy desp_ler on despesas for select to authenticated
+  using (eh_gestao() or meu_perfil() = 'supervisora' or criado_por = auth.uid());
+
+drop policy hist_ler on historico;
+create policy hist_ler on historico for select to authenticated
+  using (eh_gestao() or meu_perfil() = 'supervisora');
+
+-- >>>>> migrations/20261112000003_adicionais_produtores.sql
+
+-- Comprovantes de valores adicionais pagos ou devidos a produtores fora de eventos.
+create table adicionais_produtores (
+  id              uuid primary key default gen_random_uuid(),
+  produtor_id     uuid not null references profissionais (id),
+  valor           numeric(10, 2) not null check (valor > 0),
+  data            date not null default current_date,
+  descricao       text not null check (char_length(trim(descricao)) between 1 and 500),
+  foto_path       text not null unique,
+  foto_nome       text not null check (char_length(trim(foto_nome)) between 1 and 255),
+  foto_mime       text not null check (foto_mime in ('image/jpeg', 'image/png', 'image/webp')),
+  foto_tamanho    bigint not null check (foto_tamanho > 0 and foto_tamanho <= 10485760),
+  criado_por      uuid not null references usuarios (id) default auth.uid(),
+  criado_em       timestamptz not null default now(),
+  atualizado_em   timestamptz not null default now(),
+  cancelado_em    timestamptz,
+  cancelado_por   uuid references usuarios (id)
+);
+
+create index adicionais_produtores_produtor_idx on adicionais_produtores (produtor_id, data desc);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'adicionais-produtores', 'adicionais-produtores', false, 10485760,
+  array['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+alter table adicionais_produtores enable row level security;
+
+grant select, insert, update on adicionais_produtores to authenticated;
+
+create policy adicionais_ler on adicionais_produtores for select to authenticated
+  using (eh_gestao() or produtor_id = meu_profissional_id());
+
+create policy adicionais_criar on adicionais_produtores for insert to authenticated
+  with check (eh_gestao() and criado_por = auth.uid());
+
+create policy adicionais_alterar on adicionais_produtores for update to authenticated
+  using (eh_gestao()) with check (eh_gestao());
+
+create trigger historico_adicionais_produtores
+  after insert or update on adicionais_produtores
+  for each row execute function registrar_historico('true');
+
+create policy adicionais_storage_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'adicionais-produtores'
+    and (
+      eh_gestao()
+      or exists (
+        select 1 from adicionais_produtores a
+        where a.foto_path = name and a.produtor_id = meu_profissional_id()
+      )
+    )
+  );
+
+create policy adicionais_storage_criar on storage.objects for insert to authenticated
+  with check (bucket_id = 'adicionais-produtores' and eh_gestao());
+
+create policy adicionais_storage_alterar on storage.objects for update to authenticated
+  using (bucket_id = 'adicionais-produtores' and eh_gestao())
+  with check (bucket_id = 'adicionais-produtores' and eh_gestao());
+
+create policy adicionais_storage_apagar on storage.objects for delete to authenticated
+  using (bucket_id = 'adicionais-produtores' and eh_gestao());
+
+-- >>>>> migrations/20261112000004_renomear_supervisora_para_assistente.sql
+
+-- Renomeia o perfil de Supervisora para Assistente sem alterar os acessos.
+-- O enum mantém os mesmos registros e as mesmas permissões após a troca.
+
+alter type perfil_acesso rename value 'supervisora' to 'assistente';
+
+-- Preserva os valores já configurados com as chaves novas.
+insert into configuracoes (chave, valor, descricao)
+select 'assistente_pode_cancelar', valor, replace(descricao, 'supervisora', 'assistente')
+from configuracoes
+where chave = 'supervisora_pode_cancelar'
+on conflict (chave) do update
+set valor = excluded.valor, descricao = excluded.descricao;
+
+insert into configuracoes (chave, valor, descricao)
+select 'assistente_pode_alterar_equipe', valor, replace(descricao, 'supervisora', 'assistente')
+from configuracoes
+where chave = 'supervisora_pode_alterar_equipe'
+on conflict (chave) do update
+set valor = excluded.valor, descricao = excluded.descricao;
+
+delete from configuracoes
+where chave in ('supervisora_pode_cancelar', 'supervisora_pode_alterar_equipe');
+
+create or replace function eh_operacao() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce(meu_perfil() in ('diretora', 'gerente', 'assistente'), false)
+$$;
+
+create or replace function pode_cancelar_evento() returns boolean
+language sql stable security definer set search_path = public as $$
+  select eh_gestao()
+      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_cancelar') = 'true')
+$$;
+
+create or replace function pode_alterar_equipe() returns boolean
+language sql stable security definer set search_path = public as $$
+  select eh_gestao()
+      or (meu_perfil() = 'assistente' and config_texto('assistente_pode_alterar_equipe') = 'true')
+$$;
+
+-- >>>>> migrations/20261112000005_comprovantes_despesas_evento.sql
+
+-- Anexos privados para comprovantes das despesas dos eventos.
+alter table public.despesas
+  add column if not exists comprovante_path text,
+  add column if not exists comprovante_nome text,
+  add column if not exists comprovante_mime text,
+  add column if not exists comprovante_tamanho bigint;
+
+create unique index if not exists despesas_comprovante_path_uidx
+  on public.despesas (comprovante_path) where comprovante_path is not null;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'despesas_comprovante_mime_check' and conrelid = 'public.despesas'::regclass) then
+    alter table public.despesas add constraint despesas_comprovante_mime_check
+      check (comprovante_mime is null or comprovante_mime in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'despesas_comprovante_tamanho_check' and conrelid = 'public.despesas'::regclass) then
+    alter table public.despesas add constraint despesas_comprovante_tamanho_check
+      check (comprovante_tamanho is null or (comprovante_tamanho > 0 and comprovante_tamanho <= 10485760));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'despesas_comprovante_metadados_check' and conrelid = 'public.despesas'::regclass) then
+    alter table public.despesas add constraint despesas_comprovante_metadados_check
+      check (
+        (comprovante_path is null and comprovante_nome is null and comprovante_mime is null and comprovante_tamanho is null)
+        or (comprovante_path is not null and comprovante_nome is not null and comprovante_mime is not null and comprovante_tamanho is not null)
+      );
+  end if;
+end $$;
+
+-- Produção registra a própria despesa e inclui o comprovante no lançamento.
+drop policy if exists desp_criar on public.despesas;
+create policy desp_criar on public.despesas for insert to authenticated
+  with check (
+    eh_gestao()
+    or (
+      criado_por = auth.uid()
+      and evento_id is not null
+      and responsavel_id = meu_profissional_id()
+      and tenho_funcao('produtor')
+      and participa_do_evento(evento_id)
+      and (comprovante_path is not null or comprovante is not null)
+    )
+  );
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'despesas-comprovantes', 'despesas-comprovantes', false, 10485760,
+  array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists despesas_comprovantes_ler on storage.objects;
+create policy despesas_comprovantes_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'despesas-comprovantes'
+    and (
+      eh_gestao()
+      or exists (
+        select 1 from public.despesas d
+        where d.comprovante_path = name and d.criado_por = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists despesas_comprovantes_criar on storage.objects;
+create policy despesas_comprovantes_criar on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'despesas-comprovantes'
+    and (
+      eh_gestao()
+      or (
+        split_part(name, '/', 2) = auth.uid()::text
+        and exists (
+          select 1 from public.eventos e
+          where e.id::text = split_part(name, '/', 1)
+            and participa_do_evento(e.id)
+            and tenho_funcao('produtor')
+        )
+      )
+    )
+  );
+
+drop policy if exists despesas_comprovantes_alterar on storage.objects;
+create policy despesas_comprovantes_alterar on storage.objects for update to authenticated
+  using (bucket_id = 'despesas-comprovantes' and eh_gestao())
+  with check (bucket_id = 'despesas-comprovantes' and eh_gestao());
+
+drop policy if exists despesas_comprovantes_apagar on storage.objects;
+create policy despesas_comprovantes_apagar on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'despesas-comprovantes'
+    and (
+      eh_gestao()
+      or (
+        split_part(name, '/', 2) = auth.uid()::text
+        and not exists (select 1 from public.despesas d where d.comprovante_path = name)
+      )
+    )
+  );
+
+-- >>>>> migrations/20261113000001_contratos_e_videos_eventos.sql
+
+-- Contratos privados para qualquer profissional e vídeo obrigatório nos eventos concluídos.
+
+-- Só Direção/Gerência pode ver e administrar contratos. Os outros documentos
+-- continuam visíveis ao próprio profissional quando não são do tipo Contrato.
+drop policy if exists documentos_artistas_ler on public.documentos_artistas;
+create policy documentos_artistas_ler on public.documentos_artistas for select to authenticated
+  using (
+    eh_gestao()
+    or (lower(trim(tipo)) <> 'contrato' and profissional_id = meu_profissional_id())
+  );
+
+drop policy if exists documentos_artistas_criar on public.documentos_artistas;
+create policy documentos_artistas_criar on public.documentos_artistas for insert to authenticated
+  with check (eh_gestao() and enviado_por = auth.uid());
+
+drop policy if exists documentos_artistas_apagar on public.documentos_artistas;
+create policy documentos_artistas_apagar on public.documentos_artistas for delete to authenticated
+  using (eh_gestao());
+
+drop policy if exists documentos_storage_ler on storage.objects;
+create policy documentos_storage_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'documentos-artistas'
+    and (
+      eh_gestao()
+      or exists (
+        select 1 from public.documentos_artistas d
+        where d.storage_path = name
+          and d.profissional_id = meu_profissional_id()
+          and lower(trim(d.tipo)) <> 'contrato'
+      )
+    )
+  );
+
+drop policy if exists documentos_storage_criar on storage.objects;
+create policy documentos_storage_criar on storage.objects for insert to authenticated
+  with check (bucket_id = 'documentos-artistas' and eh_gestao());
+
+drop policy if exists documentos_storage_alterar on storage.objects;
+create policy documentos_storage_alterar on storage.objects for update to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_gestao())
+  with check (bucket_id = 'documentos-artistas' and eh_gestao());
+
+drop policy if exists documentos_storage_apagar on storage.objects;
+create policy documentos_storage_apagar on storage.objects for delete to authenticated
+  using (bucket_id = 'documentos-artistas' and eh_gestao());
+
+create table if not exists public.videos_eventos (
+  id uuid primary key default gen_random_uuid(),
+  evento_id uuid not null unique references public.eventos (id) on delete cascade,
+  storage_path text not null unique,
+  nome text not null check (char_length(trim(nome)) between 1 and 255),
+  mime_type text not null check (mime_type in ('video/mp4', 'video/webm', 'video/quicktime')),
+  tamanho_bytes bigint not null check (tamanho_bytes > 0 and tamanho_bytes <= 52428800),
+  enviado_por uuid not null references public.usuarios (id) default auth.uid(),
+  enviado_em timestamptz not null default now()
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'videos-eventos', 'videos-eventos', false, 52428800,
+  array['video/mp4', 'video/webm', 'video/quicktime']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+alter table public.videos_eventos enable row level security;
+grant select, insert, update on public.videos_eventos to authenticated;
+
+drop policy if exists videos_eventos_ler on public.videos_eventos;
+create policy videos_eventos_ler on public.videos_eventos for select to authenticated
+  using (eh_operacao() or participa_do_evento(evento_id));
+
+drop policy if exists videos_eventos_criar on public.videos_eventos;
+create policy videos_eventos_criar on public.videos_eventos for insert to authenticated
+  with check (
+    enviado_por = auth.uid()
+    and exists (
+      select 1 from public.eventos e
+      where e.id = evento_id and e.situacao <> 'cancelado' and e.fim <= now()
+    )
+    and (
+      eh_gestao()
+      or (tenho_funcao('produtor') and participa_do_evento(evento_id))
+    )
+  );
+
+drop policy if exists videos_eventos_alterar on public.videos_eventos;
+create policy videos_eventos_alterar on public.videos_eventos for update to authenticated
+  using (
+    exists (
+      select 1 from public.eventos e
+      where e.id = evento_id and e.situacao <> 'cancelado' and e.fim <= now()
+    )
+    and (eh_gestao() or (tenho_funcao('produtor') and participa_do_evento(evento_id)))
+  )
+  with check (
+    enviado_por = auth.uid()
+    and exists (
+      select 1 from public.eventos e
+      where e.id = evento_id and e.situacao <> 'cancelado' and e.fim <= now()
+    )
+    and (eh_gestao() or (tenho_funcao('produtor') and participa_do_evento(evento_id)))
+  );
+
+drop policy if exists videos_eventos_storage_ler on storage.objects;
+create policy videos_eventos_storage_ler on storage.objects for select to authenticated
+  using (
+    bucket_id = 'videos-eventos'
+    and (
+      eh_operacao()
+      or exists (
+        select 1 from public.videos_eventos v
+        where v.storage_path = name and participa_do_evento(v.evento_id)
+      )
+    )
+  );
+
+drop policy if exists videos_eventos_storage_criar on storage.objects;
+create policy videos_eventos_storage_criar on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'videos-eventos'
+    and (
+      eh_gestao()
+      or (
+        split_part(name, '/', 2) = auth.uid()::text
+        and tenho_funcao('produtor')
+        and exists (
+          select 1 from public.eventos e
+          where e.id::text = split_part(name, '/', 1)
+            and e.situacao <> 'cancelado' and e.fim <= now()
+            and participa_do_evento(e.id)
+        )
+      )
+    )
+  );
+
+drop policy if exists videos_eventos_storage_apagar on storage.objects;
+create policy videos_eventos_storage_apagar on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'videos-eventos'
+    and (
+      eh_gestao()
+      or (
+        not exists (select 1 from public.videos_eventos v where v.storage_path = name)
+        and tenho_funcao('produtor')
+        and exists (
+          select 1 from public.eventos e
+          where e.id::text = split_part(name, '/', 1)
+            and e.situacao <> 'cancelado' and e.fim <= now()
+            and participa_do_evento(e.id)
+        )
+      )
+    )
+  );
+
+create or replace function public.exigir_video_antes_de_concluir_evento()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.situacao = 'realizado'
+     and (tg_op = 'INSERT' or old.situacao is distinct from new.situacao)
+     and not exists (select 1 from public.videos_eventos v where v.evento_id = new.id) then
+    raise exception 'Anexe o vídeo do evento antes de marcá-lo como realizado.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists exigir_video_antes_de_concluir_evento on public.eventos;
+create trigger exigir_video_antes_de_concluir_evento
+  before insert or update on public.eventos
+  for each row execute function public.exigir_video_antes_de_concluir_evento();
 
 -- >>>>> seed.sql
 
@@ -2410,13 +2930,16 @@ insert into veiculos (id, nome, placa, observacoes) values
 -- Eventos (dia 0 = sábado da semana)
 -- ---------------------------------------------------------------------
 
+-- Eventos passados ficam confirmados até que o vídeo real seja anexado;
+-- a migração exige o vídeo para permitir a transição para "realizado".
+
 insert into eventos (id, titulo, aniversariante, idade, contratante_id, local_id, inicio, fim, situacao, tem_maquiagem, maquiagem_pessoas, orientacoes) values
-  ('10000000-0000-0000-0000-000000000001', 'Festa do Davi',  'Davi',  6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-14, '14:00'), pg_temp.quando(-14, '17:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000002', 'Festa da Sofia', 'Sofia', 5, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-13, '16:00'), pg_temp.quando(-13, '19:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000003', 'Festa do Miguel', 'Miguel', 7, 'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', pg_temp.quando(-7, '15:00'), pg_temp.quando(-7, '18:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000004', 'Festa da Alice', 'Alice', 4, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-7, '19:00'), pg_temp.quando(-7, '22:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000005', 'Festa do Arthur', 'Arthur', 6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005', pg_temp.quando(-6, '15:00'), pg_temp.quando(-6, '18:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000006', 'Escola Pequeno Saber', null, null, 'c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000004', pg_temp.quando(-5, '10:00'), pg_temp.quando(-5, '12:00'), 'realizado', false, 0, 'Dia das Crianças: apresentação no pátio para três turmas.'),
+  ('10000000-0000-0000-0000-000000000001', 'Festa do Davi',  'Davi',  6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-14, '14:00'), pg_temp.quando(-14, '17:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000002', 'Festa da Sofia', 'Sofia', 5, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-13, '16:00'), pg_temp.quando(-13, '19:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000003', 'Festa do Miguel', 'Miguel', 7, 'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', pg_temp.quando(-7, '15:00'), pg_temp.quando(-7, '18:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000004', 'Festa da Alice', 'Alice', 4, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-7, '19:00'), pg_temp.quando(-7, '22:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000005', 'Festa do Arthur', 'Arthur', 6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005', pg_temp.quando(-6, '15:00'), pg_temp.quando(-6, '18:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000006', 'Escola Pequeno Saber', null, null, 'c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000004', pg_temp.quando(-5, '10:00'), pg_temp.quando(-5, '12:00'), 'confirmado', false, 0, 'Dia das Crianças: apresentação no pátio para três turmas.'),
   ('10000000-0000-0000-0000-000000000007', 'Festa da Helena', 'Helena', 6, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-1, '18:00'), pg_temp.quando(-1, '21:00'), 'confirmado', false, 0,
     E'Chegar às 17h30 para trocar de roupa na sala 2.\nParabéns às 20h.'),
   ('10000000-0000-0000-0000-000000000008', 'Festa do Theo', 'Theo', 4, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(0, '11:00'), pg_temp.quando(0, '14:00'), 'confirmado', false, 0,

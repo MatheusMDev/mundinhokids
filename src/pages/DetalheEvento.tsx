@@ -5,6 +5,7 @@ import { Icone } from '../components/Icone';
 import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala } from '../components/FormulariosEvento';
 import { Dialogo } from '../components/Formulario';
 import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
+import { VideoEvento } from '../components/VideoEvento';
 import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Trocas';
 import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
 import { producaoDoEvento, tipoDoPainel, useEstado } from '../lib/estado';
@@ -66,6 +67,7 @@ export function DetalheEvento() {
   const mostrarPrimeiroEvento = podeVerPrimeiroEvento && eventoTemPrimeiroEvento;
   const trocas = trocasPendentes(db, evento.id);
   const avisos = avisosDoEvento(db, evento);
+  const temVideo = db.videos_eventos.some((video) => video.evento_id === evento.id);
   const conferencia = conferenciaDoEvento(db, evento.id);
   const historico = historicoDoEvento(db, evento.id, perfil);
   const orientacoes = (evento.orientacoes ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
@@ -313,6 +315,7 @@ export function DetalheEvento() {
 
         <div className="coluna">
           <CartaoTransporte evento={evento} />
+          <VideoEvento evento={evento} />
 
           <section className="cartao">
             <h2>Avisos e agenda</h2>
@@ -356,9 +359,9 @@ export function DetalheEvento() {
             <section className="cartao">
               <h2>Mudanças no evento</h2>
               <div className="acoes-coluna">
-                {terminou && (
-                  <button type="button" className="botao" onClick={() => void executar(() => marcarRealizado(cliente, evento.id), 'Evento marcado como realizado.').then((r) => { if (r !== true) avisar(r); })}>
-                    <Icone nome="concluido" tamanho={16} /> Marcar como realizado
+                {terminou && !cancelado && evento.situacao !== 'realizado' && (
+                  <button type="button" className="botao" disabled={!temVideo} title={!temVideo ? 'Anexe o vídeo do evento para poder concluí-lo.' : undefined} onClick={() => void executar(() => marcarRealizado(cliente, evento.id), 'Evento marcado como realizado.').then((r) => { if (r !== true) avisar(r); })}>
+                    <Icone nome="concluido" tamanho={16} /> {temVideo ? 'Marcar como realizado' : 'Anexe o vídeo para concluir'}
                   </button>
                 )}
                 <button type="button" className="botao" onClick={() => setJanela({ tipo: 'remarcar' })}>

@@ -637,7 +637,8 @@ h3 { font-size: 15px; font-weight: 800; }
 .profissional-detalhes strong { overflow: hidden; color: var(--texto-suave); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .documentos-artista { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
 .documentos-artista-topo, .documentos-artista-topo > span, .documento-artista-acoes { display: flex; align-items: center; gap: 7px; }
-.documentos-artista-topo { justify-content: space-between; margin-bottom: 8px; color: var(--marca-escura); font-size: 12px; }
+.documentos-artista-topo { min-width: 0; flex-wrap: wrap; justify-content: space-between; margin-bottom: 8px; color: var(--marca-escura); font-size: 12px; }
+.documentos-artista-topo > span { min-width: 0; }
 .documentos-artista-icone { font-size: 18px; line-height: 1; }
 .documentos-artista-lista { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .documentos-artista-lista li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--borda); }
@@ -647,6 +648,18 @@ h3 { font-size: 15px; font-weight: 800; }
 .documento-artista-acoes { flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
 .documentos-artista-vazio { margin: 0; color: var(--texto-fraco); font-size: 12px; }
 .documento-artista-selecao { margin: -4px 0 12px; font-size: 12px; }
+.documento-profissional-dialogo .seletor-opcao { flex: 0 0 auto; }
+.video-evento .cartao-topo p { margin: 3px 0 0; color: var(--texto-suave); font-size: 12px; }
+.video-evento-arquivo, .video-evento-arquivo > span, .video-evento-envio, .video-evento-selecao { display: flex; min-width: 0; gap: 8px; }
+.video-evento-arquivo { align-items: center; justify-content: space-between; }
+.video-evento-arquivo > span { flex-direction: column; gap: 2px; overflow: hidden; }
+.video-evento-arquivo strong, .video-evento-selecao > span { overflow-wrap: anywhere; font-size: 12px; }
+.video-evento-arquivo small, .video-evento-envio > small { color: var(--texto-fraco); font-size: 11px; }
+.video-evento-status { margin: 0; }
+.video-evento-envio { align-items: flex-start; flex-direction: column; margin-top: 12px; }
+.video-evento-seletor { position: relative; overflow: hidden; cursor: pointer; }
+.video-evento-seletor input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.video-evento-selecao { width: 100%; align-items: center; flex-wrap: wrap; justify-content: space-between; }
 .profissional-evento { display: grid; min-width: 0; gap: 3px; }
 .primeiro-evento { display: inline-flex; width: max-content; align-items: center; gap: 4px; color: var(--marca-escura); font-size: 10px; font-weight: 750; line-height: 1.2; }
 .primeiro-evento svg { color: var(--marca); }
@@ -1519,9 +1532,19 @@ h3 { font-size: 15px; font-weight: 800; }
 }
 
 @media (max-width: 640px) {
+  .documentos-artista-topo { align-items: stretch; flex-direction: column; }
+  .documentos-artista-topo > span { min-height: 32px; }
+  .documentos-artista-topo > .botao { width: 100%; min-height: 40px; justify-content: center; }
   .documentos-artista-lista li { align-items: flex-start; flex-direction: column; }
   .documento-artista-info { width: 100%; }
-  .documento-artista-acoes { justify-content: flex-start; }
+  .documento-artista-info strong, .documento-artista-info small { overflow: visible; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; }
+  .documento-artista-acoes { width: 100%; justify-content: flex-start; }
+  .documento-artista-acoes .botao { min-height: 40px; flex: 1 1 auto; justify-content: center; padding-inline: 9px; }
+  .video-evento-arquivo { align-items: flex-start; flex-direction: column; }
+  .video-evento-arquivo > .botao { width: 100%; min-height: 40px; justify-content: center; }
+  .video-evento-selecao { align-items: flex-start; flex-direction: column; }
+  .video-evento-selecao > .botao { width: 100%; min-height: 40px; justify-content: center; }
+  .video-evento-seletor { min-height: 40px; }
   .configuracoes-cabecalho { flex-direction: column; gap: 12px; }
   .configuracoes-status { align-self: flex-start; }
   .configuracoes-resumo { grid-template-columns: 1fr; margin-top: 18px; }
