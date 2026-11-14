@@ -91,13 +91,16 @@ insert into veiculos (id, nome, placa, observacoes) values
 -- Eventos (dia 0 = sábado da semana)
 -- ---------------------------------------------------------------------
 
+-- Eventos passados ficam confirmados até que o vídeo real seja anexado;
+-- a migração exige o vídeo para permitir a transição para "realizado".
+
 insert into eventos (id, titulo, aniversariante, idade, contratante_id, local_id, inicio, fim, situacao, tem_maquiagem, maquiagem_pessoas, orientacoes) values
-  ('10000000-0000-0000-0000-000000000001', 'Festa do Davi',  'Davi',  6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-14, '14:00'), pg_temp.quando(-14, '17:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000002', 'Festa da Sofia', 'Sofia', 5, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-13, '16:00'), pg_temp.quando(-13, '19:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000003', 'Festa do Miguel', 'Miguel', 7, 'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', pg_temp.quando(-7, '15:00'), pg_temp.quando(-7, '18:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000004', 'Festa da Alice', 'Alice', 4, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-7, '19:00'), pg_temp.quando(-7, '22:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000005', 'Festa do Arthur', 'Arthur', 6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005', pg_temp.quando(-6, '15:00'), pg_temp.quando(-6, '18:00'), 'realizado', false, 0, null),
-  ('10000000-0000-0000-0000-000000000006', 'Escola Pequeno Saber', null, null, 'c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000004', pg_temp.quando(-5, '10:00'), pg_temp.quando(-5, '12:00'), 'realizado', false, 0, 'Dia das Crianças: apresentação no pátio para três turmas.'),
+  ('10000000-0000-0000-0000-000000000001', 'Festa do Davi',  'Davi',  6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-14, '14:00'), pg_temp.quando(-14, '17:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000002', 'Festa da Sofia', 'Sofia', 5, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-13, '16:00'), pg_temp.quando(-13, '19:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000003', 'Festa do Miguel', 'Miguel', 7, 'c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', pg_temp.quando(-7, '15:00'), pg_temp.quando(-7, '18:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000004', 'Festa da Alice', 'Alice', 4, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(-7, '19:00'), pg_temp.quando(-7, '22:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000005', 'Festa do Arthur', 'Arthur', 6, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005', pg_temp.quando(-6, '15:00'), pg_temp.quando(-6, '18:00'), 'confirmado', false, 0, null),
+  ('10000000-0000-0000-0000-000000000006', 'Escola Pequeno Saber', null, null, 'c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000004', pg_temp.quando(-5, '10:00'), pg_temp.quando(-5, '12:00'), 'confirmado', false, 0, 'Dia das Crianças: apresentação no pátio para três turmas.'),
   ('10000000-0000-0000-0000-000000000007', 'Festa da Helena', 'Helena', 6, 'c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', pg_temp.quando(-1, '18:00'), pg_temp.quando(-1, '21:00'), 'confirmado', false, 0,
     E'Chegar às 17h30 para trocar de roupa na sala 2.\nParabéns às 20h.'),
   ('10000000-0000-0000-0000-000000000008', 'Festa do Theo', 'Theo', 4, 'c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', pg_temp.quando(0, '11:00'), pg_temp.quando(0, '14:00'), 'confirmado', false, 0,

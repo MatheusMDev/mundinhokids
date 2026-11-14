@@ -5,8 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SemPermissao } from './erros';
 import { sairDesteAparelho } from './supabase';
 import type {
-  ConferenciaFantasia, Contratante, Despesa, DisponibilidadeSemanalDia, DocumentoArtista, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
-  AdicionalProdutor, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo,
+  ConferenciaFantasia, Contratante, Despesa, DisponibilidadeSemanalDia, DocumentoProfissional, Evento, EscalaItem, Fantasia, FuncaoProfissional, Local, PagamentoProfissional, PerfilAcesso,
+  AdicionalProdutor, Personagem, Profissional, Recebimento, ReservaVeiculo, SituacaoLogin, Usuario, Veiculo, VideoEvento,
 } from './tipos';
 import type { Notificacao } from './tipos';
 
@@ -15,7 +15,9 @@ type Resposta<T> = { data: T; error: unknown };
 
 export const DOCUMENTOS_ARTISTAS_BUCKET = 'documentos-artistas';
 export const MAX_DOCUMENTO_ARTISTA_BYTES = 10 * 1024 * 1024;
-export const TIPOS_DOCUMENTO_ARTISTA = ['Documento de identificação', 'Contrato', 'Comprovante', 'Outro'] as const;
+export const TIPOS_DOCUMENTO_ARTISTA = ['Contrato', 'Documento de identificação', 'Comprovante', 'Outro'] as const;
+export const VIDEOS_EVENTOS_BUCKET = 'videos-eventos';
+export const MAX_VIDEO_EVENTO_BYTES = 50 * 1024 * 1024;
 
 function ok<T>(r: Resposta<T>): T {
   if (r.error) throw r.error;
@@ -390,20 +392,20 @@ export async function removerFotoPerfil(c: Cliente, caminho: string) {
   await c.storage.from('avatares').remove([caminho]);
 }
 
-function validarDocumentoArtista(arquivo: File) {
+function validarDocumentoProfissional(arquivo: File) {
   const tiposAceitos = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
   if (!tiposAceitos.includes(arquivo.type)) throw new Error('Envie um PDF, JPG, PNG ou WEBP.');
   if (arquivo.size > MAX_DOCUMENTO_ARTISTA_BYTES) throw new Error('O documento precisa ter no máximo 10 MB.');
 }
 
-function caminhoDocumento(profissionalId: string, arquivo: File) {
+function caminhoDocumentoProfissional(profissionalId: string, arquivo: File) {
   const nome = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'documento';
   return `${profissionalId}/${crypto.randomUUID()}-${nome}`;
 }
 
-export async function enviarDocumentoArtista(c: Cliente, profissionalId: string, tipo: string, arquivo: File) {
-  validarDocumentoArtista(arquivo);
-  const caminho = caminhoDocumento(profissionalId, arquivo);
+export async function enviarDocumentoProfissional(c: Cliente, profissionalId: string, tipo: string, arquivo: File) {
+  validarDocumentoProfissional(arquivo);
+  const caminho = caminhoDocumentoProfissional(profissionalId, arquivo);
   ok(await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).upload(caminho, arquivo, {
     cacheControl: '3600', upsert: false, contentType: arquivo.type,
   }));
@@ -419,20 +421,67 @@ export async function enviarDocumentoArtista(c: Cliente, profissionalId: string,
   }
 }
 
-export async function removerDocumentoArtista(c: Cliente, documento: DocumentoArtista) {
+export async function removerDocumentoProfissional(c: Cliente, documento: DocumentoProfissional) {
   ok(await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).remove([documento.storage_path]));
   const linhas = ok(await c.from('documentos_artistas').delete().eq('id', documento.id).select('id')) as unknown[];
   if (!linhas.length) throw new SemPermissao();
 }
 
-export async function substituirDocumentoArtista(c: Cliente, documento: DocumentoArtista, tipo: string, arquivo: File) {
-  const novoId = await enviarDocumentoArtista(c, documento.profissional_id, tipo, arquivo);
+export async function substituirDocumentoProfissional(c: Cliente, documento: DocumentoProfissional, tipo: string, arquivo: File) {
+  const novoId = await enviarDocumentoProfissional(c, documento.profissional_id, tipo, arquivo);
   try {
-    await removerDocumentoArtista(c, documento);
+    await removerDocumentoProfissional(c, documento);
   } catch (erro) {
     const novo = ok(await c.from('documentos_artistas').select('storage_path').eq('id', novoId).single()) as { storage_path: string };
     await c.storage.from(DOCUMENTOS_ARTISTAS_BUCKET).remove([novo.storage_path]);
     await c.from('documentos_artistas').delete().eq('id', novoId);
+    throw erro;
+  }
+}
+
+const TIPOS_VIDEO_EVENTO = ['video/mp4', 'video/webm', 'video/quicktime'];
+
+export async function enviarVideoEvento(c: Cliente, eventoId: string, arquivo: File) {
+  if (!TIPOS_VIDEO_EVENTO.includes(arquivo.type)) throw new Error('Envie um vídeo MP4, WEBM ou MOV.');
+  if (arquivo.size > MAX_VIDEO_EVENTO_BYTES) throw new Error('O vídeo precisa ter no máximo 50 MB. Reduza o tamanho e tente novamente.');
+  const respostaUsuario = await c.auth.getUser();
+  if (respostaUsuario.error) throw respostaUsuario.error;
+  const usuario = respostaUsuario.data.user;
+  if (!usuario) throw new SemPermissao();
+
+  const anterior = ok(await c.from('videos_eventos').select('storage_path').eq('evento_id', eventoId).maybeSingle()) as { storage_path: string } | null;
+  const nome = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'video';
+  const caminho = `${eventoId}/${usuario.id}/${crypto.randomUUID()}-${nome}`;
+  ok(await c.storage.from(VIDEOS_EVENTOS_BUCKET).upload(caminho, arquivo, {
+    cacheControl: '3600', upsert: false, contentType: arquivo.type,
+  }));
+  try {
+    ok(await c.from('videos_eventos').upsert({
+      evento_id: eventoId, storage_path: caminho, nome: arquivo.name,
+      mime_type: arquivo.type, tamanho_bytes: arquivo.size, enviado_por: usuario.id,
+      enviado_em: new Date().toISOString(),
+    }, { onConflict: 'evento_id' }));
+  } catch (erro) {
+    await c.storage.from(VIDEOS_EVENTOS_BUCKET).remove([caminho]);
+    throw erro;
+  }
+  if (anterior?.storage_path) await c.storage.from(VIDEOS_EVENTOS_BUCKET).remove([anterior.storage_path]);
+}
+
+export async function abrirVideoEvento(c: Cliente, video: VideoEvento) {
+  const novaAba = window.open('', '_blank');
+  try {
+    const resposta = await c.storage.from(VIDEOS_EVENTOS_BUCKET).createSignedUrl(video.storage_path, 3600);
+    if (resposta.error) throw resposta.error;
+    if (!resposta.data?.signedUrl) throw new Error('Não foi possível abrir o vídeo. Tente novamente.');
+    if (novaAba) {
+      novaAba.opener = null;
+      novaAba.location.href = resposta.data.signedUrl;
+    } else {
+      window.location.href = resposta.data.signedUrl;
+    }
+  } catch (erro) {
+    novaAba?.close();
     throw erro;
   }
 }

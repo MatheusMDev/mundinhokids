@@ -96,6 +96,9 @@ export function FormEvento({ item, onFechar }: { item?: Evento; onFechar: () => 
         validar={() => (!titulo.trim() ? 'Informe o nome do evento.'
           : !contratante ? 'Escolha o contratante.'
           : !local ? 'Escolha o local.'
+          : item && situacao === 'realizado' && item.situacao !== 'realizado'
+            && !db.videos_eventos.some((video) => video.evento_id === item.id)
+            ? 'Anexe o vídeo deste evento antes de marcá-lo como realizado.'
           : item ? null : validarHorario(data, horaInicio, horaFim))}
         onSalvar={salvar}
         textoSalvar={item ? 'Salvar' : 'Criar evento'}

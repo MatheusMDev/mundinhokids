@@ -78,7 +78,7 @@ export interface ProfissionalPersonagem {
   personagem_id: string;
 }
 
-export interface DocumentoArtista {
+export interface DocumentoProfissional {
   id: string;
   profissional_id: string;
   tipo: string;
@@ -301,9 +301,10 @@ export interface BaseDados {
   usuarios: Usuario[];
   profissionais: Profissional[];
   disponibilidade_semanal: DisponibilidadeSemanalDia[];
+  videos_eventos: VideoEvento[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];
-  documentos_artistas: DocumentoArtista[];
+  documentos_artistas: DocumentoProfissional[];
   contratantes: Contratante[];
   locais: Local[];
   fantasias: Fantasia[];
@@ -326,4 +327,15 @@ export interface BaseDados {
   /** Observações internas: só a operação recebe linhas */
   profissionais_notas: { profissional_id: string; observacoes: string }[];
   contratantes_notas: { contratante_id: string; observacoes: string }[];
+}
+
+export interface VideoEvento {
+  id: string;
+  evento_id: string;
+  storage_path: string;
+  nome: string;
+  mime_type: string;
+  tamanho_bytes: number;
+  enviado_por: string;
+  enviado_em: string;
 }
