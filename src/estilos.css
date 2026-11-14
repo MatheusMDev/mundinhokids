@@ -471,6 +471,19 @@ h3 { font-size: 15px; font-weight: 800; }
 .pedir-troca .botao { flex-shrink: 0; }
 
 .orientacoes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.observacoes-artista-evento .cartao-topo { align-items: flex-start; }
+.observacoes-artista-evento .cartao-topo p { margin: 4px 0 0; color: var(--texto-suave); font-size: 12px; line-height: 1.45; }
+.observacoes-artista-lista { display: grid; gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; }
+.observacoes-artista-lista li { min-width: 0; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--fundo, #faf9fb); }
+.observacoes-artista-lista li > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.observacoes-artista-lista strong { font-size: 13px; }
+.observacoes-artista-lista time, .observacoes-artista-form small { color: var(--texto-fraco); font-size: 11px; }
+.observacoes-artista-lista p { margin: 6px 0 0; color: var(--texto); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.observacoes-artista-form { display: grid; gap: 7px; margin-top: 12px; }
+.observacoes-artista-form label { font-size: 13px; font-weight: 650; }
+.observacoes-artista-form textarea { width: 100%; min-height: 78px; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--cartao); color: var(--texto); font: inherit; resize: vertical; }
+.observacoes-artista-form textarea:focus { outline: 2px solid var(--marca); outline-offset: 1px; border-color: transparent; }
+.observacoes-artista-form > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 
 .fantasias { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
 .fantasia { border: 1px solid var(--borda); border-radius: 11px; padding: 11px 12px; }

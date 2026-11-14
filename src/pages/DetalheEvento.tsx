@@ -6,6 +6,7 @@ import { FormCancelar, FormEscala, FormEvento, FormRemarcar, FormTirarDaEscala }
 import { Dialogo } from '../components/Formulario';
 import { FormConferencia, ROTULO_CONDICAO } from '../components/FormularioConferencia';
 import { VideoEvento } from '../components/VideoEvento';
+import { ObservacoesArtistaEvento } from '../components/ObservacoesArtistaEvento';
 import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Trocas';
 import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
 import { producaoDoEvento, tipoDoPainel, useEstado } from '../lib/estado';
@@ -255,6 +256,8 @@ export function DetalheEvento() {
               </>
             )}
           </section>
+
+          <ObservacoesArtistaEvento evento={evento} />
 
           <section className="cartao">
             <div className="cartao-topo">
