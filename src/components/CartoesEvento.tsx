@@ -137,6 +137,7 @@ export function CartaoFinanceiro({ evento }: { evento: Evento }) {
   const [janela, setJanela] = useState<{ tipo: 'recebimento'; item?: Recebimento } | { tipo: 'pagamentos' } | null>(null);
   const f = financeiroDoEvento(db, evento.id);
   const recebimentos = db.recebimentos.filter((r) => r.evento_id === evento.id).sort((a, b) => a.recebido_em.localeCompare(b.recebido_em));
+  const multaCancelamento = db.multas_cancelamento.find((multa) => multa.evento_id === evento.id);
   const falta = f.contratado - f.recebido;
   const custoEquipe = f.pagamentos.reduce((s, p) => s + p.valor_combinado, 0);
   const cancelado = evento.situacao === 'cancelado';
@@ -152,6 +153,18 @@ export function CartaoFinanceiro({ evento }: { evento: Evento }) {
           {f.situacao === 'pendente' && f.contratado > 0 && <small>Pendente</small>}
         </div>
       </div>
+
+      {multaCancelamento && <div className="bloco multa-cancelamento-registro">
+        <div className="cartao-topo" style={{ marginBottom: 6 }}>
+          <span className="rotulo">Multa de cancelamento</span>
+          <strong>{moeda(multaCancelamento.valor)}</strong>
+        </div>
+        <p>{multaCancelamento.tipo === 'percentual'
+          ? `${String(multaCancelamento.percentual).replace('.', ',')}% de ${moeda(multaCancelamento.valor_base)}`
+          : 'Valor fixo'}</p>
+        <small>{multaCancelamento.justificativa}</small>
+        <small>Aplicada por {db.usuarios.find((usuario) => usuario.id === multaCancelamento.aplicado_por)?.nome ?? 'Gestão'} em {dataCurta(multaCancelamento.aplicado_em)}. Esta cobrança é separada dos recebimentos registrados.</small>
+      </div>}
 
       <div className="bloco">
         <div className="cartao-topo" style={{ marginBottom: 6 }}>
