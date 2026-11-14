@@ -128,8 +128,22 @@ export async function remarcarEvento(c: Cliente, id: string, inicio: string, fim
   ok(await c.rpc('remarcar_evento', { p_evento_id: id, p_inicio: inicio, p_fim: fim, p_motivo: motivo }));
 }
 
-export async function cancelarEvento(c: Cliente, id: string, motivo: string) {
-  ok(await c.rpc('cancelar_evento', { p_evento_id: id, p_motivo: motivo }));
+export interface DadosMultaCancelamento {
+  tipo: 'percentual' | 'fixa';
+  percentual?: number;
+  valorFixo?: number;
+  justificativa: string;
+}
+
+export async function cancelarEvento(c: Cliente, id: string, motivo: string, multa?: DadosMultaCancelamento) {
+  ok(await c.rpc('cancelar_evento_com_multa', {
+    p_evento_id: id,
+    p_motivo: motivo,
+    p_tipo_multa: multa?.tipo ?? null,
+    p_percentual: multa?.tipo === 'percentual' ? multa.percentual : null,
+    p_valor_fixo: multa?.tipo === 'fixa' ? multa.valorFixo : null,
+    p_justificativa_multa: multa?.justificativa ?? null,
+  }));
 }
 
 export type DadosEscala = Pick<EscalaItem,

@@ -28,6 +28,7 @@ const MIGRACOES = [
   'migrations/20261112000004_renomear_supervisora_para_assistente.sql',
   'migrations/20261112000005_comprovantes_despesas_evento.sql',
   'migrations/20261113000001_contratos_e_videos_eventos.sql',
+  'migrations/20261113000002_multas_cancelamento.sql',
 ];
 
 const pasta = (arquivo) => fileURLToPath(new URL(`../${arquivo}`, import.meta.url));
@@ -227,6 +228,46 @@ await teste('evento pode ser concluído após anexar vídeo', async () => {
       update eventos set situacao = 'realizado' where id = '60000000-0000-0000-0000-000000000001';`);
     const n = await qtd(tx, `select count(*) as n from eventos where id = '60000000-0000-0000-0000-000000000001' and situacao = 'realizado'`);
     if (n !== 1) throw new Error('evento não foi concluído');
+    await tx.rollback();
+  }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+});
+
+await teste('multa percentual é calculada e registrada sem virar recebimento', () =>
+  como(ID.diretora, async (tx) => {
+    await tx.exec(`insert into evento_financeiro (evento_id, valor_contratado) values ('60000000-0000-0000-0000-000000000001', 1000);
+      select cancelar_evento_com_multa('60000000-0000-0000-0000-000000000001', 'Cancelamento do cliente', 'percentual', 15, null, 'Regra prevista em contrato')`);
+    const multa = (await tx.query(`select percentual, valor_base, valor, justificativa from multas_cancelamento where evento_id = '60000000-0000-0000-0000-000000000001'`)).rows[0];
+    const recebimentos = await qtd(tx, `select count(*) as n from recebimentos where evento_id = '60000000-0000-0000-0000-000000000001'`);
+    if (Number(multa?.valor) !== 150 || Number(multa?.percentual) !== 15 || Number(multa?.valor_base) !== 1000 || recebimentos !== 0) {
+      throw new Error(`multa=${JSON.stringify(multa)}; recebimentos=${recebimentos}`);
+    }
+  }));
+
+await teste('multa fixa pode ser registrada sem valor contratado', () =>
+  como(ID.diretora, async (tx) => {
+    await tx.exec(`select cancelar_evento_com_multa('60000000-0000-0000-0000-000000000002', 'Cancelamento do cliente', 'fixa', null, 250, 'Valor acordado para este cancelamento')`);
+    const valor = await qtd(tx, `select count(*) as n from multas_cancelamento where evento_id = '60000000-0000-0000-0000-000000000002' and valor = 250 and percentual is null`);
+    if (valor !== 1) throw new Error('multa fixa não registrada');
+  }));
+
+await teste('Assistente não aplica multa mesmo quando pode cancelar', async () => {
+  await db.transaction(async (tx) => {
+    await tx.exec(`update configuracoes set valor = 'true' where chave = 'assistente_pode_cancelar';
+      set local role authenticated; set local app.uid = '${ID.assistente}';`);
+    await esperaErro(tx.exec(`select cancelar_evento_com_multa('60000000-0000-0000-0000-000000000002', 'Cancelamento', 'fixa', null, 50, 'Teste')`), 'Somente Direção e Gerência');
+    await tx.rollback();
+  }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
+});
+
+await teste('multa fica visível somente para Direção e Gerência', async () => {
+  await db.transaction(async (tx) => {
+    await tx.exec(`set local role authenticated; set local app.uid = '${ID.diretora}';
+      select cancelar_evento_com_multa('60000000-0000-0000-0000-000000000002', 'Cancelamento', 'fixa', null, 50, 'Teste de acesso');
+      set local app.uid = '${ID.assistente}';`);
+    const assistente = await qtd(tx, `select count(*) as n from multas_cancelamento`);
+    await tx.exec(`set local app.uid = '${ID.diretora}'`);
+    const diretora = await qtd(tx, `select count(*) as n from multas_cancelamento`);
+    if (assistente !== 0 || diretora !== 1) throw new Error(`assistente viu ${assistente}; direção viu ${diretora}`);
     await tx.rollback();
   }).catch((e) => { if (!e.message.includes('rollback')) throw e; });
 });

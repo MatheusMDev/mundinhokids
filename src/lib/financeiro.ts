@@ -14,6 +14,11 @@ export function resumoDoFinanceiro(db: BaseDados) {
   const despesasGerais = db.despesas.filter((d) => !d.evento_id).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
   const adicionaisGerais = [...(db.adicionais_produtores ?? [])].sort((a, b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em));
   const pendentesAprovacao = db.despesas.filter((d) => d.aprovacao === 'pendente');
+  const multasCancelamento = (db.multas_cancelamento ?? []).map((multa) => ({
+    ...multa,
+    evento: db.eventos.find((evento) => evento.id === multa.evento_id),
+    responsavel: db.usuarios?.find((usuario) => usuario.id === multa.aplicado_por)?.nome ?? 'Gestão',
+  })).sort((a, b) => b.aplicado_em.localeCompare(a.aplicado_em));
   const totais = eventos.reduce((t, r) => ({
     contratado: t.contratado + r.contratado, recebido: t.recebido + r.recebido,
     aPagar: t.aPagar + r.aPagar, despesas: t.despesas + r.despesas,
@@ -30,5 +35,5 @@ export function resumoDoFinanceiro(db: BaseDados) {
   const pagamentosPendentes = [...equipe.values()].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
   // O indicador deve coincidir com a lista, inclusive obrigações de eventos cancelados.
   totais.aPagar = pagamentosPendentes.reduce((s, p) => s + p.total, 0);
-  return { eventos, despesasGerais, adicionaisGerais, pendentesAprovacao, totais, equipe: pagamentosPendentes };
+  return { eventos, despesasGerais, adicionaisGerais, multasCancelamento, pendentesAprovacao, totais, equipe: pagamentosPendentes };
 }
