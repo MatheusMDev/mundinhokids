@@ -32,7 +32,7 @@ const pessoa = (id, nome, ativo, usuario_id) => ({ id, nome, ativo, usuario_id, 
 const dados = {
   usuarios: [{ id: 'gestao', nome: 'Gestão', perfil: 'gerente', ativo: true, email: 'gestao@example.test' }, { id: 'login-inativo', nome: 'Login inativo', ativo: false, perfil: 'artista' }],
   profissionais: [pessoa('ativo', 'Pessoa elegível', true, 'gestao'), pessoa('sem-login', 'Sem login legítimo', true, null), pessoa('inativo', 'Profissional desativado', false, null), pessoa('excluido', 'Profissional do login excluído', false, null), pessoa('bloqueado', 'Profissional com login inativo', true, 'login-inativo')],
-  disponibilidade_semanal: [],
+  disponibilidade_semanal: [], multas_cancelamento: [],
   profissionais_disponiveis: ['ativo', 'sem-login'],
   eventos: [evento], personagens: [], profissional_personagens: [], fantasias: [], veiculos: [], reservas_veiculo: [],
   contratantes: [{ id: 'c', nome: 'Contratante' }], locais: [{ id: 'l', nome: 'Local', tipo: 'buffet', ativo: true }], documentos_artistas: [], videos_eventos: [],

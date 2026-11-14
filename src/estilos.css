@@ -887,6 +887,15 @@ h3 { font-size: 15px; font-weight: 800; }
 .financeiro-secao-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .financeiro-secao-topo h2 { font-size: 18px; }
 .financeiro-secao-topo p { margin: 3px 0 0; color: var(--texto-suave); font-size: 12px; }
+.financeiro-multas-cancelamento { margin-bottom: 18px; }
+.financeiro-multas-lista { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.financeiro-multas-lista li { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 14px; padding-top: 10px; border-top: 1px solid var(--borda); }
+.financeiro-multas-lista li > div { display: grid; min-width: 0; gap: 3px; }
+.financeiro-multas-lista a { display: inline-flex; align-items: center; gap: 4px; color: var(--marca-escura); font-weight: 700; text-decoration: none; }
+.financeiro-multas-lista small { color: var(--texto-suave); overflow-wrap: anywhere; }
+.financeiro-multas-lista li > strong { flex: 0 0 auto; }
+.multa-cancelamento-registro p { margin: 0 0 4px; color: var(--texto-suave); }
+.multa-cancelamento-registro small { display: block; color: var(--texto-fraco); overflow-wrap: anywhere; }
 .financeiro-lista-acoes { display: flex; align-items: center; gap: 10px; }
 .financeiro-filtros { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 10px; margin-bottom: 16px; }
 .financeiro-filtros.somente-busca { grid-template-columns: minmax(0, 1fr); }
@@ -1545,6 +1554,8 @@ h3 { font-size: 15px; font-weight: 800; }
 }
 
 @media (max-width: 640px) {
+  .financeiro-multas-lista li { gap: 8px; }
+  .financeiro-multas-lista li > strong { max-width: 105px; overflow-wrap: anywhere; text-align: right; }
   .documentos-artista-topo { align-items: stretch; flex-direction: column; }
   .documentos-artista-topo > span { min-height: 32px; }
   .documentos-artista-topo > .botao { width: 100%; min-height: 40px; justify-content: center; }

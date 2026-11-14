@@ -24,6 +24,9 @@ const base = {
     { evento_id: 'e2', profissional_id: 'p1', valor_combinado: 100, situacao: 'pendente' },
     { evento_id: 'e3', profissional_id: 'p2', valor_combinado: 60, situacao: 'pendente' },
   ],
+  multas_cancelamento: [
+    { id: 'm1', evento_id: 'e3', tipo: 'percentual', percentual: 10, valor_base: 600, valor: 60, justificativa: 'Teste', aplicado_por: 'u1', aplicado_em: '2026-11-09' },
+  ],
   despesas: [
     { id: 'd1', evento_id: 'e1', valor: 100, criado_em: '2026-11-01', aprovacao: 'aprovada' },
     { id: 'd2', evento_id: null, valor: 40, criado_em: '2026-11-02', aprovacao: 'pendente' },
@@ -35,6 +38,12 @@ function teste(nome, fn) { fn(); passou++; console.log('ok ' + nome); }
 const r = resumoDoFinanceiro(base);
 teste('totais de contratado, recebido e despesas preservados', () => assert.deepEqual(r.totais, { contratado: 1500, recebido: 900, aPagar: 310, despesas: 150 }));
 teste('situação parcial e paga por evento', () => assert.deepEqual(r.eventos.map(e => e.situacao), ['parcial', 'pago']));
+teste('multa de evento cancelado fica em lista separada e não duplica contratado/recebido', () => {
+  assert.equal(r.multasCancelamento.length, 1);
+  assert.equal(r.multasCancelamento[0].valor, 60);
+  assert.equal(r.totais.contratado, 1500);
+  assert.equal(r.totais.recebido, 900);
+});
 teste('equipe a pagar por evento exclui valores já pagos', () => assert.deepEqual(r.eventos.map(e => e.aPagar), [150, 100]));
 teste('pendências agrupadas por profissional, com eventos e valores', () => assert.deepEqual(r.equipe.map(p => ({ nome: p.nome, total: p.total, eventos: p.eventos.length })), [
   { nome: 'Profissional antigo', total: 250, eventos: 2 }, { nome: 'Profissional ativo', total: 60, eventos: 1 },

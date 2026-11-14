@@ -222,6 +222,25 @@ export function Financeiro() {
          <strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(i.valor)}</strong><small title={i.detalhe} className={valoresOcultos && i.nome === 'Recebido' ? 'valor-financeiro-oculto' : undefined}>{i.detalhe}</small>
       </article>)}
     </section>
+    {dados.multasCancelamento.length > 0 && <section className="cartao financeiro-multas-cancelamento" aria-labelledby="multas-cancelamento-titulo">
+      <div className="financeiro-secao-topo">
+        <div><h2 id="multas-cancelamento-titulo">Multas de cancelamento</h2><p>{dados.multasCancelamento.length} registro(s), separados dos recebimentos confirmados.</p></div>
+      </div>
+      <ul className="financeiro-multas-lista">
+        {dados.multasCancelamento.map((multa) => <li key={multa.id}>
+          <div>
+            <Link to={`/eventos/${multa.evento_id}`}>
+              {multa.evento?.titulo ?? 'Evento cancelado'} <Icone nome="direita" tamanho={14} />
+            </Link>
+            <small>{multa.tipo === 'percentual'
+              ? `${String(multa.percentual).replace('.', ',')}% de ${moeda(multa.valor_base)}`
+              : 'Valor fixo'} · {multa.justificativa}</small>
+            <small>Aplicada por {multa.responsavel} · {dataLonga(multa.aplicado_em, false)}</small>
+          </div>
+          <strong className={valoresOcultos ? 'valor-financeiro-oculto' : undefined}>{moeda(multa.valor)}</strong>
+        </li>)}
+      </ul>
+    </section>}
     <nav className="financeiro-abas" aria-label="Seções do financeiro">
       {SECOES.map((s) => {
         const novos = new URLSearchParams(parametros); novos.set('aba', s.id);

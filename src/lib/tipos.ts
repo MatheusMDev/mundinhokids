@@ -311,6 +311,7 @@ export interface BaseDados {
   disponibilidade_semanal: DisponibilidadeSemanalDia[];
   videos_eventos: VideoEvento[];
   observacoes_artistas_eventos: ObservacaoArtistaEvento[];
+  multas_cancelamento: MultaCancelamento[];
   personagens: Personagem[];
   profissional_personagens: ProfissionalPersonagem[];
   documentos_artistas: DocumentoProfissional[];
@@ -347,4 +348,16 @@ export interface VideoEvento {
   tamanho_bytes: number;
   enviado_por: string;
   enviado_em: string;
+}
+
+export interface MultaCancelamento {
+  id: string;
+  evento_id: string;
+  tipo: 'percentual' | 'fixa';
+  percentual: number | null;
+  valor_base: number;
+  valor: number;
+  justificativa: string;
+  aplicado_por: string;
+  aplicado_em: string;
 }

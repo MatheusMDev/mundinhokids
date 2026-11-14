@@ -9,7 +9,7 @@ import { FormContratante } from './FormulariosCadastro';
 import { useEstado } from '../lib/estado';
 import { disponibilidadeNoEvento } from './DisponibilidadeSemanal';
 import { cancelarEvento, escalar, remarcarEvento, salvarEvento, tirarDaEscala, vazioParaNulo } from '../lib/acoes';
-import { deCampos, diaCurto, hora, paraCampos } from '../lib/formato';
+import { deCampos, diaCurto, hora, moeda, paraCampos } from '../lib/formato';
 import { profissionalDisponivel, ROTULO_FUNCAO } from '../lib/consultas';
 import type { BaseDados, Evento, FuncaoEscala, SituacaoEvento } from '../lib/tipos';
 
@@ -341,16 +341,63 @@ export function FormRemarcar({ evento, onFechar }: { evento: Evento; onFechar: (
 }
 
 export function FormCancelar({ evento, onFechar }: { evento: Evento; onFechar: () => void }) {
-  const { cliente, executar } = useEstado();
+  const { cliente, executar, db, permissoes } = useEstado();
   const [motivo, setMotivo] = useState('');
+  const [tipoMulta, setTipoMulta] = useState<'nenhuma' | 'percentual' | 'fixa'>('nenhuma');
+  const [percentual, setPercentual] = useState('');
+  const [valorFixo, setValorFixo] = useState('');
+  const [justificativaMulta, setJustificativaMulta] = useState('');
+  const valorContratado = db.evento_financeiro.find((item) => item.evento_id === evento.id)?.valor_contratado ?? 0;
+  const percentualNumero = Number(percentual);
+  const multaCalculada = tipoMulta === 'percentual' && percentualNumero > 0
+    ? Math.round(valorContratado * percentualNumero) / 100 : 0;
+  const multa = tipoMulta === 'percentual'
+    ? { tipo: 'percentual' as const, percentual: percentualNumero, justificativa: justificativaMulta.trim() }
+    : tipoMulta === 'fixa'
+      ? { tipo: 'fixa' as const, valorFixo: Number(valorFixo), justificativa: justificativaMulta.trim() }
+      : undefined;
+
+  function validar() {
+    if (!motivo.trim()) return 'Informe o motivo do cancelamento.';
+    if (!permissoes.gestao || tipoMulta === 'nenhuma') return null;
+    if (!justificativaMulta.trim()) return 'Informe a justificativa da multa.';
+    if (tipoMulta === 'percentual') {
+      if (valorContratado <= 0) return 'Defina o valor contratado para calcular a porcentagem.';
+      if (!Number.isFinite(percentualNumero) || percentualNumero <= 0 || percentualNumero > 100) return 'Informe um percentual entre 0 e 100.';
+      if (multaCalculada <= 0) return 'O percentual resulta em menos de R$ 0,01.';
+    }
+    if (tipoMulta === 'fixa' && (!Number.isFinite(Number(valorFixo)) || Number(valorFixo) <= 0)) return 'Informe um valor fixo maior que zero.';
+    return null;
+  }
   return (
     <Dialogo
       titulo={`Cancelar ${evento.titulo}?`} onFechar={onFechar} perigo textoSalvar="Cancelar evento"
-      validar={() => (!motivo.trim() ? 'Informe o motivo do cancelamento.' : null)}
-      onSalvar={() => executar(() => cancelarEvento(cliente, evento.id, motivo.trim()), 'Evento cancelado. Equipe, personagens e veículo foram liberados.')}
+      validar={validar}
+      onSalvar={() => executar(() => cancelarEvento(cliente, evento.id, motivo.trim(), multa), 'Evento cancelado. Equipe, personagens e veículo foram liberados.')}
     >
       <p style={{ margin: 0 }}>O evento sai do calendário, a equipe é avisada e personagens, fantasias e veículo ficam livres. <strong>Um evento cancelado não pode ser reaberto</strong>: se o cliente voltar atrás, crie um evento novo.</p>
       <Campo rotulo="Motivo" obrigatorio>{(id) => <textarea id={id} value={motivo} onChange={(e) => setMotivo(e.target.value)} required rows={3} />}</Campo>
+      {permissoes.gestao && <div className="cancelamento-multa">
+        <Campo rotulo="Multa de cancelamento" dica="Opcional. Aplique somente quando estiver prevista para este cancelamento.">
+          {(id) => <select id={id} value={tipoMulta} onChange={(e) => setTipoMulta(e.target.value as typeof tipoMulta)}>
+            <option value="nenhuma">Não aplicar multa</option>
+            <option value="percentual">Percentual do valor contratado</option>
+            <option value="fixa">Valor fixo</option>
+          </select>}
+        </Campo>
+        {tipoMulta === 'percentual' && <>
+          <Campo rotulo="Percentual (%)" obrigatorio dica={`Valor contratado: ${moeda(valorContratado)}.`}>
+            {(id) => <input id={id} type="number" min="0.01" max="100" step="0.01" inputMode="decimal" value={percentual} onChange={(e) => setPercentual(e.target.value)} required />}
+          </Campo>
+          {multaCalculada > 0 && <p className="cancelamento-multa-previa">Multa a registrar: <strong>{moeda(multaCalculada)}</strong></p>}
+        </>}
+        {tipoMulta === 'fixa' && <Campo rotulo="Valor da multa (R$)" obrigatorio>
+          {(id) => <input id={id} type="number" min="0.01" step="0.01" inputMode="decimal" value={valorFixo} onChange={(e) => setValorFixo(e.target.value)} required />}
+        </Campo>}
+        {tipoMulta !== 'nenhuma' && <Campo rotulo="Justificativa da multa" obrigatorio>
+          {(id) => <textarea id={id} value={justificativaMulta} onChange={(e) => setJustificativaMulta(e.target.value)} required rows={2} />}
+        </Campo>}
+      </div>}
     </Dialogo>
   );
 }
