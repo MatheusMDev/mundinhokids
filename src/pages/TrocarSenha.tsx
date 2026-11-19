@@ -18,7 +18,7 @@ export function TrocarSenha({ cliente, email, recuperacao, onConcluido, onSair }
 
   async function salvar(e: FormEvent) {
     e.preventDefault();
-    if (senha.length < 6) return setErro('A senha precisa ter pelo menos 6 caracteres.');
+    if (senha.length < 8) return setErro('A senha precisa ter pelo menos 8 caracteres.');
     if (senha !== repetir) return setErro('As duas senhas estão diferentes.');
     setSalvando(true);
     setErro(null);
@@ -64,8 +64,8 @@ export function TrocarSenha({ cliente, email, recuperacao, onConcluido, onSair }
             <span>Nova senha</span>
             <span className="senha-wrapper">
               <input
-                id="nova-senha" type={mostrar ? 'text' : 'password'} autoComplete="new-password" required minLength={6} autoFocus
-                value={senha} onChange={(e) => { setSenha(e.target.value); setErro(null); }} placeholder="Pelo menos 6 caracteres"
+                id="nova-senha" type={mostrar ? 'text' : 'password'} autoComplete="new-password" required minLength={8} autoFocus
+                value={senha} onChange={(e) => { setSenha(e.target.value); setErro(null); }} placeholder="Pelo menos 8 caracteres"
               />
               <button type="button" className="senha-toggle" onClick={() => setMostrar((atual) => !atual)} aria-label={mostrar ? 'Ocultar senha' : 'Mostrar senha'}>
                 {mostrar ? 'Ocultar' : 'Mostrar'}
@@ -75,7 +75,7 @@ export function TrocarSenha({ cliente, email, recuperacao, onConcluido, onSair }
           <label className="campo-login" htmlFor="repetir-senha">
             <span>Repita a nova senha</span>
             <input
-              id="repetir-senha" type={mostrar ? 'text' : 'password'} autoComplete="new-password" required minLength={6}
+              id="repetir-senha" type={mostrar ? 'text' : 'password'} autoComplete="new-password" required minLength={8}
               value={repetir} onChange={(e) => { setRepetir(e.target.value); setErro(null); }} placeholder="Digite de novo"
             />
           </label>

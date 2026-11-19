@@ -12,6 +12,7 @@
     "banco:verificar": "node supabase/verificar/verificar.mjs",
     "perfis:verificar": "node supabase/verificar/perfis.mjs",
     "notificacoes:verificar": "node supabase/verificar/notificacoes.mjs",
+    "seguranca:verificar": "node supabase/verificar/seguranca.mjs",
     "pessoas:verificar": "node scripts/verificar-pessoas.mjs",
     "financeiro:verificar": "node scripts/verificar-financeiro.mjs",
     "agenda:verificar": "node scripts/verificar-minha-agenda.mjs",

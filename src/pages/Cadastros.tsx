@@ -21,7 +21,7 @@ import { SeletorFiltro } from '../components/SeletorFiltro';
 import { Paginacao } from '../components/Paginacao';
 import { DocumentosProfissional } from '../components/DocumentosProfissional';
 import { nomeDosPapeis, useEstado } from '../lib/estado';
-import { dataLonga, diaCurto, hora, MESES, mesAno, partes, semAcentos } from '../lib/formato';
+import { dataLonga, diaCurto, hora, linkSeguro, MESES, mesAno, partes, semAcentos } from '../lib/formato';
 import {
   conferenciasPendentes, eventosOrdenados, localDe, ROTULO_SITUACAO,
   profissionalDisponivel,
@@ -850,7 +850,7 @@ export function CadastrosGerais() {
                   <div><Icone nome="telefone" tamanho={15} /><span><small>Contato</small><strong>{local.contato ?? 'Não informado'}</strong></span></div>
                 </div>
                 <div className="local-cartao-acesso"><Icone nome="arquivo" tamanho={15} /><span><small>Orientações de acesso</small><strong>{local.orientacoes_acesso ?? 'Nenhuma orientação cadastrada'}</strong></span></div>
-                {local.link_localizacao && <a href={local.link_localizacao} target="_blank" rel="noreferrer" className="link-marca local-cartao-link" onClick={(evento) => evento.stopPropagation()}>Abrir localização <Icone nome="direita" tamanho={13} /></a>}
+                {linkSeguro(local.link_localizacao) && <a href={linkSeguro(local.link_localizacao)} target="_blank" rel="noreferrer" className="link-marca local-cartao-link" onClick={(evento) => evento.stopPropagation()}>Abrir localização <Icone nome="direita" tamanho={13} /></a>}
               </article>;
             })}
           </div> : <div className="vazio">{db.locais.length ? 'Nenhum local encontrado com esses filtros.' : 'Nenhum local cadastrado ainda.'}</div>}

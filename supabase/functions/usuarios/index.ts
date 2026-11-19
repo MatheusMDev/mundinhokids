@@ -68,7 +68,7 @@ function validarEmail(email: string) {
 }
 
 function validarSenha(senha: string) {
-  if (senha.length < 6) throw new Recusa('A senha precisa ter pelo menos 6 caracteres.');
+  if (senha.length < 8) throw new Recusa('A senha precisa ter pelo menos 8 caracteres.');
 }
 
 function validarPerfil(perfil: Perfil, profissionalId: string | null, quem: Chamador) {

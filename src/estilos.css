@@ -141,18 +141,11 @@ h3 { font-size: 15px; font-weight: 800; }
 .cartao-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .cartao-topo small { color: var(--texto-suave); font-size: 12px; }
 
-.notificacoes-grade { display: grid; grid-template-columns: minmax(0, .85fr) minmax(360px, 1.15fr); gap: 16px; margin-top: 24px; }
 .notificacoes-filtros { display: flex; gap: 6px; margin: 22px 0 4px; overflow-x: auto; }
 .notificacoes-filtros button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px; border: 1px solid var(--borda); border-radius: 999px; background: var(--cartao); color: var(--texto-suave); font-size: 12px; font-weight: 650; white-space: nowrap; }
 .notificacoes-filtros button:hover, .notificacoes-filtros button.ativo { border-color: var(--marca-borda); background: var(--marca-suave); color: var(--marca-escura); }
 .notificacoes-filtros small { min-width: 18px; padding: 2px 5px; border-radius: 999px; background: var(--cinza-suave); font-size: 10px; }
 .notificacoes-filtros button.ativo small { background: #fff; color: var(--marca-escura); }
-.notificacao-configuracao .cartao-topo { align-items: center; }
-.notificacao-configuracao .cartao-topo > div { min-width: 0; }
-.notificacao-configuracao .cartao-topo h2 { margin-bottom: 5px; }
-.notificacao-configuracao .cartao-topo .selo { max-width: 100%; }
-.notificacao-configuracao:not(.recolhida) .conferencias-toggle svg { transform: rotate(90deg); }
-.notificacao-configuracao-corpo { margin-top: 2px; }
 .preferencias-notificacao { display: flex; flex-direction: column; gap: 2px; margin: 0 0 16px; }
 .preferencia-notificacao { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
 .preferencia-notificacao:last-child { border-bottom: 0; }
@@ -160,7 +153,6 @@ h3 { font-size: 15px; font-weight: 800; }
 .preferencia-notificacao small { color: var(--texto-suave); margin-top: 2px; font-size: 12px; }
 .preferencia-notificacao input { width: 18px; height: 18px; accent-color: var(--marca); flex: 0 0 auto; }
 .notificacao-feedback { color: var(--marca-escura); font-size: 13px; margin: 12px 0 0; }
-.notificacoes-grade .cartao:first-child .botao + .botao { margin-left: 8px; }
 .lista-notificacoes { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
 .lista-notificacoes > .cartao-topo { margin-bottom: 2px; }
 .notificacao-grupo { display: flex; flex-direction: column; gap: 8px; }
@@ -228,7 +220,6 @@ h3 { font-size: 15px; font-weight: 800; }
 .conta-link-nome:hover { color: var(--marca-escura); }
 
 @media (max-width: 899px) {
-  .notificacoes-grade { grid-template-columns: 1fr; }
   .notificacoes-cabecalho { align-items: flex-start; }
   .notificacoes-cabecalho > .botao { padding: 0 10px; font-size: 11px; }
   .notificacao-item { align-items: flex-start; }
@@ -652,7 +643,6 @@ h3 { font-size: 15px; font-weight: 800; }
 .documentos-artista-topo, .documentos-artista-topo > span, .documento-artista-acoes { display: flex; align-items: center; gap: 7px; }
 .documentos-artista-topo { min-width: 0; flex-wrap: wrap; justify-content: space-between; margin-bottom: 8px; color: var(--marca-escura); font-size: 12px; }
 .documentos-artista-topo > span { min-width: 0; }
-.documentos-artista-icone { font-size: 18px; line-height: 1; }
 .documentos-artista-lista { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .documentos-artista-lista li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--borda); }
 .documento-artista-info { display: grid; min-width: 0; gap: 2px; }

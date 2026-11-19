@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icone, Logo } from '../components/Icone';
 import { producaoDoEvento, useEstado } from '../lib/estado';
-import { dataLonga, hora, paraCampos } from '../lib/formato';
+import { dataLonga, hora, linkSeguro, paraCampos } from '../lib/formato';
 import {
   descricaoMaquiagem, equipeDoEvento, eventoPorId, localDe, ROTULO_FUNCAO, transporteDoEvento, type MembroEquipe,
 } from '../lib/consultas';
@@ -114,7 +114,7 @@ export function PdfEvento() {
   const acesso = local?.orientacoes_acesso && !evento.orientacoes?.includes(local.orientacoes_acesso) ? local.orientacoes_acesso : null;
   // Formulário de feedback: só produção (escalada no evento) e acima
   const feedback = producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis)
-    ? db.configuracoes.link_formulario_produtor : undefined;
+    ? linkSeguro(db.configuracoes.link_formulario_produtor) : undefined;
   const resumo = resumoParaCompartilhar(db, evento);
   const geradoEm = `${dataLonga(hoje, false).toLowerCase()}, ${hora(hoje)}`;
 
@@ -163,7 +163,7 @@ export function PdfEvento() {
             <h2>Local</h2>
             <p className="folha-destaque">{local?.nome}</p>
             {local?.endereco && <p>{local.endereco}</p>}
-            {local?.link_localizacao && <p><a href={local.link_localizacao}>Abrir no mapa</a><span className="so-impressao"> · {local.link_localizacao}</span></p>}
+            {linkSeguro(local?.link_localizacao) && <p><a href={linkSeguro(local?.link_localizacao)}>Abrir no mapa</a><span className="so-impressao"> · {linkSeguro(local?.link_localizacao)}</span></p>}
             {acesso && <p className="folha-obs">{acesso}</p>}
           </section>
           <section>

@@ -306,7 +306,7 @@ await teste('Ana deixa de ver o evento ao sair da escala', async () => {
 await teste('Ana continua vendo o evento cancelado', async () => {
   await db.transaction(async (tx) => {
     await tx.exec(`set local app.uid = '${ID.diretora}'`);
-    await tx.exec(`select cancelar_evento('60000000-0000-0000-0000-000000000001', 'Cliente desistiu')`);
+    await tx.exec(`update eventos set situacao = 'cancelado', motivo_cancelamento = 'Cliente desistiu' where id = '60000000-0000-0000-0000-000000000001'`);
     await tx.exec(`set local role authenticated; set local app.uid = '${ID.ana}'`);
     const n = await qtd(tx, `select count(*) as n from eventos where situacao = 'cancelado'`);
     if (n !== 1) throw new Error(`esperado 1, veio ${n}`);

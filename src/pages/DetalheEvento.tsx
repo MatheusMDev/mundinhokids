@@ -11,7 +11,7 @@ import { BotaoDesistir, FormPedirTroca, prazoDaTroca } from '../components/Troca
 import { CartaoDespesas, CartaoFinanceiro, CartaoMeuValor, CartaoTransporte } from '../components/CartoesEvento';
 import { producaoDoEvento, tipoDoPainel, useEstado } from '../lib/estado';
 import { adicionarOrientacaoEvento, marcarRealizado } from '../lib/acoes';
-import { dataLonga, diaCurto, hora, iniciais, quando } from '../lib/formato';
+import { dataLonga, diaCurto, hora, iniciais, linkSeguro, quando } from '../lib/formato';
 import {
   avisosDoEvento, conferenciaDoEvento, contratanteDe, descricaoMaquiagem, equipeDoEvento, eventoPorId,
   ehPrimeiroEventoDoArtista, historicoDoEvento, localDe, primeiroNome, ROTULO_FUNCAO, ROTULO_SITUACAO, situacaoFantasiaNoEvento,
@@ -75,7 +75,7 @@ export function DetalheEvento() {
   const fantasias = equipe.flatMap((m) => (m.fantasia ? [m.fantasia] : []));
   // Formulário de feedback: só produção (escalada no evento) e acima
   const linkFeedback = producaoDoEvento(db, evento.id, usuario.profissionalId, permissoes, papeis)
-    ? db.configuracoes.link_formulario_produtor : undefined;
+    ? linkSeguro(db.configuracoes.link_formulario_produtor) : undefined;
   const horario = `${hora(evento.inicio)} às ${hora(evento.fim)}`;
   const cancelado = evento.situacao === 'cancelado';
   const podeEditar = permissoes.operacao && !cancelado;
@@ -116,7 +116,7 @@ export function DetalheEvento() {
             <li><Icone nome="calendario" tamanho={15} /> {dataLonga(evento.inicio, false)} · {horario}</li>
             <li>
               <Icone nome="local" tamanho={15} /> {local?.nome}
-              {local?.link_localizacao && <> · <a className="link-marca" href={local.link_localizacao} target="_blank" rel="noreferrer">Abrir no mapa</a></>}
+              {linkSeguro(local?.link_localizacao) && <> · <a className="link-marca" href={linkSeguro(local?.link_localizacao)} target="_blank" rel="noreferrer">Abrir no mapa</a></>}
             </li>
             {contratante && <li><Icone nome="usuario" tamanho={15} /> {contratante.nome} · {contratante.telefone}</li>}
           </ul>
@@ -136,7 +136,7 @@ export function DetalheEvento() {
           <span className="rotulo">Local</span>
           <strong>{local?.nome ?? 'Local não informado'}</strong>
           {local?.endereco && <small>{local.endereco}</small>}
-          {local?.link_localizacao && <a className="link-marca" href={local.link_localizacao} target="_blank" rel="noreferrer">Abrir no mapa</a>}
+          {linkSeguro(local?.link_localizacao) && <a className="link-marca" href={linkSeguro(local?.link_localizacao)} target="_blank" rel="noreferrer">Abrir no mapa</a>}
         </div>
         {contratante && (
           <div>
