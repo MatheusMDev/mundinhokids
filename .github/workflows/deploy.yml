@@ -1,0 +1,56 @@
+# Publica o sistema na Hostinger a cada push na main.
+#
+# Configuração (uma vez):
+# - Hostinger: conta FTP com acesso só à pasta do sistema (ex.: public_html/sistema).
+# - GitHub → Settings → Secrets and variables → Actions:
+#   FTP_HOST, FTP_USERNAME, FTP_PASSWORD,
+#   VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (de PRODUÇÃO), VITE_VAPID_PUBLIC_KEY (opcional).
+#
+# O banco não é atualizado aqui: migrações e Edge Functions vão para o Supabase
+# antes do merge que depende delas.
+
+name: Deploy Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # botão "Run workflow" na aba Actions
+
+concurrency:
+  group: deploy-hostinger # dois merges seguidos não sobem ao mesmo tempo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testes e build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+
+      - name: Conferir que o build aponta para a produção
+        run: grep -q "ffrzzhgcgidgpupfheld" dist/assets/index-*.js
+
+      - name: Enviar para a Hostinger
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps # se der erro de conexão, troque por ftp
+          local-dir: ./dist/
+          server-dir: ./ # a conta FTP já começa na pasta do sistema
