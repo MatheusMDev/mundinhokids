@@ -48,11 +48,15 @@ export function Icone({ nome, tamanho = 18 }: { nome: NomeIcone; tamanho?: numbe
   );
 }
 
+/** Logo da Mundinho Kids, igual à do site institucional (mundinhokidsrp.com). */
 export function Logo({ tamanho = 36 }: { tamanho?: number }) {
   return (
-    <svg width={tamanho} height={tamanho * 0.8} viewBox="0 0 50 40" aria-label="Mundinho Kids" role="img">
-      <path d="M4 34V7l10.5 13L25 7v27" fill="none" stroke="var(--marca)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M31 7v27M31 21L45 7M35 18l10 16" fill="none" stroke="var(--marca-clara)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <span role="img" aria-label="Mundinho Kids" style={{
+      width: tamanho, height: tamanho, flexShrink: 0, display: 'grid', placeItems: 'center',
+      borderRadius: Math.round(tamanho * 0.28),
+      background: 'linear-gradient(135deg, #ff4fa3, #ff8a3d, #ffd84c)',
+      color: '#fff', fontFamily: '"Baloo 2", cursive', fontWeight: 800,
+      fontSize: Math.round(tamanho * 0.34), lineHeight: 1,
+    }}>MK</span>
   );
 }

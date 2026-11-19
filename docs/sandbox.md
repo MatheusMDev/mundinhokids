@@ -66,26 +66,10 @@ Faça no painel do **sandbox** (confira o nome do projeto no topo antes de cada 
    1 veículo, 6 eventos (2 realizados e 4 nos dias seguintes) com escala, financeiro e
    comissões. As datas são relativas ao dia em que o script roda. Falta o procedimento
    de repor o banco depois de uma demonstração.
-7. **Site de demonstração na Vercel: feito (2026-11-11).** No ar em
-   <https://mundinhokids.vercel.app>, ligado ao sandbox (conferido no código publicado).
-   Site URL e Redirect URL (`https://mundinhokids.vercel.app/**`) já configurados no Auth
-   do sandbox. Os passos abaixo ficam para refazer, se precisar.
-   (Plano Hobby, grátis; é só para a dona ver o
-   sistema, o site definitivo vai para a Hostinger). O repositório já tem o `vercel.json`
-   (manda todas as rotas para o `index.html`, para recarregar `/eventos/...` não dar 404,
-   e pede aos buscadores para não indexar o site).
-   1. Criar a conta em vercel.com entrando com o GitHub.
-   2. *Add New → Project* → importar `MatheusMDev/mundinhokids`, branch `main`.
-      Framework, build (`npm run build`) e pasta (`dist`) já vêm do `vercel.json`.
-   3. Em *Environment Variables*, antes do primeiro deploy:
-      - `VITE_SUPABASE_URL` = `https://lscwfrxcmcyrotawnkew.supabase.co`
-      - `VITE_SUPABASE_ANON_KEY` = chave *anon public* do **sandbox**
-      - `VITE_VAPID_PUBLIC_KEY` = só quando o passo 2 for feito
-      Nunca a `service_role`, e nunca as chaves da produção.
-   4. *Deploy*. Depois, no sandbox, Authentication → URL Configuration: **Site URL** =
-      endereço da Vercel (ex.: `https://mundinhokids.vercel.app`) e o mesmo endereço com
-      `/**` em **Redirect URLs**. Sem isso, convites e troca de senha voltam para o lugar errado.
-   5. Mudou uma variável? Fazer *Redeploy*: as `VITE_` entram no build, não são lidas na hora.
+7. **Site de demonstração na Vercel: desativado (2026-11-19).** Serviu só para a
+   demonstração; o sistema roda na Hostinger (produção). O projeto da Vercel foi excluído e o
+   `vercel.json` saiu do repositório. O Auth do sandbox ainda tem a URL da Vercel em Site URL;
+   se o sandbox voltar a ser usado, trocar pelo endereço que for usado.
 8. Supabase Free pausa o projeto após 1 semana sem uso: abrir o painel do sandbox antes
    de cada demonstração.
 

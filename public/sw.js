@@ -2,8 +2,8 @@ self.addEventListener('push', (evento) => {
   const dados = evento.data?.json() ?? { title: 'Mundinho Kids', body: 'Você tem uma nova notificação.' };
   evento.waitUntil(self.registration.showNotification(dados.title, {
     body: dados.body,
-    icon: '/logo.svg',
-    badge: '/logo.svg',
+    icon: '/logo.png',
+    badge: '/logo.png',
     tag: dados.tag ?? 'mundinho-kids',
     renotify: true,
     silent: false,
