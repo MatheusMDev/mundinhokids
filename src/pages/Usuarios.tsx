@@ -54,7 +54,7 @@ function CampoSenha({ rotulo, valor, onMudar, dica, obrigatorio }: {
     <Campo rotulo={rotulo} dica={dica} obrigatorio={obrigatorio}>
       {(id) => (
         <div style={{ display: 'flex', gap: 8 }}>
-          <input id={id} value={valor} onChange={(e) => onMudar(e.target.value)} autoComplete="new-password" minLength={6} style={{ flex: 1 }} />
+          <input id={id} value={valor} onChange={(e) => onMudar(e.target.value)} autoComplete="new-password" minLength={8} style={{ flex: 1 }} />
           <button type="button" className="botao" onClick={() => onMudar(gerarSenha())}>Gerar</button>
         </div>
       )}
@@ -186,7 +186,7 @@ function FormNovoAcesso({ inicial, onFechar, onCriado }: { inicial: Inicial; onF
         : !nome.trim() ? 'Informe o nome.'
         : equipe && cadastro === 'novo' && !equipeNovo.funcoes.length ? 'Marque o que a pessoa vai ser.'
         : equipe && cadastro === 'existente' && !profissional ? 'Escolha o profissional já cadastrado.'
-        : modo === 'senha' && senha.trim().length < 6 ? 'A senha provisória precisa ter pelo menos 6 caracteres.'
+        : modo === 'senha' && senha.trim().length < 8 ? 'A senha provisória precisa ter pelo menos 8 caracteres.'
         : null)}
       onSalvar={async () => {
         const r = await executar(
@@ -250,7 +250,7 @@ function FormNovoAcesso({ inicial, onFechar, onCriado }: { inicial: Inicial; onF
         )}
       </Campo>
       {modo === 'senha' && (
-        <CampoSenha rotulo="Senha provisória" valor={senha} onMudar={setSenha} obrigatorio dica="Mínimo de 6 caracteres." />
+        <CampoSenha rotulo="Senha provisória" valor={senha} onMudar={setSenha} obrigatorio dica="Mínimo de 8 caracteres." />
       )}
     </Dialogo>
   );
@@ -307,7 +307,7 @@ function FormUsuario({ item, situacao, onFechar, onSalvo, onExcluir }: {
         : !emailValido(email) ? 'Informe um e-mail válido.'
         : equipe && !profissional ? 'Ligue este login ao profissional do cadastro: é assim que ele vê os próprios eventos.'
         : equipe && ligado && profissional === ligadoAtual && !dadosEquipe.funcoes.length ? 'Marque o que a pessoa vai ser.'
-        : novaSenha && novaSenha.trim().length < 6 ? 'A senha provisória precisa ter pelo menos 6 caracteres.'
+        : novaSenha && novaSenha.trim().length < 8 ? 'A senha provisória precisa ter pelo menos 8 caracteres.'
         : escolhidas && marcadas.size === 0 ? 'Marque pelo menos uma permissão.'
         : null)}
       onSalvar={async () => {

@@ -15,7 +15,7 @@ function FormMinhaSenha({ onFechar }: { onFechar: () => void }) {
       titulo="Trocar minha senha"
       textoSalvar="Salvar senha"
       onFechar={onFechar}
-      validar={() => (senha.length < 6 ? 'A senha precisa ter pelo menos 6 caracteres.'
+      validar={() => (senha.length < 8 ? 'A senha precisa ter pelo menos 8 caracteres.'
         : senha !== repetir ? 'As duas senhas estão diferentes.' : null)}
       onSalvar={async () => {
         const r = await executar(() => trocarMinhaSenha(cliente, senha), 'Senha trocada.');
@@ -23,10 +23,10 @@ function FormMinhaSenha({ onFechar }: { onFechar: () => void }) {
       }}
     >
       <Campo rotulo="Nova senha" obrigatorio>
-        {(id) => <input id={id} type="password" autoComplete="new-password" minLength={6} required value={senha} onChange={(e) => setSenha(e.target.value)} />}
+        {(id) => <input id={id} type="password" autoComplete="new-password" minLength={8} required value={senha} onChange={(e) => setSenha(e.target.value)} />}
       </Campo>
       <Campo rotulo="Repita a nova senha" obrigatorio>
-        {(id) => <input id={id} type="password" autoComplete="new-password" minLength={6} required value={repetir} onChange={(e) => setRepetir(e.target.value)} />}
+        {(id) => <input id={id} type="password" autoComplete="new-password" minLength={8} required value={repetir} onChange={(e) => setRepetir(e.target.value)} />}
       </Campo>
     </Dialogo>
   );

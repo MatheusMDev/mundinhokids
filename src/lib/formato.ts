@@ -113,6 +113,21 @@ export function paraCampos(iso: string): { data: string; hora: string } {
 /** Campos de data e hora → ISO com o fuso de São Paulo (-03:00, sem horário de verão desde 2019) */
 export const deCampos = (data: string, horaCampo: string) => `${data}T${horaCampo}:00-03:00`;
 
+/**
+ * Link digitado por alguém (mapa, formulário) só vira link se for http/https.
+ * Bloqueia "javascript:..." e afins, que rodariam código no navegador de quem clica.
+ */
+export function linkSeguro(url: string | null | undefined): string | undefined {
+  const texto = url?.trim();
+  if (!texto) return undefined;
+  try {
+    const { protocol } = new URL(texto);
+    return protocol === 'http:' || protocol === 'https:' ? texto : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** "1.200,50", "R$ 45" ou "45.5" → número; vazio ou inválido → null */
 export function lerValor(texto: string): number | null {
   let s = texto.replace(/[R$\s]/g, '');

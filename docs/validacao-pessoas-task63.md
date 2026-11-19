@@ -47,7 +47,7 @@ Os testes usam Postgres embutido e dados fictícios; não alteram nem comprovam 
 1. Executar **somente** `supabase/migrations/20261106000001_profissionais_disponiveis.sql` no SQL Editor do projeto existente, depois das migrações anteriores. Não usar o arquivo de instalação inicial nem o seed nesse projeto.
 2. Publicar a versão atualizada da Edge Function `usuarios` (`supabase/functions/usuarios/index.ts`).
 3. Publicar/reiniciar o frontend com os novos arquivos. Enquanto a nova RPC estiver ausente, o app carrega com uma regra temporária conservadora: só oferece profissionais ativos cujo login ativo seja comprovado pelos dados visíveis. Profissionais sem login ou com login oculto pela RLS não aparecem em novas seleções nesse modo; a migração libera o tratamento completo. Outros erros da RPC continuam sendo reportados.
-4. Executar `supabase/auditar_profissionais.sql`, que é somente leitura, e revisar os candidatos antigos por ID, login e vínculos. Não presumir exclusão para todo profissional sem login.
+4. Revisar os profissionais antigos por ID, login e vínculos (o script de auditoria `auditar_profissionais.sql` citado antes não foi para o repositório). Não presumir exclusão para todo profissional sem login.
 5. Validar no projeto conectado: excluir/desativar um acesso de teste, retornar às telas, abrir seletores e tentar salvar uma seleção antiga. Conferir nomes nos históricos e concluir a task #64.
 
 Sem acesso administrativo ao Supabase nesta sessão, a aplicação da migração, o deploy da Edge Function e a conferência dos registros reais permanecem pendentes. A task #63 não deve ser marcada como concluída até essa implantação e a validação no projeto conectado.

@@ -2,7 +2,7 @@
 -- Mundinho Kids — banco de TESTE completo, gerado por npm run banco:juntar
 -- Não edite aqui: edite os arquivos de origem e gere de novo.
 -- Rodar uma única vez, num projeto novo, no SQL Editor do Supabase.
--- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, migrations/20261112000001_documentos_artistas.sql, migrations/20261112000002_assistente_valores.sql, migrations/20261112000003_adicionais_produtores.sql, migrations/20261112000004_renomear_supervisora_para_assistente.sql, migrations/20261112000005_comprovantes_despesas_evento.sql, migrations/20261113000001_contratos_e_videos_eventos.sql, migrations/20261113000002_multas_cancelamento.sql, migrations/20261113000003_observacoes_artistas_eventos.sql, seed.sql
+-- Partes: migrations/20261020000001_schema_v1.sql, migrations/20261020000002_ajustes_v1.sql, migrations/20261021000001_trocas_para_mim.sql, migrations/20261104000001_funcoes_do_login.sql, migrations/20261104000002_telas_do_usuario.sql, migrations/20261106000001_profissionais_disponiveis.sql, migrations/20261106000002_excluir_profissional.sql, migrations/20261107000001_notificacoes_desktop.sql, migrations/20261108000001_notificacoes_gestao.sql, migrations/20261109000001_realtime_notificacoes.sql, migrations/20261110000001_minha_conta.sql, migrations/20261110000002_aviso_conferencia_fantasias.sql, migrations/20261110000002_notificacao_remocao_evento.sql, migrations/20261110000003_despesas_so_producao.sql, migrations/20261110000004_abas_mobile.sql, migrations/20261111000001_abas_mobile.sql, migrations/20261111000002_abas_mobile_todos_menus.sql, migrations/20261111000003_limpar_vinculos_ao_remover_da_escala.sql, migrations/20261111000004_disponibilidade_semanal.sql, migrations/20261112000001_documentos_artistas.sql, migrations/20261112000002_assistente_valores.sql, migrations/20261112000003_adicionais_produtores.sql, migrations/20261112000004_renomear_supervisora_para_assistente.sql, migrations/20261112000005_comprovantes_despesas_evento.sql, migrations/20261113000001_contratos_e_videos_eventos.sql, migrations/20261113000002_multas_cancelamento.sql, migrations/20261113000003_observacoes_artistas_eventos.sql, migrations/20261119000001_seguranca_acessos.sql, seed.sql
 -- =====================================================================
 
 -- >>>>> migrations/20261020000001_schema_v1.sql
@@ -3001,6 +3001,44 @@ create policy observacoes_artistas_eventos_criar
 
 -- Sem políticas/grants de UPDATE ou DELETE: cada observação enviada permanece
 -- como histórico, identificada por artista e data.
+
+-- >>>>> migrations/20261119000001_seguranca_acessos.sql
+
+-- =====================================================================
+-- Segurança dos acessos (revisão de 2026-11-19, sistema publicado)
+--
+-- 1. notificar_gestao e gerar_notificacoes_gestao podiam ser chamadas por
+--    qualquer pessoa pela API (até sem login): dava para mandar qualquer texto
+--    como notificação para a Direção. Elas só são usadas por gatilhos (que rodam
+--    como dono) e pela Edge Function enviar-notificacoes (service_role).
+-- 2. Algumas tabelas liam com "using (true)": qualquer login, mesmo sem perfil
+--    no sistema, lia locais, veículos, reservas, fantasias, personagens e
+--    configurações. Agora só quem tem perfil ativo (meu_perfil() não nulo).
+-- 3. cancelar_evento(uuid, text) não é mais usada: o app chama
+--    cancelar_evento_com_multa.
+-- =====================================================================
+
+-- 1. Funções internas fora da API
+revoke all on function public.notificar_gestao(text, uuid, text) from public, anon, authenticated;
+revoke all on function public.gerar_notificacoes_gestao() from public, anon, authenticated;
+grant execute on function public.notificar_gestao(text, uuid, text) to service_role;
+grant execute on function public.gerar_notificacoes_gestao() to service_role;
+
+-- Funções da própria conta já recusam quem não tem login; tirar do anon por garantia
+revoke execute on function public.atualizar_minha_conta(text, text, text) from public, anon;
+revoke execute on function public.atualizar_foto_minha_conta(text) from public, anon;
+
+-- 2. Leitura só para quem tem perfil ativo
+alter policy cfg_ler  on configuracoes            using (meu_perfil() is not null);
+alter policy fan_ler  on fantasias                using (meu_perfil() is not null);
+alter policy loc_ler  on locais                   using (meu_perfil() is not null);
+alter policy pers_ler on personagens              using (meu_perfil() is not null);
+alter policy pp_ler   on profissional_personagens using (meu_perfil() is not null);
+alter policy res_ler  on reservas_veiculo         using (meu_perfil() is not null);
+alter policy vei_ler  on veiculos                 using (meu_perfil() is not null);
+
+-- 3. Função antiga de cancelamento
+drop function if exists public.cancelar_evento(uuid, text);
 
 -- >>>>> seed.sql
 

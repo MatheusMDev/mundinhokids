@@ -7,7 +7,7 @@ import { Layout } from '../components/Layout';
 import { Campo, Marcador } from '../components/Formulario';
 import { useEstado } from '../lib/estado';
 import { salvarConfiguracoes } from '../lib/acoes';
-import { lerValor, moeda } from '../lib/formato';
+import { lerValor, linkSeguro, moeda } from '../lib/formato';
 
 const ANTECEDENCIAS_LEMBRETE = [
   { valor: '60', texto: '1 hora antes' },
@@ -126,8 +126,8 @@ export function Configuracoes() {
               {(id) => <input id={id} type="url" value={respostas} onChange={(e) => setRespostas(e.target.value)} placeholder="https://docs.google.com/..." disabled={desativado} />}
             </Campo>
           )}
-          {podeEditar && atual.link_respostas_formulario && (
-            <a className="link-marca" href={atual.link_respostas_formulario} target="_blank" rel="noreferrer">Abrir as respostas</a>
+          {podeEditar && linkSeguro(atual.link_respostas_formulario) && (
+            <a className="link-marca" href={linkSeguro(atual.link_respostas_formulario)} target="_blank" rel="noreferrer">Abrir as respostas</a>
           )}
         </section>
 
