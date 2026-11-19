@@ -25,24 +25,18 @@ const mesDoEvento = (inicio: string) => { const { ano, mes } = partes(inicio); r
 type ValorPlanilha = string | number;
 
 async function logoComoPng() {
-  const svg = await fetch('/logo.svg').then((resposta) => resposta.text());
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  try {
-    const imagem = new Image();
-    const carregou = new Promise<void>((resolve, reject) => {
-      imagem.onload = () => resolve();
-      imagem.onerror = () => reject(new Error('Não foi possível carregar a logo.'));
-    });
-    imagem.src = url;
-    await carregou;
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    canvas.getContext('2d')?.drawImage(imagem, 0, 0, 128, 128);
-    return canvas.toDataURL('image/png');
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  const imagem = new Image();
+  const carregou = new Promise<void>((resolve, reject) => {
+    imagem.onload = () => resolve();
+    imagem.onerror = () => reject(new Error('Não foi possível carregar a logo.'));
+  });
+  imagem.src = '/logo.png';
+  await carregou;
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  canvas.getContext('2d')?.drawImage(imagem, 0, 0, 128, 128);
+  return canvas.toDataURL('image/png');
 }
 
 async function baixarPlanilha(
