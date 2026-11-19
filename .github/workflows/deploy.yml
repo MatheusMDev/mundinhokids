@@ -51,6 +51,6 @@ jobs:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps # se der erro de conexão, troque por ftp
+          protocol: ftp # se der erro de conexão, troque por ftp
           local-dir: ./dist/
           server-dir: ./ # a conta FTP já começa na pasta do sistema
