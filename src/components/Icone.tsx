@@ -51,12 +51,12 @@ export function Icone({ nome, tamanho = 18 }: { nome: NomeIcone; tamanho?: numbe
 /** Logo da Mundinho Kids, igual à do site institucional (mundinhokidsrp.com). */
 export function Logo({ tamanho = 36 }: { tamanho?: number }) {
   return (
-    <span role="img" aria-label="Mundinho Kids" style={{
-      width: tamanho, height: tamanho, flexShrink: 0, display: 'grid', placeItems: 'center',
-      borderRadius: Math.round(tamanho * 0.28),
-      background: 'linear-gradient(135deg, #ff4fa3, #ff8a3d, #ffd84c)',
-      color: '#fff', fontFamily: '"Baloo 2", cursive', fontWeight: 800,
-      fontSize: Math.round(tamanho * 0.34), lineHeight: 1,
-    }}>MK</span>
+    <img
+      src="/logo.png"
+      alt="Mundinho Kids"
+      width={tamanho}
+      height={tamanho}
+      style={{ width: tamanho, height: tamanho, flexShrink: 0, display: 'block', borderRadius: Math.round(tamanho * 0.28) }}
+    />
   );
 }
