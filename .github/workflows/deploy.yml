@@ -45,12 +45,28 @@ jobs:
       - name: Conferir que o build aponta para a produção
         run: grep -q "ffrzzhgcgidgpupfheld" dist/assets/index-*.js
 
+      # A ação pode perder o data socket quando o estado ainda não existe no primeiro deploy.
+      - name: Preparar estado do deploy FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          state="ftp://${FTP_HOST}/sistema/.ftp-deploy-sync-state.json"
+          if ! curl --silent --show-error --fail --ftp-pasv \
+            --head --user "$FTP_USERNAME:$FTP_PASSWORD" "$state" > /dev/null; then
+            curl --silent --show-error --fail --ftp-pasv \
+              --user "$FTP_USERNAME:$FTP_PASSWORD" -T /dev/null "$state"
+          fi
+
       - name: Enviar para a Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp # se der erro de conexão, troque por ftp
+          protocol: ftp
+          port: 21
+          timeout: 120000
           local-dir: ./dist/
-          server-dir: ./ # a conta FTP já começa na pasta do sistema
+          server-dir: sistema/
