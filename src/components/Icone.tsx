@@ -48,15 +48,15 @@ export function Icone({ nome, tamanho = 18 }: { nome: NomeIcone; tamanho?: numbe
   );
 }
 
-/** Logo da Mundinho Kids, igual à do site institucional (mundinhokidsrp.com). */
+/** Logo oficial da Mundinho Kids (public/logo.png: MK com coração, fundo transparente). */
 export function Logo({ tamanho = 36 }: { tamanho?: number }) {
   return (
-    <img
-      src="/logo.png"
-      alt="Mundinho Kids"
-      width={tamanho}
-      height={tamanho}
-      style={{ width: tamanho, height: tamanho, flexShrink: 0, display: 'block', borderRadius: Math.round(tamanho * 0.28) }}
-    />
+    // Quadrado branco para a logo (rosa) aparecer em qualquer fundo, inclusive o rosa do login
+    <span role="img" aria-label="Mundinho Kids" style={{
+      width: tamanho, height: tamanho, flexShrink: 0, display: 'grid', placeItems: 'center',
+      borderRadius: Math.round(tamanho * 0.24), background: '#fff', overflow: 'hidden',
+    }}>
+      <img src="/logo.png" alt="" width={tamanho} height={tamanho} style={{ display: 'block', width: '100%', height: '100%' }} />
+    </span>
   );
 }
