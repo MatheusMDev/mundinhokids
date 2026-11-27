@@ -1,0 +1,91 @@
+# Backup noturno do banco de PRODUÇÃO (Supabase), criptografado, guardado no GitHub.
+#
+# Fica DESLIGADO até existir a variável BACKUP_ATIVO = true
+# (Settings → Secrets and variables → Actions → aba Variables).
+# Mesmo desligado, dá para rodar à mão: aba Actions → "Backup do banco" → Run workflow.
+#
+# Configuração (uma vez), em Settings → Secrets and variables → Actions → Secrets:
+#   SUPABASE_DB_URL  conexão do banco de produção, modo "Session pooler"
+#                    (Supabase → Connect → Session pooler). Ex.:
+#                    postgresql://postgres.ffrzzhgcgidgpupfheld:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+#                    (a conexão "Direct" não funciona no GitHub: ela é só IPv6)
+#   BACKUP_SENHA     senha longa para criptografar o arquivo. Guarde fora do GitHub também:
+#                    sem ela o backup não abre.
+#
+# O que vai no backup: tabelas do sistema (public), logins (auth) e o cadastro dos arquivos
+# (storage). Os arquivos em si (fotos, documentos, comprovantes) NÃO entram: ficam no Storage.
+#
+# Restaurar (só em caso de necessidade, de preferência primeiro num projeto de teste):
+#   gpg --decrypt mundinho-AAAA-MM-DD.dump.gpg > mundinho.dump
+#   pg_restore --list mundinho.dump            # ver o conteúdo
+#   pg_restore --data-only --schema=public -d "<conexão>" mundinho.dump
+
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # todo dia às 03:00 de Brasília (06:00 UTC)
+  workflow_dispatch:
+
+concurrency:
+  group: backup-banco
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    # Agendado só roda com a variável ligada; à mão roda sempre
+    if: github.event_name == 'workflow_dispatch' || vars.BACKUP_ATIVO == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Conferir configuração
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_SENHA" ]; then
+            echo "::error::Faltam os secrets SUPABASE_DB_URL e/ou BACKUP_SENHA."
+            exit 1
+          fi
+          case "$SUPABASE_DB_URL" in
+            *ffrzzhgcgidgpupfheld*) echo "Banco de produção confirmado." ;;
+            *) echo "::error::SUPABASE_DB_URL não é o banco de produção (ffrzzhgcgidgpupfheld)."; exit 1 ;;
+          esac
+
+      - name: Instalar o cliente do Postgres 17 (mesma versão do Supabase)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Gerar o backup
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          arquivo="mundinho-$(TZ=America/Sao_Paulo date +%F).dump"
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --format=custom --no-owner --no-privileges \
+            --schema=public --schema=auth --schema=storage \
+            --file="$arquivo"
+          /usr/lib/postgresql/17/bin/pg_restore --list "$arquivo" > /dev/null
+          echo "ARQUIVO=$arquivo" >> "$GITHUB_ENV"
+          ls -lh "$arquivo"
+
+      - name: Criptografar
+        env:
+          BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_SENHA" \
+            --symmetric --cipher-algo AES256 --output "$ARQUIVO.gpg" "$ARQUIVO"
+          shred -u "$ARQUIVO"
+          ls -lh "$ARQUIVO.gpg"
+
+      - name: Guardar no GitHub (30 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARQUIVO }}
+          path: ${{ env.ARQUIVO }}.gpg
+          retention-days: 30
+          if-no-files-found: error
